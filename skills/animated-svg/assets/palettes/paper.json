@@ -1,0 +1,20 @@
+{
+  "description": "Example warm light palette: cream paper, brown ink and a burnt orange accent, built on github-light.",
+  "extends": "github-light",
+  "name": "paper",
+  "accent": "#c2410c",
+  "bg": "#fbf7f0",
+  "wash": "#f6ead6",
+  "card": "#f4ede2",
+  "ink": "#2b2118",
+  "text": "rgba(43,33,24,0.8)",
+  "dim": "rgba(43,33,24,0.62)",
+  "border": "rgba(43,33,24,0.14)",
+  "panel": "rgba(43,33,24,0.04)",
+  "panel_stroke": "rgba(43,33,24,0.22)",
+  "grid": "rgba(43,33,24,0.05)",
+  "ok": "#3f7a2a",
+  "warn": "#a35a00",
+  "muted": "#6b5a48",
+  "shine": 0.5
+}
