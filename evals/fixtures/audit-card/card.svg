@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="160" viewBox="0 0 480 160" role="img">
+<style>.lbl{font:600 13px 'Segoe UI',Helvetica,Arial,sans-serif;fill:#9ca3af}.num{font:800 30px 'Segoe UI',Helvetica,Arial,sans-serif;fill:#e5e7eb}</style>
+<rect x="0.5" y="0.5" width="479" height="159" rx="12" fill="#0b1012" stroke="#1f2937"/>
+<image href="https://img.shields.io/badge/build-passing-22c55e" x="352" y="18" width="104" height="20"/>
+<text class="lbl" x="24" y="40">PROJECT STATS</text>
+<g opacity="0">
+  <animate attributeName="opacity" values="0;1" keyTimes="0;1" calcmod="spline" keySplines="0.22 1 0.36 1" dur="0.8s" fill="freeze"/>
+  <text class="num" x="24" y="92">1,204</text>
+  <text class="lbl" x="24" y="116">commits</text>
+  <text class="num" x="184" y="92">87%</text>
+  <text class="lbl" x="184" y="116">test coverage</text>
+</g>
+<path d="M24 136 H456" stroke="#60a5fa" stroke-width="2" fill="none" pathLength="1" vector-effect="non-scaling-stroke" stroke-dasharray="1" stroke-dashoffset="1">
+  <animate attributeName="stroke-dashoffset" values="1;0" dur="1.2s" fill="freeze"/>
+</path>
+</svg>
