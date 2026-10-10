@@ -1,0 +1,11 @@
+{
+  "name": "svg-forge",
+  "version": "0.1.0",
+  "description": "Design animated SVGs that render everywhere: self-contained README cards, banners, loaders, icons and diagrams, plus React and Motion scenes for web apps. Three skills, a designer subagent, a stdlib generator with short, medium, long and ambient timing presets, and a validator.",
+  "author": {
+    "name": "Sagar Gupta",
+    "url": "https://github.com/Sagargupta16"
+  },
+  "license": "MIT",
+  "keywords": ["svg", "animation", "smil", "css-animation", "motion", "readme", "design"]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "svg-forge",
+  "owner": {
+    "name": "Sagar Gupta",
+    "url": "https://github.com/Sagargupta16"
+  },
+  "metadata": {
+    "description": "One plugin for designing animated SVGs: standalone files that survive GitHub's image proxy, and React/Motion scenes for web apps."
+  },
+  "plugins": [
+    {
+      "name": "svg-forge",
+      "source": "./",
+      "description": "3 skills (animated-svg, motion-scene, svg-audit), a designer subagent, a generator with timing presets, and a validator.",
+      "version": "0.1.0",
+      "license": "MIT",
+      "category": "design"
+    }
+  ]
+}

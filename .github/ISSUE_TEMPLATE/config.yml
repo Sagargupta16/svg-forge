@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Install and usage
+    url: https://github.com/Sagargupta16/svg-forge#install
+    about: How to add the plugin, which skill does what, and how to run the generator and validator. Check here before filing an Issue.
+  - name: Contributing guide
+    url: https://github.com/Sagargupta16/svg-forge/blob/main/CONTRIBUTING.md
+    about: Template, reference and skill formats, the validator rules, and the checks a PR must pass.

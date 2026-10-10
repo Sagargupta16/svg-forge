@@ -1,0 +1,10 @@
+line-length = 100
+target-version = "py312"
+extend-exclude = ["preview"]
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[lint.isort]
+# the CLIs are imported by path in tests; pin them so a local preview/ folder cannot reorder imports
+known-first-party = ["check", "forge", "poster", "preview", "validate_svg"]
