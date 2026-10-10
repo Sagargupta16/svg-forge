@@ -1,0 +1,9 @@
+{
+  "title": "Quarter goals",
+  "items": [
+    {"label": "Coverage", "value": 91},
+    {"label": "Issues closed", "value": 42, "max": 60},
+    {"label": "Docs pages", "value": 7, "max": 10, "tone": "ok"},
+    {"label": "Perf budget", "value": 38, "tone": "warn"}
+  ]
+}

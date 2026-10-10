@@ -1,0 +1,7 @@
+# CI pipeline as a text spec: -> joins steps, a comma runs branches in parallel,
+# -[label]-> labels an edge, and an edge back to an earlier step is a return arc.
+push -> build
+build -> unit, lint, e2e
+unit, lint, e2e -> package
+package -[artifact]-> deploy
+deploy -[rollback]-> build

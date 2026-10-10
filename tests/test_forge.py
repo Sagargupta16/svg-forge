@@ -25,6 +25,10 @@ CASES: dict[str, list[str]] = {
     "typing": ["long", "short", "ambient"],
     "divider": ["medium", "short", "ambient"],
     "badge": ["medium", "short"],
+    "timeline": ["long", "short", "medium"],
+    "logos": ["short", "ambient", "medium"],
+    "calendar": ["short", "medium"],
+    "ring": ["short", "medium"],
 }
 PARAMS = [(k, theme, t) for k, ts in CASES.items() for theme in ("dark", "light") for t in ts]
 HOSTILE = ['a<b&c"d', "</text><script>alert(1)</script>"]
@@ -115,6 +119,10 @@ def hostile_data(kind: str, s: str) -> object:
         "typing": {"title": s, "lines": [{"cmd": s, "out": [s]}]},
         "divider": None,
         "badge": {"label": s, "value": s},
+        "timeline": [{"start": s, "end": s, "title": s, "subtitle": s, "current": True}],
+        "logos": [{"label": s}, {"label": s, "color": "#f472b6"}],
+        "calendar": {"title": s, "start": "2026-01-01", "counts": [1, 0, 3]},
+        "ring": [{"label": s, "value": 3, "max": 4}],
     }[kind]
 
 
