@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: motion-scene-cache-cover
+context:
+  scaffold_script: setup.sh
