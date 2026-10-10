@@ -1,0 +1,18 @@
+{
+  "description": "Example brand palette: warm near-black with an orange accent, built on github-dark.",
+  "extends": "github-dark",
+  "name": "ember",
+  "accent": "#ff6a3d",
+  "bg": "#120c0a",
+  "wash": "#24140f",
+  "card": "#1a1210",
+  "ink": "#fff4ee",
+  "text": "rgba(255,244,238,0.76)",
+  "dim": "rgba(255,244,238,0.54)",
+  "border": "rgba(255,244,238,0.1)",
+  "panel": "rgba(255,244,238,0.04)",
+  "panel_stroke": "rgba(255,244,238,0.16)",
+  "grid": "rgba(255,244,238,0.035)",
+  "warn": "#fbbf24",
+  "muted": "#b8a89f"
+}
