@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360" viewBox="0 0 480 360" role="img" aria-labelledby="sfc01fb1-title sfc01fb1-desc" class="sfc01fb1-root">
+<title id="sfc01fb1-title">Quarter goals</title>
+<desc id="sfc01fb1-desc">Progress rings: Coverage 91%; Issues closed 70% (42 / 60); Docs pages 70% (7 / 10); Perf budget 38%</desc>
+<style>.sfc01fb1-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sfc01fb1-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sfc01fb1-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
+<defs><linearGradient id="sfc01fb1-bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#0e1a24"/><stop offset="0.6" stop-color="#0b1012"/></linearGradient></defs>
+<rect x="0.5" y="0.5" width="479" height="359" rx="9.33" fill="url(#sfc01fb1-bg)" stroke="rgba(255,255,255,0.09)"/>
+<text class="sfc01fb1-m" x="14.67" y="21.67" fill="#57dbab" font-size="7">QUARTER GOALS</text>
+<circle cx="127.33" cy="94.77" r="57.13" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="10.61" opacity="0.6"/>
+<text class="sfc01fb1-b" x="127.33" y="104.38" fill="#f3f4f6" font-size="27.47" text-anchor="middle">91%</text>
+<text class="sfc01fb1-m" x="127.33" y="170.87" fill="rgba(255,255,255,0.74)" font-size="7" text-anchor="middle">COVERAGE</text>
+<circle cx="352.67" cy="94.77" r="57.13" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="10.61" opacity="0.6"/>
+<text class="sfc01fb1-b" x="352.67" y="104.38" fill="#f3f4f6" font-size="27.47" text-anchor="middle">70%</text>
+<text class="sfc01fb1-m" x="352.67" y="170.87" fill="rgba(255,255,255,0.74)" font-size="7" text-anchor="middle">ISSUES CLOSED</text>
+<text class="sfc01fb1-m" x="352.67" y="182.07" fill="rgba(255,255,255,0.52)" font-size="7" text-anchor="middle">42 / 60</text>
+<circle cx="127.33" cy="255.93" r="57.13" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="10.61" opacity="0.6"/>
+<text class="sfc01fb1-b" x="127.33" y="265.55" fill="#f3f4f6" font-size="27.47" text-anchor="middle">70%</text>
+<text class="sfc01fb1-m" x="127.33" y="332.03" fill="rgba(255,255,255,0.74)" font-size="7" text-anchor="middle">DOCS PAGES</text>
+<text class="sfc01fb1-m" x="127.33" y="343.23" fill="rgba(255,255,255,0.52)" font-size="7" text-anchor="middle">7 / 10</text>
+<circle cx="352.67" cy="255.93" r="57.13" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="10.61" opacity="0.6"/>
+<text class="sfc01fb1-b" x="352.67" y="265.55" fill="#f3f4f6" font-size="27.47" text-anchor="middle">38%</text>
+<text class="sfc01fb1-m" x="352.67" y="332.03" fill="rgba(255,255,255,0.74)" font-size="7" text-anchor="middle">PERF BUDGET</text>
+<g><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.92;0.9733;1" dur="4.8s" repeatCount="indefinite"/><circle cx="127.33" cy="94.77" r="57.13" fill="none" stroke="#57dbab" stroke-width="10.61" stroke-linecap="round" stroke-dasharray="326.63 358.94" stroke-dashoffset="0" transform="rotate(-90 127.33 94.77)"><animate attributeName="stroke-dashoffset" values="326.63;326.63;0;0;326.63" keyTimes="0;0.04;0.34;0.9733;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="4.8s" repeatCount="indefinite"/></circle><circle cx="352.67" cy="94.77" r="57.13" fill="none" stroke="#57dbab" stroke-width="10.61" stroke-linecap="round" stroke-dasharray="251.26 358.94" stroke-dashoffset="0" transform="rotate(-90 352.67 94.77)"><animate attributeName="stroke-dashoffset" values="251.26;251.26;0;0;251.26" keyTimes="0;0.1;0.4;0.9733;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="4.8s" repeatCount="indefinite"/></circle><circle cx="127.33" cy="255.93" r="57.13" fill="none" stroke="#22c55e" stroke-width="10.61" stroke-linecap="round" stroke-dasharray="251.26 358.94" stroke-dashoffset="0" transform="rotate(-90 127.33 255.93)"><animate attributeName="stroke-dashoffset" values="251.26;251.26;0;0;251.26" keyTimes="0;0.16;0.46;0.9733;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="4.8s" repeatCount="indefinite"/></circle><circle cx="352.67" cy="255.93" r="57.13" fill="none" stroke="#f59e0b" stroke-width="10.61" stroke-linecap="round" stroke-dasharray="136.4 358.94" stroke-dashoffset="0" transform="rotate(-90 352.67 255.93)"><animate attributeName="stroke-dashoffset" values="136.4;136.4;0;0;136.4" keyTimes="0;0.22;0.52;0.9733;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="4.8s" repeatCount="indefinite"/></circle></g>
+</svg>

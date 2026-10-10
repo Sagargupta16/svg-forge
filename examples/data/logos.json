@@ -1,0 +1,13 @@
+{
+  "title": "Trusted by",
+  "items": [
+    {"label": "Northwind", "svg": "examples/data/logos/northwind.svg", "color": "#38bdf8"},
+    {"label": "Bluefin", "svg": "examples/data/logos/bluefin.svg"},
+    {"label": "Quartz", "svg": "examples/data/logos/quartz.svg", "color": "#a78bfa"},
+    {"label": "Corvid", "svg": "examples/data/logos/corvid.svg"},
+    {"label": "Ember", "image": "examples/data/logos/ember.png"},
+    {"label": "Lumen", "svg": "examples/data/logos/lumen.svg", "color": "#f59e0b"},
+    {"label": "Tidepool"},
+    {"label": "Paperplane"}
+  ]
+}
