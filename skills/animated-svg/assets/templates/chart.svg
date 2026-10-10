@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="240" viewBox="0 0 600 240" role="img" aria-labelledby="sfcac981-title sfcac981-desc" class="sfcac981-root">
+<title id="sfcac981-title">Weekly active users</title>
+<desc id="sfcac981-desc">Line chart of 12 points from 120 to 247, peak 251.</desc>
+<style>.sfcac981-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sfcac981-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sfcac981-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
+<defs><linearGradient id="sfcac981-bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#0e1a24"/><stop offset="0.6" stop-color="#0b1012"/></linearGradient><linearGradient id="sfcac981-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#60a5fa" stop-opacity="0.26"/><stop offset="1" stop-color="#60a5fa" stop-opacity="0"/></linearGradient></defs>
+<rect x="0.5" y="0.5" width="599" height="239" rx="14" fill="url(#sfcac981-bg)" stroke="rgba(255,255,255,0.09)"/>
+<text class="sfcac981-m" x="24" y="32" fill="#60a5fa" font-size="10">WEEKLY ACTIVE USERS</text>
+<line x1="24" y1="206" x2="542" y2="206" stroke="rgba(255,255,255,0.09)"/>
+<text class="sfcac981-m" x="550" y="209" fill="rgba(255,255,255,0.52)" font-size="8">120</text>
+<line x1="24" y1="132" x2="542" y2="132" stroke="rgba(255,255,255,0.035)"/>
+<text class="sfcac981-m" x="550" y="135" fill="rgba(255,255,255,0.52)" font-size="8">186</text>
+<line x1="24" y1="58" x2="542" y2="58" stroke="rgba(255,255,255,0.035)"/>
+<text class="sfcac981-m" x="550" y="61" fill="rgba(255,255,255,0.52)" font-size="8">251</text>
+<text class="sfcac981-m" x="24" y="226" fill="rgba(255,255,255,0.52)" font-size="8">W1</text>
+<text class="sfcac981-m" x="542" y="226" fill="rgba(255,255,255,0.52)" font-size="8" text-anchor="end">W12</text>
+<g><path d="M24 206 L71.09 192.44 L118.18 196.96 L165.27 172.11 L212.36 148.38 L259.45 155.16 L306.55 126.92 L353.64 99.8 L400.73 106.58 L447.82 74.95 L494.91 58 L542 62.52 L542 206 L24 206 Z" fill="url(#sfcac981-area)"><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.75;0.9;1" dur="1.5s" fill="freeze"/></path><path d="M24 206 L71.09 192.44 L118.18 196.96 L165.27 172.11 L212.36 148.38 L259.45 155.16 L306.55 126.92 L353.64 99.8 L400.73 106.58 L447.82 74.95 L494.91 58 L542 62.52" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="573.99" stroke-dashoffset="0"><animate attributeName="stroke-dashoffset" values="573.99;573.99;0;0" keyTimes="0;0.0667;0.8;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="1.5s" fill="freeze"/></path><g><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.8;0.9667;1" dur="1.5s" fill="freeze"/><circle cx="494.91" cy="58" r="5" fill="none" stroke="#60a5fa" stroke-width="1.5"/><circle cx="542" cy="62.52" r="3.5" fill="#60a5fa"/><text class="sfcac981-m" x="486.91" y="48" fill="#60a5fa" font-size="9" text-anchor="end">PEAK 251</text></g></g>
+</svg>

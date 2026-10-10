@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="198" viewBox="0 0 600 198" role="img" aria-labelledby="sfc23d15-title sfc23d15-desc" class="sfc23d15-root">
+<title id="sfc23d15-title">Release checklist</title>
+<desc id="sfc23d15-desc">docs 9/10; tests 42/48; changelog 1/1; translations 3/12</desc>
+<style>.sfc23d15-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sfc23d15-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sfc23d15-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
+<defs><linearGradient id="sfc23d15-bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#0e1a24"/><stop offset="0.6" stop-color="#0b1012"/></linearGradient></defs>
+<rect x="0.5" y="0.5" width="599" height="197" rx="14" fill="url(#sfc23d15-bg)" stroke="rgba(255,255,255,0.09)"/>
+<text class="sfc23d15-m" x="24" y="30" fill="#60a5fa" font-size="10">RELEASE CHECKLIST</text>
+<text class="sfc23d15-m" x="24" y="62" fill="rgba(255,255,255,0.52)" font-size="9">DOCS</text>
+<text class="sfc23d15-m" x="576" y="62" fill="rgba(255,255,255,0.74)" font-size="9" text-anchor="end">9/10</text>
+<rect x="24" y="69" width="552" height="6" rx="3" fill="rgba(255,255,255,0.16)" opacity="0.5"/>
+<text class="sfc23d15-m" x="24" y="98" fill="rgba(255,255,255,0.52)" font-size="9">TESTS</text>
+<text class="sfc23d15-m" x="576" y="98" fill="rgba(255,255,255,0.74)" font-size="9" text-anchor="end">42/48</text>
+<rect x="24" y="105" width="552" height="6" rx="3" fill="rgba(255,255,255,0.16)" opacity="0.5"/>
+<text class="sfc23d15-m" x="24" y="134" fill="rgba(255,255,255,0.52)" font-size="9">CHANGELOG</text>
+<text class="sfc23d15-m" x="576" y="134" fill="rgba(255,255,255,0.74)" font-size="9" text-anchor="end">1/1</text>
+<rect x="24" y="141" width="552" height="6" rx="3" fill="rgba(255,255,255,0.16)" opacity="0.5"/>
+<text class="sfc23d15-m" x="24" y="170" fill="rgba(255,255,255,0.52)" font-size="9">TRANSLATIONS</text>
+<text class="sfc23d15-m" x="576" y="170" fill="rgba(255,255,255,0.74)" font-size="9" text-anchor="end">3/12</text>
+<rect x="24" y="177" width="552" height="6" rx="3" fill="rgba(255,255,255,0.16)" opacity="0.5"/>
+<g><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.9625;0.9875;1" dur="12s" repeatCount="indefinite"/><g transform="translate(24 69)"><rect width="496.8" height="6" rx="3" fill="#60a5fa"><animateTransform attributeName="transform" type="scale" values="0 1;0 1;1 1;1 1;0 1" keyTimes="0;0.04;0.34;0.9875;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="12s" repeatCount="indefinite"/></rect></g><g transform="translate(24 105)"><rect width="483" height="6" rx="3" fill="#60a5fa"><animateTransform attributeName="transform" type="scale" values="0 1;0 1;1 1;1 1;0 1" keyTimes="0;0.1;0.4;0.9875;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="12s" repeatCount="indefinite"/></rect></g><g transform="translate(24 141)"><rect width="552" height="6" rx="3" fill="#22c55e"><animateTransform attributeName="transform" type="scale" values="0 1;0 1;1 1;1 1;0 1" keyTimes="0;0.16;0.46;0.9875;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="12s" repeatCount="indefinite"/></rect></g><g transform="translate(24 177)"><rect width="138" height="6" rx="3" fill="#f59e0b"><animateTransform attributeName="transform" type="scale" values="0 1;0 1;1 1;1 1;0 1" keyTimes="0;0.22;0.52;0.9875;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="12s" repeatCount="indefinite"/></rect></g></g>
+</svg>

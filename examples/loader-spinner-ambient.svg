@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" role="img" aria-labelledby="sfe80310-title sfe80310-desc" class="sfe80310-root">
+<title id="sfe80310-title">Loading</title>
+<desc id="sfe80310-desc">Animated spinner loader</desc>
+<style>.sfe80310-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sfe80310-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sfe80310-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
+<circle cx="24" cy="24" r="18" fill="none" stroke="rgba(127,127,127,0.3)" stroke-width="4"/>
+<g><animateTransform attributeName="transform" type="rotate" values="0 24 24;360 24 24" keyTimes="0;1" dur="2.827s" repeatCount="indefinite"/><circle cx="24" cy="24" r="18" fill="none" stroke="#fb7185" stroke-width="4" stroke-linecap="round" stroke-dasharray="20.36 113.1"><animate attributeName="stroke-dasharray" values="20.36 113.1;70.12 113.1;20.36 113.1" keyTimes="0;0.5;1" dur="5.655s" repeatCount="indefinite"/></circle></g>
+</svg>

@@ -1,0 +1,12 @@
+{
+  "title": "Project health",
+  "cols": 3,
+  "items": [
+    {"value": "98%", "label": "test coverage", "tone": "ok"},
+    {"value": "0", "label": "open security alerts", "tone": "ok"},
+    {"value": "1.4s", "label": "p95 build"},
+    {"value": "212", "label": "contributors"},
+    {"value": "37", "label": "releases"},
+    {"value": "4.9k", "label": "stars", "tone": "warn"}
+  ]
+}

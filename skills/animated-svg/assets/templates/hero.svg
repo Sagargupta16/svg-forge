@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="250" viewBox="0 0 840 250" role="img" aria-labelledby="sffcc16e-title sffcc16e-desc" class="sffcc16e-root">
+<title id="sffcc16e-title">svg-forge</title>
+<desc id="sffcc16e-desc">Animated SVG. svg-forge. Self-contained animated SVGs. SMIL and CSS, no script. Renders in READMEs and on the web. Dark and light from one command. Building in public. MIT licensed</desc>
+<style>.sffcc16e-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sffcc16e-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sffcc16e-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
+<defs><pattern id="sffcc16e-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="rgba(255,255,255,0.035)" stroke-width="1"/></pattern><linearGradient id="sffcc16e-scan" x1="0" x2="1"><stop offset="0" stop-color="#60a5fa" stop-opacity="0"/><stop offset="0.5" stop-color="#60a5fa" stop-opacity="0.1"/><stop offset="1" stop-color="#60a5fa" stop-opacity="0"/></linearGradient><clipPath id="sffcc16e-card"><rect x="1" y="1" width="838" height="248" rx="18"/></clipPath><linearGradient id="sffcc16e-bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#0e1a24"/><stop offset="0.6" stop-color="#0b1012"/></linearGradient></defs>
+<rect x="0.5" y="0.5" width="839" height="249" rx="18" fill="url(#sffcc16e-bg)" stroke="rgba(255,255,255,0.09)"/>
+<g clip-path="url(#sffcc16e-card)"><rect width="840" height="250" fill="url(#sffcc16e-grid)"/><rect x="-200" y="0" width="200" height="250" fill="url(#sffcc16e-scan)"><animateTransform attributeName="transform" type="translate" values="0 0;1240 0" keyTimes="0;1" dur="6s" repeatCount="indefinite"/></rect></g>
+<text class="sffcc16e-m" x="44" y="62" fill="#60a5fa" font-size="11">ANIMATED SVG</text>
+<text class="sffcc16e-b" x="40" y="118" fill="#f3f4f6" font-size="57.5" letter-spacing="-1">svg-forge</text>
+<text class="sffcc16e-s" x="44" y="152" fill="rgba(255,255,255,0.74)" font-size="18">Self-contained animated SVGs<animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.04;0.21;0.25;1" dur="12s" repeatCount="indefinite"/></text>
+<text class="sffcc16e-s" x="44" y="152" fill="rgba(255,255,255,0.74)" font-size="18" opacity="0">SMIL and CSS, no script<animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.25;0.29;0.46;0.5;1" dur="12s" repeatCount="indefinite"/></text>
+<text class="sffcc16e-s" x="44" y="152" fill="rgba(255,255,255,0.74)" font-size="18" opacity="0">Renders in READMEs and on the web<animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.5;0.54;0.71;0.75;1" dur="12s" repeatCount="indefinite"/></text>
+<text class="sffcc16e-s" x="44" y="152" fill="rgba(255,255,255,0.74)" font-size="18" opacity="0">Dark and light from one command<animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.75;0.79;0.96;1" dur="12s" repeatCount="indefinite"/></text>
+<rect x="44" y="176" width="175.6" height="28" rx="14" fill="rgba(34,197,94,0.08)" stroke="rgba(34,197,94,0.35)"/>
+<circle cx="62" cy="190" r="4" fill="#22c55e"><animate attributeName="opacity" values="1;0.35;1" keyTimes="0;0.5;1" dur="1.714s" repeatCount="indefinite"/></circle>
+<text class="sffcc16e-m" x="74" y="194" fill="#22c55e" font-size="10" letter-spacing="1">BUILDING IN PUBLIC</text>
+<text class="sffcc16e-m" x="235.6" y="194" fill="rgba(255,255,255,0.52)" font-size="10">MIT LICENSED</text>
+<line x1="672" y1="125" x2="719.32" y2="50.79" stroke="rgba(255,255,255,0.16)" stroke-width="1"/>
+<line x1="672" y1="125" x2="809.91" y2="127.83" stroke="rgba(255,255,255,0.16)" stroke-width="1"/>
+<line x1="672" y1="125" x2="709.91" y2="200.96" stroke="rgba(255,255,255,0.16)" stroke-width="1"/>
+<line x1="672" y1="125" x2="557.52" y2="169.12" stroke="rgba(255,255,255,0.16)" stroke-width="1"/>
+<line x1="672" y1="125" x2="563.33" y2="76.3" stroke="rgba(255,255,255,0.16)" stroke-width="1"/>
+<line x1="719.32" y1="50.79" x2="809.91" y2="127.83" stroke="rgba(255,255,255,0.16)" stroke-width="1"/>
+<line x1="809.91" y1="127.83" x2="709.91" y2="200.96" stroke="rgba(255,255,255,0.16)" stroke-width="1"/>
+<line x1="709.91" y1="200.96" x2="557.52" y2="169.12" stroke="rgba(255,255,255,0.16)" stroke-width="1"/>
+<line x1="557.52" y1="169.12" x2="563.33" y2="76.3" stroke="rgba(255,255,255,0.16)" stroke-width="1"/>
+<line x1="563.33" y1="76.3" x2="719.32" y2="50.79" stroke="rgba(255,255,255,0.16)" stroke-width="1"/>
+<circle r="2.6" fill="#60a5fa" opacity="0"><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.06;0.44;0.5;1" dur="2.4s" repeatCount="indefinite"/><animateMotion path="M672 125 L719.32 50.79" keyPoints="0;0;1;1" keyTimes="0;0;0.5;1" calcMode="linear" dur="2.4s" repeatCount="indefinite"/></circle>
+<circle r="2.6" fill="#60a5fa" opacity="0"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.1;0.16;0.54;0.6;1" dur="2.4s" repeatCount="indefinite"/><animateMotion path="M672 125 L809.91 127.83" keyPoints="0;0;1;1" keyTimes="0;0.1;0.6;1" calcMode="linear" dur="2.4s" repeatCount="indefinite"/></circle>
+<circle r="2.6" fill="#60a5fa" opacity="0"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.2;0.26;0.64;0.7;1" dur="2.4s" repeatCount="indefinite"/><animateMotion path="M672 125 L709.91 200.96" keyPoints="0;0;1;1" keyTimes="0;0.2;0.7;1" calcMode="linear" dur="2.4s" repeatCount="indefinite"/></circle>
+<circle r="2.6" fill="#60a5fa" opacity="0"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.3;0.36;0.74;0.8;1" dur="2.4s" repeatCount="indefinite"/><animateMotion path="M672 125 L557.52 169.12" keyPoints="0;0;1;1" keyTimes="0;0.3;0.8;1" calcMode="linear" dur="2.4s" repeatCount="indefinite"/></circle>
+<circle r="2.6" fill="#60a5fa" opacity="0"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.4;0.46;0.84;0.9;1" dur="2.4s" repeatCount="indefinite"/><animateMotion path="M672 125 L563.33 76.3" keyPoints="0;0;1;1" keyTimes="0;0.4;0.9;1" calcMode="linear" dur="2.4s" repeatCount="indefinite"/></circle>
+<circle cx="672" cy="125" r="22" fill="rgba(33,124,236,0.18)" stroke="rgba(96,165,250,0.85)" stroke-width="1.3"><animate attributeName="r" values="22;23.5;22" keyTimes="0;0.5;1" dur="3s" repeatCount="indefinite"/></circle>
+<text class="sffcc16e-m" x="672" y="128" fill="#60a5fa" font-size="8.5" text-anchor="middle" letter-spacing="0.6">CORE</text>
+<circle cx="719.32" cy="50.79" r="17" fill="#0f171c" stroke="rgba(255,255,255,0.16)" stroke-width="1.3"><animate attributeName="r" values="17;17;18.5;17" keyTimes="0;0.125;0.625;1" dur="3s" repeatCount="indefinite"/></circle>
+<text class="sffcc16e-m" x="719.32" y="53.79" fill="rgba(255,255,255,0.74)" font-size="8.5" text-anchor="middle" letter-spacing="0.6">CLI</text>
+<circle cx="809.91" cy="127.83" r="17" fill="#0f171c" stroke="rgba(255,255,255,0.16)" stroke-width="1.3"><animate attributeName="r" values="17;17;18.5;17" keyTimes="0;0.25;0.75;1" dur="3s" repeatCount="indefinite"/></circle>
+<text class="sffcc16e-m" x="809.91" y="130.83" fill="rgba(255,255,255,0.74)" font-size="8.5" text-anchor="middle" letter-spacing="0.6">API</text>
+<circle cx="709.91" cy="200.96" r="17" fill="#0f171c" stroke="rgba(255,255,255,0.16)" stroke-width="1.3"><animate attributeName="r" values="17;17;18.5;17" keyTimes="0;0.375;0.875;1" dur="3s" repeatCount="indefinite"/></circle>
+<text class="sffcc16e-m" x="709.91" y="203.96" fill="rgba(255,255,255,0.74)" font-size="8.5" text-anchor="middle" letter-spacing="0.6">DOCS</text>
+<circle cx="557.52" cy="169.12" r="17" fill="#0f171c" stroke="rgba(255,255,255,0.16)" stroke-width="1.3"><animate attributeName="r" values="17;18.5;17" keyTimes="0;0.5;1" dur="3s" repeatCount="indefinite"/></circle>
+<text class="sffcc16e-m" x="557.52" y="172.12" fill="rgba(255,255,255,0.74)" font-size="8.5" text-anchor="middle" letter-spacing="0.6">CI</text>
+<circle cx="563.33" cy="76.3" r="17" fill="#0f171c" stroke="rgba(255,255,255,0.16)" stroke-width="1.3"><animate attributeName="r" values="17;17;18.5;17" keyTimes="0;0.125;0.625;1" dur="3s" repeatCount="indefinite"/></circle>
+<text class="sffcc16e-m" x="563.33" y="79.3" fill="rgba(255,255,255,0.74)" font-size="8.5" text-anchor="middle" letter-spacing="0.6">WEB</text>
+</svg>

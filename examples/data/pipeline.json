@@ -1,0 +1,22 @@
+{
+  "title": "Release pipeline",
+  "nodes": [
+    "push",
+    "build",
+    {"id": "unit", "label": "unit tests"},
+    {"id": "e2e", "label": "e2e tests"},
+    "stage",
+    {"id": "prod", "tone": "ok"},
+    {"id": "monitor", "tone": "warn"}
+  ],
+  "edges": [
+    ["push", "build"],
+    ["build", "unit"],
+    ["build", "e2e"],
+    ["unit", "stage"],
+    ["e2e", "stage"],
+    ["stage", "prod"],
+    ["prod", "monitor"],
+    ["monitor", "build", "rollback"]
+  ]
+}

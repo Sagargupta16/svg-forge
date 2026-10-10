@@ -1,0 +1,6 @@
+{
+  "rows": [
+    ["python", "fastapi", "pytest", "ruff", "uv", "pydantic", "sqlalchemy"],
+    ["react", "typescript", "vite", "tailwind", "motion", "vitest", "biome", "playwright"]
+  ]
+}

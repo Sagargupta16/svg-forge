@@ -1,0 +1,9 @@
+{
+  "title": "zsh",
+  "prompt": "~ %",
+  "lines": [
+    {"cmd": "ruff check .", "out": ["All checks passed!"], "tone": "ok"},
+    {"cmd": "python -m pytest -q", "out": ["24 passed"], "tone": "ok"},
+    {"cmd": "git push -u origin feat/badges", "out": ["branch 'feat/badges' set up to track 'origin/feat/badges'."]}
+  ]
+}

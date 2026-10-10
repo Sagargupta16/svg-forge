@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="14" viewBox="0 0 840 14" role="img" aria-labelledby="sf75211b-title sf75211b-desc" class="sf75211b-root">
+<title id="sf75211b-title">Divider</title>
+<desc id="sf75211b-desc">Decorative animated divider</desc>
+<style>.sf75211b-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sf75211b-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sf75211b-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
+<defs><linearGradient id="sf75211b-pulse" x1="0" x2="1"><stop offset="0" stop-color="#60a5fa" stop-opacity="0"/><stop offset="0.5" stop-color="#60a5fa"/><stop offset="1" stop-color="#60a5fa" stop-opacity="0"/></linearGradient></defs>
+<line x1="0" y1="7" x2="840" y2="7" stroke="rgba(127,127,127,0.3)" stroke-width="1"/>
+<circle cx="420" cy="7" r="2.5" fill="#60a5fa"/>
+<rect x="-220" y="6" width="220" height="2" fill="url(#sf75211b-pulse)"><animateTransform attributeName="transform" type="translate" values="0 0;1060 0" keyTimes="0;1" dur="3.6s" repeatCount="indefinite"/></rect>
+</svg>

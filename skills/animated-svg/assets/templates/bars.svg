@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="198" viewBox="0 0 600 198" role="img" aria-labelledby="sff341eb-title sff341eb-desc" class="sff341eb-root">
+<title id="sff341eb-title">Languages</title>
+<desc id="sff341eb-desc">Python 46%; TypeScript 31%; Shell 14%; Other 9%</desc>
+<style>.sff341eb-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sff341eb-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sff341eb-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
+<defs><linearGradient id="sff341eb-bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#0e1a24"/><stop offset="0.6" stop-color="#0b1012"/></linearGradient></defs>
+<rect x="0.5" y="0.5" width="599" height="197" rx="14" fill="url(#sff341eb-bg)" stroke="rgba(255,255,255,0.09)"/>
+<text class="sff341eb-m" x="24" y="30" fill="#60a5fa" font-size="10">LANGUAGES</text>
+<text class="sff341eb-m" x="24" y="62" fill="rgba(255,255,255,0.52)" font-size="9">PYTHON</text>
+<text class="sff341eb-m" x="576" y="62" fill="rgba(255,255,255,0.74)" font-size="9" text-anchor="end">46%</text>
+<rect x="24" y="69" width="552" height="6" rx="3" fill="rgba(255,255,255,0.16)" opacity="0.5"/>
+<text class="sff341eb-m" x="24" y="98" fill="rgba(255,255,255,0.52)" font-size="9">TYPESCRIPT</text>
+<text class="sff341eb-m" x="576" y="98" fill="rgba(255,255,255,0.74)" font-size="9" text-anchor="end">31%</text>
+<rect x="24" y="105" width="552" height="6" rx="3" fill="rgba(255,255,255,0.16)" opacity="0.5"/>
+<text class="sff341eb-m" x="24" y="134" fill="rgba(255,255,255,0.52)" font-size="9">SHELL</text>
+<text class="sff341eb-m" x="576" y="134" fill="rgba(255,255,255,0.74)" font-size="9" text-anchor="end">14%</text>
+<rect x="24" y="141" width="552" height="6" rx="3" fill="rgba(255,255,255,0.16)" opacity="0.5"/>
+<text class="sff341eb-m" x="24" y="170" fill="rgba(255,255,255,0.52)" font-size="9">OTHER</text>
+<text class="sff341eb-m" x="576" y="170" fill="rgba(255,255,255,0.74)" font-size="9" text-anchor="end">9%</text>
+<rect x="24" y="177" width="552" height="6" rx="3" fill="rgba(255,255,255,0.16)" opacity="0.5"/>
+<g><g transform="translate(24 69)"><rect width="253.92" height="6" rx="3" fill="#60a5fa"><animateTransform attributeName="transform" type="scale" values="0 1;0 1;1 1;1 1" keyTimes="0;0.0787;0.7874;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="1.27s" fill="freeze"/></rect></g><g transform="translate(24 105)"><rect width="171.12" height="6" rx="3" fill="#60a5fa"><animateTransform attributeName="transform" type="scale" values="0 1;0 1;1 1;1 1" keyTimes="0;0.1496;0.8583;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="1.27s" fill="freeze"/></rect></g><g transform="translate(24 141)"><rect width="77.28" height="6" rx="3" fill="#60a5fa"><animateTransform attributeName="transform" type="scale" values="0 1;0 1;1 1;1 1" keyTimes="0;0.2205;0.9291;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="1.27s" fill="freeze"/></rect></g><g transform="translate(24 177)"><rect width="49.68" height="6" rx="3" fill="#9ca3af"><animateTransform attributeName="transform" type="scale" values="0 1;0 1;1 1" keyTimes="0;0.2913;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1" dur="1.27s" fill="freeze"/></rect></g></g>
+</svg>

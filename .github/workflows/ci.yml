@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Repo checks (dashes, secrets, home paths, frontmatter, links, manifests, SVGs)
+        run: python scripts/check.py
+
+      - name: Install lint and test tools
+        run: |
+          pip install --only-binary :all: ruff==0.16.6 pytest==9.1.1
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Ruff format
+        run: ruff format --check .
+
+      - name: Plugin manifests are valid JSON
+        run: |
+          python -c "import json; json.load(open('.claude-plugin/plugin.json')); json.load(open('.claude-plugin/marketplace.json'))"
+
+      - name: Lint skills (skillcheck)
+        run: npx -y @sagargupta1610/skillcheck@0.2.5 lint skills
+
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install pytest
+        run: |
+          pip install --only-binary :all: pytest==9.1.1
+
+      - name: Tests
+        run: python -m pytest -q

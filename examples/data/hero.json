@@ -1,0 +1,12 @@
+{
+  "kicker": "Open source",
+  "title": "Northwind Labs",
+  "taglines": [
+    "Developer tools for small teams",
+    "Docs, CLI and API in one repo",
+    "Shipping every Friday"
+  ],
+  "status": "Hiring engineers",
+  "meta": "Remote first",
+  "nodes": ["api", "sdk", "cli", "docs", "ci"]
+}
