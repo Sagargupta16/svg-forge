@@ -38,15 +38,20 @@ import json
 import math
 import re
 import sys
+import textwrap
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import astuple, dataclass, field, replace
 from datetime import date, timedelta
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from xml.parsers import expat
 
+import sizes
+import themes
+
 SVG_NS = "http://www.w3.org/2000/svg"
-DEFAULT_ACCENT = "#60a5fa"
+DEFAULT_ACCENT = themes.DEFAULT_ACCENT
 EASE_OUT = "0.22 1 0.36 1"  # entrances: quick start, soft landing
 EASE_IN_OUT = "0.45 0 0.25 1"  # line draws, bar growth and sliders: even pace
 ELLIPSIS = "…"
@@ -128,51 +133,153 @@ class Theme:
     warn: str
     muted: str
     shine: float  # peak opacity of the white shine sweep
+    mode: str = "dark"  # dark or light: the page the theme is made for
+    transparent: bool = False  # paint no background; the page shows through
 
 
-THEMES: dict[str, Theme] = {
-    "dark": Theme(
-        name="dark",
-        bg="#0b1012",
-        wash="#0e1a24",
-        card="#0f171c",
-        ink="#f3f4f6",
-        text="rgba(255,255,255,0.74)",
-        dim="rgba(255,255,255,0.52)",
-        border="rgba(255,255,255,0.09)",
-        panel="rgba(255,255,255,0.04)",
-        panel_stroke="rgba(255,255,255,0.16)",
-        grid="rgba(255,255,255,0.035)",
-        ok="#22c55e",
-        warn="#f59e0b",
-        muted="#9ca3af",
-        shine=0.16,
-    ),
-    "light": Theme(
-        name="light",
-        bg="#ffffff",
-        wash="#eef4fb",
-        card="#f6f8fa",
-        ink="#0b1012",
-        text="rgba(11,16,18,0.76)",
-        dim="rgba(11,16,18,0.58)",
-        border="rgba(11,16,18,0.13)",
-        panel="rgba(11,16,18,0.035)",
-        panel_stroke="rgba(11,16,18,0.2)",
-        grid="rgba(11,16,18,0.05)",
-        ok="#15803d",
-        warn="#b45309",
-        muted="#4b5563",
-        shine=0.55,
-    ),
-}
 # Mid grey at low alpha reads on both GitHub themes; used by the transparent kinds.
 NEUTRAL = "rgba(127,127,127,0.3)"
+TEXT_MIN = themes.TEXT_MIN  # small text, WCAG 1.4.3
+MARK_MIN = themes.UI_MIN  # strokes, dots, bars and large text, WCAG 1.4.11
+GITHUB_PAGES = (themes.GITHUB_DARK_PAGE, themes.GITHUB_LIGHT_PAGE)
+# Kinds that paint no background of their own: as a single file their marks must read on
+# both GitHub pages. badge paints its own opaque pill instead.
+BARE = frozenset({"loader", "divider"})
 
 
 def is_dark(theme: Theme) -> bool:
     """The one place that decides between dark and light styling."""
-    return theme.name == "dark"
+    return theme.mode == "dark"
+
+
+def composite(color: str, under: str) -> str:
+    """color (hex or rgba) painted over the opaque color under, as #rrggbb."""
+    fg, bg = themes.parse_color(color), themes.parse_color(under)
+    a = fg[3]
+    return themes.format_color((*(fg[i] * a + bg[i] * (1 - a) for i in range(3)), 1.0))
+
+
+def ground(color: str, under: str) -> str:
+    """composite() without rounding: what a renderer (and validate_svg) works out in floats,
+    so a color tuned against it passes there too. Opaque results stay #rrggbb."""
+    fg, bg = themes.parse_color(color), themes.parse_color(under)
+    a = fg[3]
+    rgb = [round(fg[i] * a + bg[i] * (1 - a), 4) for i in range(3)]
+    if all(v.is_integer() for v in rgb):
+        return themes.format_color((*rgb, 1.0))
+    return "rgb(" + ",".join(f"{v:.4f}".rstrip("0").rstrip(".") for v in rgb) + ")"
+
+
+def text_grounds(theme: Theme) -> tuple[str, ...]:
+    """Opaque colors small text sits on in a framed kind: bg, wash, and the card over each.
+
+    A transparent theme paints neither: its bg is the page it is made for.
+    """
+    pages = [theme.bg] if theme.transparent else [theme.bg, theme.wash]
+    out = [*pages, *(ground(theme.card, p) for p in pages)]
+    return tuple(dict.fromkeys(out))
+
+
+def page_grounds(card: str = "rgba(0,0,0,0)") -> tuple[str, ...]:
+    """Both GitHub pages, and card over each."""
+    out = [*GITHUB_PAGES, *(ground(card, p) for p in GITHUB_PAGES)]
+    return tuple(dict.fromkeys(out))
+
+
+def mark_grounds(theme: Theme) -> tuple[str, ...]:
+    """Where marks must reach 3:1: the text grounds, plus both GitHub pages when transparent."""
+    if not theme.transparent:
+        return text_grounds(theme)
+    return tuple(dict.fromkeys([*text_grounds(theme), *page_grounds(theme.card)]))
+
+
+@lru_cache(maxsize=8192)
+def tune(color: str, text: tuple[str, ...] = (), marks: tuple[str, ...] = ()) -> str:
+    """color at the nearest HLS lightness that reaches 4.5:1 on every text ground and 3:1 on
+    every mark ground (unchanged when it already does). When no lightness reaches both, the
+    text grounds win."""
+    needs = [(g, TEXT_MIN) for g in text] + [(g, MARK_MIN) for g in marks]
+    try:
+        return themes.ensure_contrast_all(color, needs)
+    except themes.ThemeError:
+        return themes.ensure_contrast_all(color, [(g, TEXT_MIN) for g in text])
+
+
+def fade(color: str, k: float) -> str:
+    """color with its alpha multiplied by k (an opacity attribute folded into the paint)."""
+    r, g, b, a = themes.parse_color(color)
+    return themes.format_color((r, g, b, a * k))
+
+
+def tinted(grounds: tuple[str, ...], tints: tuple[str, ...]) -> tuple[str, ...]:
+    """Each ground with the tints painted over it in order."""
+    out = []
+    for base in grounds:
+        for tint in tints:
+            base = ground(tint, base)
+        out.append(base)
+    return tuple(dict.fromkeys(out))
+
+
+def theme_map(theme: Theme) -> dict[str, Any]:
+    return {
+        "bg": theme.bg,
+        "card": theme.card,
+        "mode": theme.mode,
+        "transparent": theme.transparent,
+    }
+
+
+@lru_cache(maxsize=4096)
+def accent_ink(hexcolor: str, theme: Theme, marks: tuple[str, ...] | None = None) -> str:
+    """The color as ink: themes.accent_ink (forge's lightness clamp, 3:1 on bg and card), then
+    3:1 on every mark ground (default: mark_grounds(theme))."""
+    ink = themes.accent_ink(hexcolor, theme_map(theme))
+    return tune(ink, marks=mark_grounds(theme) if marks is None else marks)
+
+
+# forge draws these tokens as small text, so they need 4.5:1, not the 3:1 themes guarantees
+TEXT_TOKENS = ("ink", "text", "dim", "muted", "ok", "warn")
+
+
+def theme_from(spec: dict[str, Any]) -> tuple[Theme, list[str]]:
+    """A Theme from a themes.get_theme() dict, with every text token at 4.5:1 where forge
+    draws it; returns the theme and the notes (themes' adjustments plus forge's)."""
+    base = Theme(
+        **{k: spec[k] for k in themes.TOKENS},
+        mode=spec["mode"],
+        transparent=spec["transparent"],
+    )
+    notes = [f"{base.name}: {n}" for n in spec.get("notes", [])]
+    grounds = text_grounds(base)
+    marks = tuple(g for g in mark_grounds(base) if g not in grounds)
+    changed = {}
+    for token in TEXT_TOKENS:
+        old = getattr(base, token)
+        # ink and text cannot read on both pages; labels and status colors keep 3:1 there
+        new = tune(old, grounds, marks if token not in ("ink", "text") else ())
+        if new != old:
+            changed[token] = new
+            notes.append(f"{base.name}: {token} {old} -> {new} as text, to reach 4.5:1")
+    return replace(base, **changed), notes
+
+
+@lru_cache(maxsize=256)
+def load_theme(
+    spec: str, accent: str | None = None, mode: str | None = None
+) -> tuple[Theme, str, tuple[str, ...]]:
+    """(Theme, accent hex, notes) for a theme spec: a preset, dark or light, auto:<hex> or
+    #hex, or a palette .json path. accent replaces the theme's own; mode picks its dark or
+    light variant."""
+    try:
+        spec_dict = themes.get_theme(spec, accent=accent, mode=mode)
+    except themes.ThemeError as exc:
+        raise ForgeError(f"--theme: {exc}") from exc
+    theme, notes = theme_from(spec_dict)
+    return theme, spec_dict["accent"], tuple(notes)
+
+
+THEMES: dict[str, Theme] = {name: load_theme(name)[0] for name in ("dark", "light")}
 
 
 MONO = "'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace"
@@ -189,8 +296,9 @@ HEX = re.compile(r"#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})")
 
 @dataclass(frozen=True)
 class Palette:
-    ink: str  # accent for text and strokes, clamped to a lightness that reads on the theme
+    ink: str  # accent for strokes and marks: 3:1 on everything it is drawn on
     deep: str  # darker shade for fills and rails
+    text: str = ""  # accent as small text: 4.5:1 on bg, wash and card
 
 
 def parse_color(value: object, what: str = "--accent") -> str:
@@ -212,16 +320,12 @@ def _hex(h: float, light: float, sat: float) -> str:
     return "#" + "".join(f"{round(ch * 255):02x}" for ch in rgb)
 
 
-def ink_for(hexcolor: str, theme: Theme) -> str:
-    """The color as ink: at least 60% lightness on dark, at most 42% on light."""
-    h, light, sat = _hls(hexcolor)
-    target = max(light, 0.6) if is_dark(theme) else min(light, 0.42)
-    return hexcolor if target == light else _hex(h, target, sat)
-
-
-def palette(accent: str, theme: Theme) -> Palette:
+def palette(accent: str, theme: Theme, text: tuple[str, ...], marks: tuple[str, ...]) -> Palette:
+    """The accent as marks (3:1 on the mark grounds) and as small text (4.5:1 on the text
+    grounds, keeping 3:1 on the marks), plus a deeper shade for fills."""
     h, light, sat = _hls(accent)
-    return Palette(ink=ink_for(accent, theme), deep=_hex(h, light - 0.15, sat * 0.9))
+    ink = accent_ink(accent, theme, marks)
+    return Palette(ink=ink, deep=_hex(h, light - 0.15, sat * 0.9), text=tune(ink, text, marks))
 
 
 def alpha(hexcolor: str, a: float) -> str:
@@ -506,6 +610,8 @@ class Ctx:
     prefix: str
     sans: str
     reduced: str
+    text_on: tuple[str, ...] = ()  # opaque colors small text sits on (see text_grounds)
+    marks_on: tuple[str, ...] = ()  # opaque colors marks must reach 3:1 on
 
     def id(self, name: str) -> str:
         return f"{self.prefix}{name}"
@@ -542,11 +648,21 @@ class Ctx:
         return clock, [round(start + i * stagger, 3) for i in range(n)], dur
 
     def tone(self, name: object) -> str:
+        """A tone (accent, ok, warn, muted or a hex) as a mark color: 3:1 where it is drawn."""
         if name in (None, "", "accent"):
             return self.pal.ink
         if name in ("ok", "warn", "muted"):
-            return getattr(self.theme, str(name))
-        return ink_for(parse_color(name, "tone"), self.theme)
+            return tune(getattr(self.theme, str(name)), marks=self.marks_on)
+        return accent_ink(parse_color(name, "tone"), self.theme, self.marks_on)
+
+    def legible(self, color: str, *tints: str) -> str:
+        """color as small text over the given tints (painted in order on each text ground):
+        the nearest lightness that reaches 4.5:1 on all of them."""
+        return tune(color, tinted(self.text_on, tints))
+
+    def mark(self, color: str, *tints: str) -> str:
+        """color as a mark over the given tints on each mark ground: 3:1 on all of them."""
+        return tune(color, marks=tinted(self.marks_on, tints))
 
 
 def spec_of(c: Ctx, list_key: str) -> dict[str, Any]:
@@ -582,9 +698,10 @@ def number_of(value: object, what: str) -> float:
 
 
 def frame(c: Ctx, art: Art, *, rx: float = 14, solid: bool = False) -> None:
-    """Card background: theme gradient (or solid bg) with a hairline border."""
-    fill = c.theme.bg
-    if not solid:
+    """Card background: theme gradient (or solid bg) with a hairline border; a transparent
+    theme draws the border only."""
+    fill = "none" if c.theme.transparent else c.theme.bg
+    if not solid and not c.theme.transparent:
         art.defs.append(
             el(
                 "linearGradient",
@@ -615,7 +732,7 @@ def frame(c: Ctx, art: Art, *, rx: float = 14, solid: bool = False) -> None:
 def heading(c: Ctx, art: Art, text: str, x: float = 20, y: float = 28, size: float = 10) -> None:
     label = fit(text.upper(), art.width - 2 * x, size, "mono", MONO_LS)
     art.body.append(
-        el("text", esc(label), class_=c.cls("m"), x=x, y=y, fill=c.pal.ink, font_size=size)
+        el("text", esc(label), class_=c.cls("m"), x=x, y=y, fill=c.pal.text, font_size=size)
     )
 
 
@@ -700,6 +817,9 @@ def kind_tiles(c: Ctx) -> Art:
         color = c.tone(t["tone"])
         value, size = shrink(t["value"], tw - 32, min(26.0, th * 0.34), "bold", 13)
         label = fit(t["label"].upper(), tw - 32, 8.5, "mono", MONO_LS)
+        lit = () if c.one_shot else (alpha(color, 0.06),)  # the spotlight passes over the text
+        value_ink = c.legible(c.theme.ink, c.theme.card, *lit)
+        label_ink = c.legible(c.theme.dim, c.theme.card, *lit)
         inner = [
             el(
                 "rect",
@@ -718,10 +838,10 @@ def kind_tiles(c: Ctx) -> Art:
                 class_=c.cls("b"),
                 x=x + 18,
                 y=y + th * 0.53,
-                fill=c.theme.ink,
+                fill=value_ink,
                 font_size=size,
             ),
-            mono(c, label, x + 18, y + th * 0.8, c.theme.dim, 8.5),
+            mono(c, label, x + 18, y + th * 0.8, label_ink, 8.5),
         ]
         if c.one_shot:
             layer.append(el("g", rise(clock, begins[i], item), *inner))
@@ -738,7 +858,7 @@ def kind_tiles(c: Ctx) -> Art:
                 width=tw - 1,
                 height=th - 1,
                 rx=11.5,
-                fill=alpha(color if color.startswith("#") else c.pal.ink, 0.06),
+                fill=alpha(color, 0.06),
                 stroke=color,
                 stroke_width=1.2,
                 opacity=0,
@@ -833,7 +953,7 @@ def kind_hero(c: Ctx) -> Art:
     parts: list[list[str]] = []
     if kicker:
         parts.append(
-            [mono(c, fit(kicker.upper(), left - x0, 11, "mono", 2), x0, 62 * s, c.pal.ink, 11)]
+            [mono(c, fit(kicker.upper(), left - x0, 11, "mono", 2), x0, 62 * s, c.pal.text, 11)]
         )
     parts.append(
         [
@@ -881,7 +1001,15 @@ def kind_hero(c: Ctx) -> Art:
                 stroke=alpha(p.ok, 0.35),
             ),
             dot,
-            mono(c, status.upper(), x0 + 30, 176 * s + 18, p.ok, 10, letter_spacing=1),
+            mono(
+                c,
+                status.upper(),
+                x0 + 30,
+                176 * s + 18,
+                c.legible(p.ok, alpha(p.ok, 0.08)),
+                10,
+                letter_spacing=1,
+            ),
         ]
         if meta:
             meta_x = x0 + pill_w + 16
@@ -955,18 +1083,19 @@ def constellation(
                 cy=y,
                 r=r,
                 fill=alpha(c.pal.deep, 0.18) if hub else p.card,
-                stroke=alpha(c.pal.ink, 0.85) if hub else p.panel_stroke,
+                stroke=c.pal.ink if hub else p.panel_stroke,
                 stroke_width=1.3,
             )
         )
         text = fit(label.upper(), 2 * r - 6, 8.5, "mono", 0.6)
+        ink = c.legible(c.pal.ink, alpha(c.pal.deep, 0.18)) if hub else c.legible(p.text, p.card)
         out.append(
             mono(
                 c,
                 text,
                 x,
                 y + 3,
-                c.pal.ink if hub else p.text,
+                ink,
                 8.5,
                 text_anchor="middle",
                 letter_spacing=0.6,
@@ -1005,7 +1134,8 @@ def kind_marquee(c: Ctx) -> Art:
     ]
     layer = []
     for r, items in enumerate(rows):
-        color = c.pal.ink if r % 2 == 0 else p.muted
+        color = c.pal.ink if r % 2 == 0 else c.tone("muted")
+        ink = c.legible(color, alpha(color, 0.08))
         chips = []
         for t in items:
             label = fit(t, 216, size, "mono", MONO_LS)
@@ -1035,7 +1165,7 @@ def kind_marquee(c: Ctx) -> Art:
                     fill=alpha(color, 0.08),
                     stroke=alpha(color, 0.35),
                 ),
-                mono(c, label, cx + cw / 2, y + chip_h / 2 + 4, color, size, text_anchor="middle"),
+                mono(c, label, cx + cw / 2, y + chip_h / 2 + 4, ink, size, text_anchor="middle"),
             )
             for cx, label, cw in seq
         ]
@@ -1051,7 +1181,10 @@ def kind_marquee(c: Ctx) -> Art:
         start, end = (0, -span) if r % 2 == 0 else (-span, 0)
         layer.append(el("g", move("translate", [(0, (start, 0)), (1, (end, 0))], clock), *drawn))
     art.body.append(el("g", *layer, clip_path=c.url("win")))
-    art.body.append(el("rect", x=0.5, y=0.5, width=w - 1, height=h - 1, rx=14, fill=c.url("fade")))
+    if not p.transparent:  # edge fade into the card; a transparent theme has no card color
+        art.body.append(
+            el("rect", x=0.5, y=0.5, width=w - 1, height=h - 1, rx=14, fill=c.url("fade"))
+        )
     return art
 
 
@@ -1107,6 +1240,7 @@ def kind_chart(c: Ctx) -> Art:
             y2=1,
         )
     )
+    line_ink = c.mark(c.pal.ink, alpha(c.pal.ink, 0.26))  # the line runs along the area's top
     for frac in (0, 0.5, 1):
         y = y1 - (y1 - y0) * frac
         art.body.append(el("line", x1=x0, y1=y, x2=x1, y2=y, stroke=p.grid if frac else p.border))
@@ -1158,7 +1292,7 @@ def kind_chart(c: Ctx) -> Art:
             ),
             d=line,
             fill="none",
-            stroke=c.pal.ink,
+            stroke=line_ink,
             stroke_width=2,
             stroke_linejoin="round",
             stroke_linecap="round",
@@ -1175,11 +1309,11 @@ def kind_chart(c: Ctx) -> Art:
                 cy=py,
                 r=5,
                 fill="none",
-                stroke=c.pal.ink,
+                stroke=line_ink,
                 stroke_width=1.5,
             ),
-            el("circle", cx=lx, cy=ly, r=3.5, fill=c.pal.ink),
-            mono(c, label, tx, py - 10, c.pal.ink, 9, text_anchor=anchor),
+            el("circle", cx=lx, cy=ly, r=3.5, fill=line_ink),
+            mono(c, label, tx, py - 10, c.pal.text, 9, text_anchor=anchor),
         ),
     ]
     art.body.append(el("g", veil(clock), *built))
@@ -1232,9 +1366,10 @@ def kind_bars(c: Ctx) -> Art:
         begins = [(0.04 + i * step) * clock.dur for i in range(n)]
         item = 0.3 * clock.dur
     fills = []
+    track = fade(p.panel_stroke, 0.5)
     for i, t in enumerate(items):
         y = top_y + i * row + 12
-        color = c.tone(t["tone"])
+        color = c.mark(c.tone(t["tone"]), track)
         art.body.append(
             mono(c, fit(t["label"].upper(), tw * 0.7, 9, "mono", MONO_LS), pad, y, p.dim, 9)
         )
@@ -1563,7 +1698,6 @@ def kind_flow(c: Ctx) -> Art:
                     stroke_linecap="round",
                     stroke_dasharray=num(length),
                     stroke_dashoffset=0,
-                    opacity=0.9,
                 )
             )
             packets.append(
@@ -1586,6 +1720,7 @@ def kind_flow(c: Ctx) -> Art:
         x, y = node.x - nw / 2, node.y - nh / 2
         color = c.tone(node.tone)
         strong = node.tone not in (None, "", "muted")
+        fill = alpha(color, 0.12) if strong else p.card
         rect = el(
             "rect",
             x=x,
@@ -1593,14 +1728,14 @@ def kind_flow(c: Ctx) -> Art:
             width=nw,
             height=nh,
             rx=6,
-            fill=alpha(color, 0.12) if strong else p.card,
+            fill=fill,
             stroke=alpha(color, 0.8) if strong else p.panel_stroke,
             stroke_width=1.2,
         )
         label = fit(node.label.upper(), nw - 16, 9, "mono", MONO_LS)
-        text = mono(
-            c, label, node.x, node.y + 3.5, color if strong else p.text, 9, text_anchor="middle"
-        )
+        lit = () if one else (alpha(color, 0.16),)  # the node lights up under its label
+        ink = c.legible(color if strong else p.text, fill, *lit)
+        text = mono(c, label, node.x, node.y + 3.5, ink, 9, text_anchor="middle")
         if one:
             r0 = begins[node.rank]
             node_base.append(el("g", rise(clock, r0, item, dy=6), rect, text))
@@ -1721,6 +1856,7 @@ def kind_loader(c: Ctx) -> Art:
     w = c.width or 240
     h = c.height or 8
     seg = w * 0.32
+    ink = c.mark(ink, NEUTRAL)  # the segment runs over the grey track
     clock = Clock(round(turn * 1.4, 3), c.loop)
     art = Art(w, h, c.title or "Loading", "Animated indeterminate progress bar")
     art.defs.append(el("clipPath", el("rect", width=w, height=h, rx=h / 2), id=c.id("track")))
@@ -1788,7 +1924,16 @@ def kind_typing(c: Ctx) -> Art:
         el("clipPath", el("rect", x=0.5, y=0.5, width=w - 1, height=h - 1, rx=12), id=c.id("win"))
     )
     art.body += [
-        el("rect", x=0.5, y=0.5, width=w - 1, height=h - 1, rx=12, fill=p.bg, stroke=p.border),
+        el(
+            "rect",
+            x=0.5,
+            y=0.5,
+            width=w - 1,
+            height=h - 1,
+            rx=12,
+            fill="none" if p.transparent else p.bg,
+            stroke=p.border,
+        ),
         el(
             "g",
             el("rect", width=w, height=34, fill=p.card),
@@ -1852,7 +1997,7 @@ def kind_typing(c: Ctx) -> Art:
                 class_=tcls,
                 x=pad,
                 y=y,
-                fill=p.ok,
+                fill=c.legible(p.ok),
             )
         )
         widths: list[tuple[float, object]] = [(0, 0), (f(start), 0)]
@@ -1880,7 +2025,7 @@ def kind_typing(c: Ctx) -> Art:
         shown.append(
             el("text", esc(cmd), class_=tcls, x=cmd_x, y=y, fill=p.ink, clip_path=c.url(f"c{i}"))
         )
-        color = c.tone(tone) if tone else p.text
+        color = c.legible(c.tone(tone) if tone else p.text)
         for j, (out, ot) in enumerate(zip(outs, out_times, strict=True)):
             shown.append(
                 el(
@@ -1912,7 +2057,6 @@ def kind_typing(c: Ctx) -> Art:
                 width=cw * 0.9,
                 height=15,
                 fill=c.pal.ink,
-                opacity=0.85,
             ),
             class_=blink,
         )
@@ -2040,9 +2184,18 @@ def kind_badge(c: Ctx) -> Art:
         clock = c.cycle(4.5 if c.preset.name == "medium" else 10.0, distance=w + 80)
         sweep = (0.0, min(0.35, 1.6 / clock.dur))
     ty = h / 2 + 4
+    if p.transparent:  # the page shows through: text is tuned to the theme's own page
+        label_fill, value_fill = p.card, alpha(color, 0.14)
+        label_ink, value_ink = c.legible(p.dim, label_fill), c.legible(color, value_fill)
+        dot_ink = color
+    else:  # an opaque pill carries its own contrast onto any page, dark or light
+        label_fill = composite(p.card, p.bg)
+        value_fill = composite(alpha(color, 0.14), p.bg)
+        label_ink, value_ink = tune(p.dim, (label_fill,)), tune(color, (value_fill,))
+        dot_ink = tune(color, marks=(value_fill,))
     inner = [
-        el("rect", width=lw, height=h, fill=p.card),
-        el("rect", x=lw, width=vw, height=h, fill=alpha(color, 0.14)),
+        el("rect", width=lw, height=h, fill=label_fill),
+        el("rect", x=lw, width=vw, height=h, fill=value_fill),
         el(
             "rect",
             move(
@@ -2080,7 +2233,7 @@ def kind_badge(c: Ctx) -> Art:
                 fit(label.upper(), lw - 2 * padx + 2, size, "mono", MONO_LS),
                 padx,
                 ty,
-                p.dim,
+                label_ink,
                 size,
             )
         )
@@ -2090,13 +2243,13 @@ def kind_badge(c: Ctx) -> Art:
             fit(value.upper(), vw - (vx - lw) - padx + 2, size, "mono", MONO_LS),
             vx,
             ty,
-            color,
+            value_ink,
             size,
         )
     )
     if dot:
         pulse = "" if one else animate("opacity", [(0, 1), (0.5, 0.35), (1, 1)], clock.sub(1.8))
-        parts.append(el("circle", pulse, cx=lw + padx + 3, cy=h / 2, r=3.2, fill=color))
+        parts.append(el("circle", pulse, cx=lw + padx + 3, cy=h / 2, r=3.2, fill=dot_ink))
     if one:
         enter = animate(
             "opacity",
@@ -2187,7 +2340,7 @@ def timeline_rail(
             day = snug(it["when"].upper(), date_w, df, "mono", MONO_LS)
             if day:
                 out.append(
-                    mono(c, day, rx - 18 * s, y + df * 0.35, c.pal.ink, df, text_anchor="end")
+                    mono(c, day, rx - 18 * s, y + df * 0.35, c.pal.text, df, text_anchor="end")
                 )
             name = snug(it["title"], room, tf)
             if name:
@@ -2213,7 +2366,7 @@ def timeline_rail(
         out = []
         day = snug(it["when"].upper(), room, df, "mono", MONO_LS)
         if day:
-            out.append(mono(c, day, x, base + lines[0], c.pal.ink, df, text_anchor="middle"))
+            out.append(mono(c, day, x, base + lines[0], c.pal.text, df, text_anchor="middle"))
         name = snug(it["title"], room, tf)
         if name:
             out.append(sans(c, name, x, base + lines[1], p.ink, tf, text_anchor="middle"))
@@ -2287,7 +2440,25 @@ def kind_timeline(c: Ctx) -> Art:
     ink = c.pal.ink
     r, stroke = scaled(6, s, 3), scaled(2, s, 1.2)
     length = num(lay.length)
-    art.body.append(el("path", d=lay.path, fill="none", stroke=p.panel_stroke, stroke_width=stroke))
+    # the rail stops short of each node, so hollow nodes need no fill to hide it
+    holes = [el("circle", cx=x, cy=y, r=r, fill="#000") for x, y, _ in lay.nodes]
+    art.defs.append(
+        el(
+            "mask",
+            el("rect", width=w, height=h, fill="#fff"),
+            *holes,
+            id=c.id("rail"),
+            maskUnits="userSpaceOnUse",
+            x=0,
+            y=0,
+            width=w,
+            height=h,
+        )
+    )
+    rail = c.url("rail")
+    art.body.append(
+        el("path", d=lay.path, fill="none", stroke=p.panel_stroke, stroke_width=stroke, mask=rail)
+    )
     layer = [
         el(
             "path",
@@ -2302,6 +2473,7 @@ def kind_timeline(c: Ctx) -> Art:
             stroke_width=stroke,
             stroke_dasharray=length,
             stroke_dashoffset=0,
+            mask=rail,
         )
     ]
     for it, (x, y, pos), texts in zip(items, lay.nodes, lay.labels, strict=True):
@@ -2330,7 +2502,7 @@ def kind_timeline(c: Ctx) -> Art:
             ]
         else:
             dots = [
-                el("circle", cx=x, cy=y, r=r, fill=p.bg, stroke=ink, stroke_width=stroke),
+                el("circle", cx=x, cy=y, r=r, fill="none", stroke=ink, stroke_width=stroke),
                 el("circle", cx=x, cy=y, r=r * 0.4, fill=ink),
             ]
         layer.append(el("g", animate("opacity", [(0, 0), (a, 0), (b, 1)], clock, ease=True), *dots))
@@ -2602,7 +2774,8 @@ def logo_pill(
         )
         gx += icon + gap
     if text:
-        out.append(mono(c, text, gx, y + ph / 2 + size * 0.36, color or p.text, size))
+        ink = c.legible(color, alpha(color, 0.08)) if color else c.legible(p.text, p.card)
+        out.append(mono(c, text, gx, y + ph / 2 + size * 0.36, ink, size))
     return out
 
 
@@ -2720,9 +2893,10 @@ def kind_logos(c: Ctx) -> Art:
     ]
     strip = el("g", move("translate", [(0, (0, 0)), (1, (-span, 0))], clock), *drawn)
     art.body.append(el("g", strip, clip_path=c.url("win")))
-    art.body.append(
-        el("rect", x=0.5, y=top - 6 * s, width=w - 1, height=ph + 12 * s, fill=c.url("fade"))
-    )
+    if not p.transparent:  # edge fade into the card; a transparent theme has no card color
+        art.body.append(
+            el("rect", x=0.5, y=top - 6 * s, width=w - 1, height=ph + 12 * s, fill=c.url("fade"))
+        )
     return art
 
 
@@ -2795,8 +2969,12 @@ def kind_calendar(c: Ctx) -> Art:
     active = sorted(v for v in counts if v > 0)
     cuts = [active[len(active) * q // 4] for q in (1, 2, 3)] if active else [0.0, 0.0, 0.0]
     p = c.theme
-    peak = p.ok if variant == "green" else c.pal.ink
-    ramp = [mix(p.bg, p.ink, 0.08), *(mix(p.bg, peak, t) for t in (0.3, 0.52, 0.76, 1.0))]
+    peak = c.tone("ok") if variant == "green" else c.pal.ink
+    # every active level reaches 3:1 on the card (WCAG 1.4.11), the first at the nearest
+    # lightness that does; empty days are a faint 8% tint, which reads as texture
+    low = tune(mix(p.bg, peak, 0.3), marks=c.marks_on)
+    levels = [low, *(tune(mix(low, peak, t), marks=c.marks_on) for t in (1 / 3, 2 / 3)), peak]
+    ramp: list[tuple[str, float | None]] = [(p.ink, 0.08), *((v, None) for v in levels)]
     total, best = sum(counts), max(counts)
     best_day = first + timedelta(days=counts.index(best))
     title = c.title or (text_of(spec["title"], "calendar title") if spec.get("title") else "")
@@ -2838,7 +3016,7 @@ def kind_calendar(c: Ctx) -> Art:
         MONO_LS,
     )
     if head:
-        art.body.append(mono(c, head, left, hy, c.pal.ink, hf))
+        art.body.append(mono(c, head, left, hy, c.pal.text, hf))
     span = f"{MONTHS[first.month - 1]} {first.year} - {MONTHS[last.month - 1]} {last.year}"
     room = right - left - text_width(head, hf, "mono", MONO_LS) - 16 * s
     span = snug(span.upper(), room, mf, "mono", MONO_LS)
@@ -2878,7 +3056,8 @@ def kind_calendar(c: Ctx) -> Art:
                 width=cell,
                 height=cell,
                 rx=cell * 0.2,
-                fill=ramp[level],
+                fill=ramp[level][0],
+                fill_opacity=ramp[level][1],
             )
         )
     bands = [b for b in bands if b]
@@ -2896,7 +3075,7 @@ def kind_calendar(c: Ctx) -> Art:
     legend_x = more_x - (5 * step - gap)
     less_x = legend_x - 6 * s
     art.body.append(mono(c, "LESS", less_x, base, p.dim, mf, text_anchor="end"))
-    for i, color in enumerate(ramp):
+    for i, (color, opacity) in enumerate(ramp):
         art.body.append(
             el(
                 "rect",
@@ -2906,6 +3085,7 @@ def kind_calendar(c: Ctx) -> Art:
                 height=cell,
                 rx=cell * 0.2,
                 fill=color,
+                fill_opacity=opacity,
             )
         )
     art.body.append(mono(c, "MORE", right, base, p.dim, mf, text_anchor="end"))
@@ -3080,23 +3260,33 @@ class KindSpec:
     render: Callable[[Ctx], Art]
     timing: str
     about: str
+    # None: --size lays the kind out at the canvas (native). A pair (scaled): the kind is
+    # drawn at its own layout size, which may grow up to this many times its default width
+    # and height toward the canvas shape, then scaled into the canvas by the root viewBox.
+    stretch: tuple[float, float] | None = None
+
+    @property
+    def sizing(self) -> str:
+        return "native" if self.stretch is None else "scaled"
 
 
 KINDS: dict[str, KindSpec] = {
-    "tiles": KindSpec(kind_tiles, "short", "stat tiles grid"),
+    "tiles": KindSpec(kind_tiles, "short", "stat tiles grid", (3, 2)),
     "hero": KindSpec(
-        kind_hero, "long", "title, rotating taglines, status pill, node constellation"
+        kind_hero, "long", "title, rotating taglines, status pill, node constellation", (2, 2.5)
     ),
-    "marquee": KindSpec(kind_marquee, "ambient", "seamless strip of text chips at constant px/s"),
-    "chart": KindSpec(kind_chart, "short", "line chart that draws in, peak marker"),
-    "bars": KindSpec(kind_bars, "short", "progress bars that grow"),
+    "marquee": KindSpec(
+        kind_marquee, "ambient", "seamless strip of text chips at constant px/s", (3, 1)
+    ),
+    "chart": KindSpec(kind_chart, "short", "line chart that draws in, peak marker", (3, 3)),
+    "bars": KindSpec(kind_bars, "short", "progress bars that grow", (3, 1)),
     "flow": KindSpec(
-        kind_flow, "medium", "nodes and edges with packets; JSON or text like 'a -> b, c'"
+        kind_flow, "medium", "nodes and edges with packets; JSON or text like 'a -> b, c'", (3, 3)
     ),
-    "loader": KindSpec(kind_loader, "medium", "spinner, dots or bar loader (--variant)"),
-    "typing": KindSpec(kind_typing, "long", "terminal typing lines"),
-    "divider": KindSpec(kind_divider, "medium", "hairline divider with a pulse"),
-    "badge": KindSpec(kind_badge, "medium", "label and value pill with a shine sweep"),
+    "loader": KindSpec(kind_loader, "medium", "spinner, dots or bar loader (--variant)", (1, 1)),
+    "typing": KindSpec(kind_typing, "long", "terminal typing lines", (3, 1)),
+    "divider": KindSpec(kind_divider, "medium", "hairline divider with a pulse", (3, 1)),
+    "badge": KindSpec(kind_badge, "medium", "label and value pill with a shine sweep", (1, 1)),
     "timeline": KindSpec(
         kind_timeline, "long", "career or history rail, current item pulses (--variant vertical)"
     ),
@@ -3106,6 +3296,8 @@ KINDS: dict[str, KindSpec] = {
     "calendar": KindSpec(kind_calendar, "short", "53-week contribution heatmap (--variant accent)"),
     "ring": KindSpec(kind_ring, "short", "progress rings that draw in, static values"),
 }
+# Kinds with no card of their own keep a transparent margin when scaled into a canvas.
+UNFRAMED = frozenset({"loader", "divider", "badge"})
 
 
 def sample_counts(days: int = 371) -> list[int]:
@@ -3264,7 +3456,16 @@ def font_stack(value: str | None) -> str:
     return value
 
 
-def assemble(c: Ctx, art: Art) -> str:
+@dataclass(frozen=True)
+class Canvas:
+    """Root size and viewBox of a scaled kind fitted into a --size canvas."""
+
+    width: float
+    height: float
+    box: tuple[float, float, float, float]  # x, y, width, height in the kind's own units
+
+
+def assemble(c: Ctx, art: Art, canvas: Canvas | None = None) -> str:
     p = c.prefix
     css = [
         f".{p}m{{font-family:{MONO};font-weight:700;letter-spacing:{num(MONO_LS)}px}}",
@@ -3278,9 +3479,17 @@ def assemble(c: Ctx, art: Art) -> str:
             "animation-duration:1ms!important;animation-iteration-count:1!important;"
             "animation-fill-mode:forwards!important}}"
         )
-    w, h = num(art.width), num(art.height)
+    if canvas is None:
+        w, h = num(art.width), num(art.height)
+        size = f'width="{w}" height="{h}" viewBox="0 0 {w} {h}"'
+    else:
+        box = " ".join(num(v, 3) for v in canvas.box)
+        size = (
+            f'width="{num(canvas.width)}" height="{num(canvas.height)}" viewBox="{box}" '
+            'preserveAspectRatio="xMidYMid meet"'
+        )
     head = (
-        f'<svg xmlns="{SVG_NS}" width="{w}" height="{h}" viewBox="0 0 {w} {h}" role="img" '
+        f'<svg xmlns="{SVG_NS}" {size} role="img" '
         f'aria-labelledby="{p}title {p}desc" class="{p}root">'
     )
     parts = [
@@ -3296,11 +3505,67 @@ def assemble(c: Ctx, art: Art) -> str:
     return "\n".join(parts) + "\n"
 
 
-def render(
+def draw(c: Ctx) -> Art:
+    art = KINDS[c.kind].render(c)
+    if c.desc:
+        art.desc = clean(c.desc)
+    return art
+
+
+def fit_canvas(c: Ctx, size: object) -> tuple[Ctx, Canvas | None, tuple[int, int]]:
+    """The context to draw with for --size, the canvas to scale into (scaled kinds only),
+    and the canvas size.
+
+    Native kinds lay out at the canvas. Scaled kinds grow their own layout toward the
+    canvas shape (at most KindSpec.stretch times their default width and height); the
+    root viewBox then centers and scales the drawing into the canvas without distortion.
+    """
+    base = draw(c)
+    bw, bh = base.width, base.height
+    try:
+        cw, ch, _ = sizes.resolve_size(size, (bw, bh))
+    except sizes.SizeError as exc:
+        try:  # a width on a very flat or tall kind: keep the width, clamp the height
+            cw, _, _ = sizes.resolve_size(size, (bw, bw))
+        except sizes.SizeError:
+            raise ForgeError(f"--size: {exc}") from exc
+        ch = min(max(round(cw * bh / bw), sizes.MIN_SIDE), sizes.MAX_SIDE)
+    spec = KINDS[c.kind]
+    if spec.stretch is None:
+        return replace(c, width=float(cw), height=float(ch)), None, (cw, ch)
+    k = min(cw / bw, ch / bh)
+    lw, lh = min(cw / k, bw * spec.stretch[0]), min(ch / k, bh * spec.stretch[1])
+    grown = replace(
+        c,
+        width=round(lw, 2) if lw - bw > 0.5 else None,
+        height=round(lh, 2) if lh - bh > 0.5 else None,
+    )
+    return grown, Canvas(cw, ch, (0.0, 0.0, bw, bh)), (cw, ch)
+
+
+def letterbox(c: Ctx, art: Art, canvas: Canvas) -> Canvas:
+    """Center art in the canvas: a viewBox with the canvas's aspect, the margin painted in
+    the theme bg (framed kinds on an opaque theme; the others stay transparent)."""
+    aw, ah = art.width, art.height
+    k = min(canvas.width / aw, canvas.height / ah)
+    vw, vh = canvas.width / k, canvas.height / k
+    x, y = -(vw - aw) / 2, -(vh - ah) / 2
+    margin = max(vw - aw, vh - ah) * k > 0.5
+    if margin and c.kind not in UNFRAMED and not c.theme.transparent:
+        art.body.insert(
+            0, el("rect", x=x - 1, y=y - 1, width=vw + 2, height=vh + 2, fill=c.theme.bg)
+        )
+    return replace(canvas, box=(x, y, vw, vh))
+
+
+def build(
     kind: str,
     *,
     theme: str = "dark",
-    accent: str = DEFAULT_ACCENT,
+    mode: str | None = None,
+    accent: str | None = None,
+    size: object = None,
+    pair: bool = False,
     timing: str | None = None,
     loop: bool | None = None,
     speed: float | None = None,
@@ -3313,17 +3578,21 @@ def render(
     reduced_motion: str = "ignore",
     font: str | None = None,
     id_prefix: str | None = None,
-) -> str:
-    """Return one SVG document as a string. Raises ForgeError on bad options or data."""
+) -> tuple[str, list[str]]:
+    """One SVG document and the notes on colors adjusted for contrast. See render()."""
     if kind not in KINDS:
         raise ForgeError(f"unknown kind {kind!r}; choose from {', '.join(KINDS)}")
-    if theme not in THEMES:
-        raise ForgeError("theme must be dark or light (the CLI expands both)")
+    if theme == "both":
+        raise ForgeError("theme both is a dark/light pair; render each with pair=True")
+    if mode not in (None, "dark", "light"):
+        raise ForgeError("mode must be dark or light (the CLI expands both)")
     timing = timing or KINDS[kind].timing
     if timing not in PRESETS:
         raise ForgeError(f"timing must be one of {', '.join(PRESETS)}")
     if reduced_motion not in ("ignore", "respect"):
         raise ForgeError("--reduced-motion must be ignore or respect")
+    if size is not None and (width is not None or height is not None):
+        raise ForgeError("--size sets the canvas; drop --width and --height")
     for name, value in (("--width", width), ("--height", height)):
         if value is not None and not 8 <= value <= 4000:
             raise ForgeError(f"{name} must be between 8 and 4000")
@@ -3331,20 +3600,25 @@ def render(
         raise ForgeError("--speed must be above 0 and at most 2000 px/s")
     if id_prefix is not None and not re.fullmatch(r"[A-Za-z][\w-]{0,23}", id_prefix):
         raise ForgeError("--id-prefix must start with a letter and use letters, digits, - or _")
-    accent = parse_color(accent)
+    picked = None if accent is None else parse_color(accent)
+    th, accent_hex, theme_notes = load_theme(theme, picked, mode)
+    notes = list(theme_notes)
     preset = PRESETS[timing]
     looping = (preset.loop or kind == "loader") if loop is None else loop
-    seed = json.dumps(
-        [kind, theme, accent, timing, looping, speed, width, height, title, desc, data, variant],
-        sort_keys=True,
-        default=str,
-    )
-    prefix = id_prefix or "sf" + hashlib.sha1(seed.encode()).hexdigest()[:6] + "-"
-    th = THEMES[theme]
+    # a bare kind shipped as one file may sit on either GitHub page
+    both_pages = kind in BARE and not pair and not th.transparent
+    text_on = text_grounds(th)
+    marks_on = page_grounds() if both_pages else mark_grounds(th)
+    pal = palette(accent_hex, th, text_on, marks_on)
+    if both_pages and pal.ink != accent_ink(accent_hex, th):
+        notes.append(
+            f"accent {accent_hex} -> {pal.ink} for marks that reach 3:1 on both GitHub "
+            "themes (no dark/light pair asked for)"
+        )
     ctx = Ctx(
         kind=kind,
         theme=th,
-        pal=palette(accent, th),
+        pal=pal,
         preset=preset,
         loop=looping,
         speed=speed or DEFAULT_SPEED,
@@ -3354,14 +3628,45 @@ def render(
         desc=desc,
         data=data,
         variant=variant,
-        prefix=prefix,
+        prefix="sf-",
         sans=font_stack(font),
         reduced=reduced_motion,
+        text_on=text_on,
+        marks_on=marks_on,
     )
-    art = KINDS[kind].render(ctx)
-    if desc:
-        art.desc = clean(desc)
-    return assemble(ctx, art)
+    canvas = None
+    extras: dict[str, object] = {}
+    if size is not None:
+        ctx, canvas, extras["size"] = fit_canvas(ctx, size)
+    key = next((name for name, t in THEMES.items() if t == th), None)
+    if key is None:
+        key, extras["theme"] = th.name, astuple(th)
+    if both_pages:
+        extras["pages"] = "both"
+    seed: list[object] = [kind, key, accent_hex, timing, looping, speed, width, height]
+    seed += [title, desc, data, variant]
+    if extras:
+        seed.append(extras)
+    digest = hashlib.sha1(json.dumps(seed, sort_keys=True, default=str).encode()).hexdigest()
+    ctx = replace(ctx, prefix=id_prefix or f"sf{digest[:6]}-")
+    art = draw(ctx)
+    if canvas is not None:
+        canvas = letterbox(ctx, art, canvas)
+    return assemble(ctx, art, canvas), notes
+
+
+def render(kind: str, **options: Any) -> str:
+    """Return one SVG document as a string. Raises ForgeError on bad options or data.
+
+    theme is a preset (themes.list_themes(); dark and light are the GitHub pair), a family
+    (github, catppuccin, solarized, high-contrast, transparent), auto:<hex> or #hex, or a
+    palette .json path; mode picks its dark or light variant. accent (hex) replaces the
+    theme's own accent. size is WxH, a width or a sizes.py preset (see fit_canvas). pair
+    marks the file as one half of a dark/light <picture> pair: loader and divider then tune
+    their marks to the theme's page instead of both GitHub pages. The other options are
+    the CLI flags of the same name.
+    """
+    return build(kind, **options)[0]
 
 
 def load_data(value: str | None, *, text_spec: bool = False) -> Any:
@@ -3408,20 +3713,65 @@ def picture(dark: str, light: str, alt: str) -> str:
     )
 
 
+def epilog() -> str:
+    kinds = "\n".join(
+        f"  {k:<8} {v.about} (default timing {v.timing}; --size {v.sizing})"
+        for k, v in KINDS.items()
+    )
+
+    def para(text: str) -> str:
+        return textwrap.fill(text, 92, break_on_hyphens=False)
+
+    return "\n\n".join(
+        [
+            "kinds:\n" + kinds,
+            para(
+                "--size takes WxH, a width (the kind's aspect gives the height) or a preset: "
+                + ", ".join(sizes.list_sizes())
+                + ". native kinds lay out at that canvas. scaled kinds draw their own layout, "
+                "grown toward the canvas shape where they can, and the root viewBox scales it "
+                "in, centered and never distorted; the margin takes the theme background, "
+                "except for badge, divider and loader, which stay transparent."
+            ),
+            para(
+                "--theme takes dark or light (GitHub's), both (the GitHub pair), a preset ("
+                + ", ".join(themes.list_themes())
+                + "), a family (github, catppuccin, solarized, high-contrast, transparent), "
+                "auto:<hex> or #hex for a theme built from one brand color, or a palette .json. "
+                "--mode dark or light picks the family's variant; --mode both writes NAME-dark.svg "
+                "and NAME-light.svg and prints the <picture> snippet. Text reaches 4.5:1 and "
+                "marks 3:1 (WCAG); colors that fall short move to the nearest lightness that "
+                "passes, noted on stderr. As single files, divider and loader pick marks that "
+                "read on both GitHub pages."
+            ),
+        ]
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
-    kinds = "\n".join(f"  {k:<8} {v.about} (default timing {v.timing})" for k, v in KINDS.items())
     ap = argparse.ArgumentParser(
         prog="forge.py",
         description="Generate a self-contained animated SVG.",
-        epilog="kinds:\n" + kinds,
+        epilog=epilog(),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     ap.add_argument("--kind", required=True, choices=list(KINDS))
     ap.add_argument("--out", help="output .svg; omit to print to stdout (single theme only)")
     ap.add_argument("--width", type=float, help="canvas width in px (kind default otherwise)")
     ap.add_argument("--height", type=float, help="canvas height in px (most kinds size to content)")
-    ap.add_argument("--theme", choices=["dark", "light", "both"], default="dark")
-    ap.add_argument("--accent", default=DEFAULT_ACCENT, help="hex accent, #rgb or #rrggbb")
+    ap.add_argument(
+        "--size", help="canvas: WxH, a width, or a preset like og, readme, card, icon-128"
+    )
+    ap.add_argument(
+        "--theme",
+        help="dark (default), light, both, a preset, a family, auto:<hex>, #hex or a palette .json",
+    )
+    ap.add_argument(
+        "--mode",
+        choices=["dark", "light", "both"],
+        help="the theme's dark or light variant, or both",
+    )
+    ap.add_argument("--accent", help="hex accent, #rgb or #rrggbb (default: the theme's own)")
     ap.add_argument(
         "--timing", choices=list(PRESETS), help="timing preset (kind default otherwise)"
     )
@@ -3451,19 +3801,39 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
+def plan(theme: str | None, mode: str | None) -> list[tuple[str | None, str, str | None]]:
+    """(file suffix, theme spec, mode) for each file the CLI writes."""
+    if theme == "both":
+        if mode not in (None, "both"):
+            raise ForgeError(f"--theme both is the GitHub dark and light pair; drop --mode {mode}")
+        return [("dark", "dark", None), ("light", "light", None)]
+    if theme in ("dark", "light") and mode not in (None, theme):
+        raise ForgeError(
+            f"--theme {theme} and --mode {mode} disagree; use --theme github --mode {mode}"
+        )
+    spec = theme or "github"
+    if mode == "both":
+        return [("dark", spec, "dark"), ("light", spec, "light")]
+    return [(None, spec, mode)]
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    themes = ["dark", "light"] if args.theme == "both" else [args.theme]
-    if args.theme == "both" and not args.out:
-        print("forge.py: error: --theme both needs --out", file=sys.stderr)
-        return 2
+    svgs: dict[str | None, str] = {}
+    notes: list[str] = []
     try:
+        files = plan(args.theme, args.mode)
+        if len(files) == 2 and not args.out:
+            raise ForgeError("a dark and light pair (--theme both or --mode both) needs --out")
         data = load_data(args.data, text_spec=args.kind == "flow")
-        svgs = {
-            t: render(
+        for suffix, spec, mode in files:
+            svgs[suffix], got = build(
                 args.kind,
-                theme=t,
+                theme=spec,
+                mode=mode,
                 accent=args.accent,
+                size=args.size,
+                pair=len(files) == 2,
                 timing=args.timing,
                 loop=args.loop,
                 speed=args.speed,
@@ -3477,23 +3847,24 @@ def main(argv: list[str] | None = None) -> int:
                 font=args.font_stack,
                 id_prefix=args.id_prefix,
             )
-            for t in themes
-        }
-    except ForgeError as exc:
+            notes += got
+    except (ForgeError, themes.ThemeError, sizes.SizeError) as exc:
         print(f"forge.py: error: {exc}", file=sys.stderr)
         return 2
+    for note in dict.fromkeys(notes):
+        print(f"forge.py: note: {note}", file=sys.stderr)
     if not args.out:
-        sys.stdout.buffer.write(svgs[themes[0]].encode("utf-8"))
+        sys.stdout.buffer.write(svgs[None].encode("utf-8"))
         return 0
     out = Path(args.out)
-    if args.theme != "both":
-        changed = write(out, svgs[themes[0]])
+    if None in svgs:
+        changed = write(out, svgs[None])
         print(
             f"{'wrote' if changed else 'unchanged'} {out.as_posix()} ({out.stat().st_size} bytes)"
         )
         return 0
     stem = out.with_suffix("") if out.suffix == ".svg" else out
-    paths = {t: stem.with_name(f"{stem.name}-{t}.svg") for t in themes}
+    paths = {t: stem.with_name(f"{stem.name}-{t}.svg") for t in ("dark", "light")}
     for t, path in paths.items():
         changed = write(path, svgs[t])
         print(

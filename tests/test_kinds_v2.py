@@ -281,7 +281,7 @@ def test_logo_symbol_is_used_with_the_entry_color() -> None:
     svg = forge.render("logos", data=[{"label": "A", "svg": mark, "color": "#22c55e"}])
 
     p = prefix_of(svg)
-    ink = forge.ink_for("#22c55e", forge.THEMES["dark"])  # entry colors are clamped per theme
+    ink = forge.accent_ink("#22c55e", forge.THEMES["dark"])  # entry colors are tuned per theme
     assert f'<symbol id="{p}logo0" viewBox="0 0 10 10">' in svg
     assert re.search(rf'<use href="#{p}logo0"[^>]* fill="{ink}" color="{ink}"/>', svg)
 
