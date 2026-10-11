@@ -19,6 +19,8 @@ be: no opaque color reaches 4.5:1 on both pages (the best is about 4.35:1), so t
 
 Specs:
   github-dark, nord, ...     a preset (list_themes()); "dark" and "light" alias the GitHub pair
+  github, catppuccin, solarized, high-contrast, transparent
+                             a family: its dark preset, or its light one with mode="light"
   auto:#ff5a1f, #ff5a1f      a full theme derived from one brand color; mode= picks dark or light
   path/to/palette.json       a palette file:
 
@@ -105,9 +107,8 @@ class ThemeError(ValueError):
 # ---------------------------------------------------------------- color math
 
 _HEX = re.compile(r"#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})")
-_FUNC = re.compile(
-    r"rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*(\d*\.?\d+)\s*)?\)"
-)
+_CHANNEL = r"\s*(\d{1,3}(?:\.\d+)?)\s*"  # whole or fractional, as CSS allows
+_FUNC = re.compile(rf"rgba?\({_CHANNEL},{_CHANNEL},{_CHANNEL}(?:,\s*(\d*\.?\d+)\s*)?\)")
 
 
 def parse_color(value: object, what: str = "color") -> Color:
@@ -122,7 +123,7 @@ def parse_color(value: object, what: str = "color") -> Color:
         return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), alpha)
     m = _FUNC.fullmatch(text)
     if m:
-        r, g, b = (int(x) for x in m.group(1, 2, 3))
+        r, g, b = (float(x) for x in m.group(1, 2, 3))
         alpha = float(m.group(4)) if m.group(4) else 1.0
         if max(r, g, b) <= 255 and alpha <= 1:
             return (r, g, b, alpha)
@@ -202,18 +203,23 @@ def _hls(color: Color) -> tuple[float, float, float]:
 
 def _fix(fg: Color, surfaces: list[Color], minimum: float, what: str) -> str:
     """fg unchanged when it passes on every surface, else the nearest HLS lightness that does."""
-    if all(_ratio(fg, s) >= minimum for s in surfaces):
+    return _nearest(fg, [(s, minimum) for s in surfaces], what)
+
+
+def _nearest(fg: Color, needs: list[tuple[Color, float]], what: str) -> str:
+    """fg when it reaches every (surface, minimum), else the nearest HLS lightness that does."""
+    if all(_ratio(fg, s) >= m for s, m in needs):
         return format_color(fg)
-    flat = _over(fg, surfaces[0])
+    flat = _over(fg, needs[0][0])
     h, light, sat = _hls(flat)
-    signs = (1, -1) if _lum(flat) >= _lum(surfaces[0]) else (-1, 1)
+    signs = (1, -1) if _lum(flat) >= _lum(needs[0][0]) else (-1, 1)
     for step in range(1, 1001):
         for sign in signs:
             candidate = _from_hls(h, light + sign * step / 1000, sat)
-            if all(_ratio(candidate, s) >= minimum for s in surfaces):
+            if all(_ratio(candidate, s) >= m for s, m in needs):
                 return format_color(candidate)
-    shown = ", ".join(format_color(s) for s in surfaces)
-    raise ThemeError(f"{what} cannot reach {minimum:g}:1 on {shown}; pick a darker or lighter bg")
+    shown = ", ".join(f"{m:g}:1 on {format_color(s)}" for s, m in needs)
+    raise ThemeError(f"{what} cannot reach {shown}; pick a darker or lighter bg")
 
 
 def ensure_contrast(fg: str, bg: str, minimum: float, base: str | None = None) -> str:
@@ -224,6 +230,20 @@ def ensure_contrast(fg: str, bg: str, minimum: float, base: str | None = None) -
     if not 1 <= minimum <= 21:
         raise ThemeError(f"minimum contrast must be between 1 and 21, got {minimum!r}")
     return _fix(parse_color(fg, "fg"), [_under(bg, base)], minimum, "fg")
+
+
+def ensure_contrast_all(fg: str, needs: list[tuple[str, float]]) -> str:
+    """ensure_contrast for several opaque backgrounds at once, each (bg, minimum) pair with its
+    own minimum: fg when it passes on all, else the nearest lightness that does (ThemeError
+    when none does). The first bg is the one a translucent fg is flattened over."""
+    if not needs:
+        return format_color(parse_color(fg, "fg"))
+    pairs = []
+    for bg, minimum in needs:
+        if not 1 <= minimum <= 21:
+            raise ThemeError(f"minimum contrast must be between 1 and 21, got {minimum!r}")
+        pairs.append((_opaque(bg, "bg"), minimum))
+    return _nearest(parse_color(fg, "fg"), pairs, "fg")
 
 
 def _surfaces(theme: Mapping[str, Any], both: bool) -> list[Color]:
@@ -561,7 +581,17 @@ PRESETS: dict[str, dict[str, Any]] = {
         transparent=True,
     ),
 }
-ALIASES = {"dark": "github-dark", "light": "github-light"}
+# "dark" and "light" alias the GitHub pair; a family name gives its dark preset, and
+# mode="light" its light counterpart
+ALIASES = {
+    "dark": "github-dark",
+    "light": "github-light",
+    "github": "github-dark",
+    "catppuccin": "catppuccin-mocha",
+    "solarized": "solarized-dark",
+    "high-contrast": "high-contrast-dark",
+    "transparent": "transparent-dark",
+}
 _PAIRS = (
     ("github-dark", "github-light"),
     ("catppuccin-mocha", "catppuccin-latte"),
