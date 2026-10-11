@@ -82,3 +82,27 @@ def test_gallery_builds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     html = index.read_text(encoding="utf-8")
     assert html.count("<figure>") == len(SHIPPED)
     assert "http" not in html.replace("http-equiv", "")
+
+
+def test_contact_sheets_are_skipped_without_a_browser(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(preview.frames, "find_browser", lambda override=None: None)
+
+    assert preview.contact_sheets() == ([], "no Chrome, Edge or Chromium found")
+
+
+def test_contact_sheets_render_each_example_on_its_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(preview, "OUT", tmp_path)
+    monkeypatch.setattr(preview.frames, "find_browser", lambda override=None: "chrome")
+    monkeypatch.setattr(preview.frames, "main", lambda argv: calls.append(argv) or 0)
+
+    sheets, skipped = preview.contact_sheets()
+
+    examples = sorted(EXAMPLES.glob("*.svg"))
+    assert skipped == "" and len(sheets) == len(calls) == len(examples)
+    themes = {Path(argv[0]).stem: argv[argv.index("--theme") + 1] for argv in calls}
+    assert themes["badge-status-light"] == "light" and themes["badge-status-dark"] == "dark"
+    assert themes["badge-once"] == "both"
+    assert all(Path(argv[2]).parent == tmp_path / "frames" for argv in calls)

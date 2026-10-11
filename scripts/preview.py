@@ -5,6 +5,8 @@
   python scripts/preview.py --rebuild   regenerate templates, examples and
                                         examples/README.md from RECIPES, then the gallery
   python scripts/preview.py --open      also open the gallery in the default browser
+  python scripts/preview.py --frames    also write a frames.py contact sheet per example into
+                                        preview/frames/ (skipped when no browser is found)
 
 Each SVG is shown on GitHub's dark (#0d1117) and light (#ffffff) page colors with its size
 and validator result. Commands run from the repository root.
@@ -31,6 +33,7 @@ OUT = ROOT / "preview"
 sys.path.insert(0, str(SCRIPTS))
 
 import forge  # noqa: E402
+import frames  # noqa: E402
 import validate_svg  # noqa: E402
 
 FORGE = "python skills/animated-svg/scripts/forge.py"
@@ -445,10 +448,32 @@ figcaption{{padding:8px 12px;font-size:12px;border-top:1px solid #30363d}}
     return index
 
 
+def contact_sheets() -> tuple[list[Path], str]:
+    """A frames.py contact sheet per example in preview/frames/: a -dark or -light file on its
+    own page, any other on both. Returns the PNGs written, or no PNGs and why."""
+    browser = frames.find_browser()
+    if browser is None:
+        return [], "no Chrome, Edge or Chromium found"
+    written = []
+    for path in sorted(EXAMPLES.glob("*.svg")):
+        png = OUT / "frames" / f"{path.stem}.png"
+        theme = next((t for t in ("dark", "light") if path.stem.endswith(f"-{t}")), "both")
+        argv = [str(path), "--out", str(png), "--theme", theme, "--browser", browser]
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = frames.main(argv)
+        if code:
+            raise SystemExit(f"frames.py failed ({code}) on {path.relative_to(ROOT).as_posix()}")
+        written.append(png)
+    return written, ""
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="preview.py", description=__doc__.split("\n\n")[0])
     ap.add_argument("--rebuild", action="store_true", help="regenerate templates and examples")
     ap.add_argument("--open", action="store_true", help="open the gallery in a browser")
+    ap.add_argument(
+        "--frames", action="store_true", help="write a contact sheet per example (needs Chrome)"
+    )
     args = ap.parse_args(argv)
     if args.rebuild:
         changed = rebuild()
@@ -457,6 +482,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {f}")
     index = gallery()
     print(f"gallery: {index.relative_to(ROOT).as_posix()}")
+    if args.frames:
+        sheets, skipped = contact_sheets()
+        if skipped:
+            print(f"contact sheets skipped: {skipped}")
+        else:
+            print(
+                f"contact sheets: {len(sheets)} in {(OUT / 'frames').relative_to(ROOT).as_posix()}"
+            )
     if args.open:
         webbrowser.open(index.as_uri())
     return 0
