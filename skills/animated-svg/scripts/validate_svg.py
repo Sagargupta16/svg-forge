@@ -95,13 +95,12 @@ RULES = {
     "SV018": "keySplines without spline mode",
     "SV019": "pathLength with non-scaling-stroke",
     "SV020": "large data: URI",
-}
-# Run when contrast is on: the CLI default (warn), or contrast="warn"/"error" in the API.
-CONTRAST_RULES = {
     "SV021": "text contrast below WCAG",
     "SV022": "text fails on a GitHub theme",
     "SV023": "graphic contrast below 3:1",
 }
+# Run when contrast is on: the CLI default (warn), or contrast="warn"/"error" in the API.
+CONTRAST_RULES = {rule: RULES[rule] for rule in ("SV021", "SV022", "SV023")}
 
 URL_REF = re.compile(r"url\(\s*(['\"]?)([^'\")]*)\1\s*\)", re.I)
 CLOCK = re.compile(r"^\s*(?:(\d+):)?(?:(\d+):)?(\d+(?:\.\d+)?)\s*(h|min|s|ms)?\s*$")

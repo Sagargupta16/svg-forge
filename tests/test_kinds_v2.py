@@ -49,8 +49,9 @@ LOGO = (
 
 
 def check(svg: str) -> validate_svg.Report:
-    """Validate with no findings at all and parse with minidom."""
-    report = validate_svg.validate_text(svg.encode("utf-8"))
+    """Validate with no findings at all (contrast as errors, on both GitHub pages) and parse
+    with minidom."""
+    report = validate_svg.validate_text(svg.encode("utf-8"), contrast="error")
     assert report.findings == [], report.findings
     minidom.parseString(svg)
     return report

@@ -5,6 +5,11 @@ SF001 en or em dash             SF005 broken relative link in Markdown
 SF002 secret-shaped string      SF006 JSON file does not parse
 SF003 skill frontmatter         SF007 plugin.json and marketplace.json versions differ
 SF004 absolute home path        SF008 shipped SVG fails validate_svg.py
+
+SF008 runs the contrast rules (SV021-SV023) as errors: a -dark or -light file against that
+GitHub page, any other file against both (a file that paints its own opaque background is
+measured against that). SVGs under examples/data/ are forge.py inputs, not shipped art, so
+they skip the contrast rules.
 """
 
 from __future__ import annotations
@@ -21,8 +26,17 @@ import validate_svg  # noqa: E402
 DASHES = (chr(0x2013), chr(0x2014))
 TEXT = {".md", ".py", ".sh", ".json", ".yml", ".yaml", ".toml", ".txt", ".svg", ".ts", ".tsx"}
 TEXT_NAMES = {"LICENSE", "CODEOWNERS", ".gitignore", ".gitattributes", ".editorconfig"}
-SKIP_DIRS = {".git", "node_modules", "__pycache__", "preview", ".pytest_cache", ".ruff_cache"}
+SKIP_DIRS = {
+    ".git",
+    "node_modules",
+    "__pycache__",
+    "preview",
+    ".pytest_cache",
+    ".ruff_cache",
+    "results",  # claude plugin eval output (local paths)
+}
 SVG_ROOTS = ("skills", "examples")
+DATA_SVGS = "examples/data/"  # forge.py inputs (logos), validated without the contrast rules
 SECRETS = [
     ("aws access key", re.compile(r"\bA(?:KIA|SIA)[0-9A-Z]{16}\b")),
     ("github token", re.compile(r"\b(?:ghp|gho|ghs|ghu)_[A-Za-z0-9]{30,}|\bgithub_pat_\w{40,}")),
@@ -128,12 +142,20 @@ def check_manifests() -> list[str]:
     return []
 
 
+def svg_theme(path: Path) -> str:
+    """The GitHub page(s) a shipped SVG is shown on: one half of a pair on its own page."""
+    if path.stem.endswith("-dark"):
+        return "dark"
+    return "light" if path.stem.endswith("-light") else "both"
+
+
 def check_svgs() -> list[str]:
     problems = []
     for top in SVG_ROOTS:
         for svg in sorted((ROOT / top).rglob("*.svg")):
-            report = validate_svg.validate_file(svg)
             rel = svg.relative_to(ROOT).as_posix()
+            contrast = "off" if rel.startswith(DATA_SVGS) else "error"
+            report = validate_svg.validate_file(svg, contrast=contrast, theme=svg_theme(svg))
             for f in report.findings:
                 if f.severity == "error":
                     problems.append(f"{rel}:{f.line} SF008 {f.rule} {f.message}")

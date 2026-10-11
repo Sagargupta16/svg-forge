@@ -18,7 +18,7 @@ def svg(body: str = "", root: str = f'{NS} viewBox="0 0 10 10" {NAMED}', title: 
     return f"<svg {root}>{head}{body}</svg>"
 
 
-def rules(text: str, target: str = "standalone", **kw: float) -> dict[str, str]:
+def rules(text: str, target: str = "standalone", **kw: object) -> dict[str, str]:
     report = validate_svg.validate_text(text.encode("utf-8"), target=target, **kw)
     return {f.rule: f.severity for f in report.findings}
 
@@ -35,8 +35,11 @@ def animated(n: int) -> str:
 DASH = chr(0x2014)
 BIG_DATA = "data:image/png;base64," + "A" * (65 * 1024)
 
+WHITE = '<rect width="10" height="10" fill="#ffffff"/>'
+WARN = {"contrast": "warn"}  # the contrast rules run only when asked (the CLI default)
+
 # rule -> (fixture, target, extra kwargs, expected severity)
-CASES: dict[str, tuple[str, str, dict[str, float], str]] = {
+CASES: dict[str, tuple[str, str, dict[str, object], str]] = {
     "SV001": ("<svg", "standalone", {}, "error"),
     "SV002": (
         f'<g {NS} viewBox="0 0 1 1" {NAMED}><title id="t">x</title></g>',
@@ -87,6 +90,14 @@ CASES: dict[str, tuple[str, str, dict[str, float], str]] = {
         "warn",
     ),
     "SV020": (svg(f'<image href="{BIG_DATA}"/>'), "standalone", {"max_kb": 500}, "warn"),
+    "SV021": (
+        svg(WHITE + '<text x="1" y="5" fill="#cccccc">Hi</text>'),
+        "standalone",
+        WARN,
+        "warn",
+    ),
+    "SV022": (svg('<text x="1" y="5" fill="#0d1117">Hi</text>'), "standalone", WARN, "warn"),
+    "SV023": (svg('<circle cx="5" cy="5" r="2" fill="#0d1117"/>'), "standalone", WARN, "warn"),
 }
 
 

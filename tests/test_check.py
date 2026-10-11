@@ -75,3 +75,36 @@ def test_each_rule_fires(
     for rule in ("SF001", "SF002", "SF003", "SF004", "SF005", "SF006", "SF007", "SF008"):
         assert rule in out, rule
     assert out.count("SF005") == 2
+
+
+LOW = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 20" role="img" aria-label="x">'
+    '<text x="2" y="12" fill="#0d1117">Hi</text></svg>'
+)
+
+
+def test_shipped_svg_contrast_is_an_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tree(tmp_path, {**MANIFESTS, "examples/low.svg": LOW, "examples/low-light.svg": LOW})
+
+    out = run(tmp_path, monkeypatch, capsys)
+
+    assert "examples/low.svg:1 SF008 SV022" in out  # dark text fails on GitHub dark
+    assert "low-light.svg" not in out  # one half of a pair: checked on GitHub light only
+
+
+def test_data_svgs_skip_the_contrast_rules(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tree(tmp_path, {**MANIFESTS, "examples/data/logo.svg": LOW})
+
+    assert run(tmp_path, monkeypatch, capsys).endswith(" 0 problems\n")
+
+
+def test_eval_results_are_not_scanned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tree(tmp_path, {**MANIFESTS, "evals/results/run.json": '{"cwd": "C:' + '/Users/a/b"}'})
+
+    assert run(tmp_path, monkeypatch, capsys).endswith(" 0 problems\n")

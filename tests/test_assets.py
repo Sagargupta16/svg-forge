@@ -9,6 +9,7 @@ from xml.dom import minidom
 
 import pytest
 
+import check
 import forge
 import poster
 import preview
@@ -31,7 +32,7 @@ def test_one_template_per_kind_plus_timing_variants() -> None:
 def test_shipped_svg_is_valid_and_poster_safe(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
 
-    report = validate_svg.validate_file(path)
+    report = validate_svg.validate_file(path, contrast="error", theme=check.svg_theme(path))
 
     assert report.errors == 0, report.findings
     minidom.parseString(text)
