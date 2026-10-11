@@ -29,10 +29,18 @@ Ask only if the target cannot be inferred from where the file lives or how it is
 ## 2. Run the validator (SVG files)
 
 ```bash
-python skills/animated-svg/scripts/validate_svg.py path/to/file.svg --target standalone --json
+python skills/animated-svg/scripts/validate_svg.py path/to/file.svg --target standalone --strict-contrast --json
 ```
 
-Use `--target web` for inline page SVGs. Every error is a finding. Warnings become findings when they matter for the target. Quote rule ids (SV0xx) so the user can look them up.
+Use `--target web` for inline page SVGs. For one half of a `<picture>` pair add `--theme dark` or `--theme light`; otherwise text with no background of its own is measured on both GitHub pages. Every error is a finding. Warnings become findings when they matter for the target. Quote rule ids (SV0xx) so the user can look them up; SV021-SV023 are WCAG contrast (text 4.5:1, large text and solid shapes 3:1), with each measurement under `stats.contrast`.
+
+Then render the timeline so motion findings rest on frames, not guesses:
+
+```bash
+python skills/animated-svg/scripts/frames.py path/to/file.svg --theme both
+```
+
+Read the PNG contact sheet it writes: entrances, overlaps, labels that are hidden at rest, and whether the seam frame matches t=0. Exit 3 means no browser was found; say so in the report instead of guessing.
 
 For a scene component, there is no validator: read the component and its helpers instead, and apply the checks in section 3.
 
@@ -42,7 +50,7 @@ Work through each lens and record findings with a file and line.
 
 **Render-target safety**
 - Standalone: anything that needs network, script, or an HTML context fails silently on GitHub. External fonts fall back to system fonts, so check text still fits.
-- Dark and light: colors must hold 3:1 contrast on both GitHub themes, or the file must ship as a `<picture>` pair. In-SVG `prefers-color-scheme` does not follow GitHub's theme and fails on WebKit.
+- Dark and light: text needs 4.5:1 and marks 3:1 on both GitHub themes (the validator measures this), or the file must ship as a `<picture>` pair. In-SVG `prefers-color-scheme` does not follow GitHub's theme and fails on WebKit. For a fix, regenerate with forge.py `--theme both` or a preset; it tunes every color to pass.
 - Browser quirks: SMIL path morphs are the only morphs Safari plays; `calcMode` misspelled (`calcmod`) silently drops `keySplines`; `pathLength` together with `vector-effect="non-scaling-stroke"` stops line draws short in Chrome.
 
 **Motion quality**
@@ -58,7 +66,7 @@ Work through each lens and record findings with a file and line.
 - Auto-playing motion longer than 5 s has no pause control inside an image: note it, do not block on it.
 
 **Weight and hygiene**
-- Size against the budget for the target (standalone: aim under 50 KB, hard stop 100 KB unless the user accepts more).
+- Size against the budget for the target (standalone: aim under 50 KB, hard stop 100 KB unless the user accepts more). `python skills/animated-svg/scripts/optimize_svg.py FILE --check` reports what an animation-safe minify would save without writing anything.
 - Embedded rasters at more than twice their drawn size, unused `<defs>`, duplicated paths that could be `<use>`.
 - Ids prefixed and unique when the file inlines icons or may be inlined into a page.
 - Deterministic output if the file is generated: same input, same bytes.

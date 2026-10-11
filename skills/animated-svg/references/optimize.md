@@ -4,16 +4,24 @@ Make animated files small without breaking them: an animation-safe SVGO v4 confi
 
 ## 1. When to optimize
 
-- `forge.py` output is already compact and deterministic. Do not run SVGO on it; change the generator or its input instead of the output.
-- Run SVGO on artwork exported from design tools (Figma, Illustrator, Inkscape), which carries metadata, editor namespaces and long decimals.
+- `forge.py` output is already compact and deterministic. Do not run any optimizer on it; change the generator or its input instead of the output.
+- For artwork exported from design tools (Figma, Illustrator, Inkscape), which carries metadata, editor namespaces and long decimals, start with `scripts/optimize_svg.py`: standard library only, and it refuses to write a result that loses an id or an animation or adds a validator error. On an Inkscape-style file it saved 48.5%.
+- Reach for SVGO with the config below only when you need more bytes than that.
 - Always re-run `validate_svg.py` after optimizing, and look at the file again ([SKILL.md](../SKILL.md) step 6).
+
+```bash
+python scripts/optimize_svg.py in.svg --out out.svg   # or --in-place; --check reports without writing
+python scripts/optimize_svg.py in.svg --out out.svg --precision 2
+```
 
 ## 2. SVGO v4 config for animated files
 
 SVGO v4.1.0 is current (2026-08-24). v4 dropped `removeViewBox` and `removeTitle` from `preset-default` and renamed `removeScriptElement` to `removeScripts`. Source: https://svgo.dev/docs/migrations/migration-from-v3-to-v4/
 
+The config ships as [assets/svgo.config.mjs](../assets/svgo.config.mjs), with the reason for each plugin in its comments. It keeps every shipped example byte-identical in rendered frames and saves about 5%; SVGO's default preset broke all of them (it strips `role="img"`, deletes `opacity="0"` motion dots and drops the `<title>`/`<desc>` ids).
+
 ```js
-// svgo.config.mjs: preset-default minus the plugins that break animation
+// assets/svgo.config.mjs (comments trimmed)
 export default {
   multipass: true,
   plugins: [
@@ -28,9 +36,12 @@ export default {
           removeUselessStrokeAndFill: false,
           convertShapeToPath: false,
           removeUnknownsAndDefaults: false,
-          removeDesc: false,
-          inlineStyles: false,
+          convertEllipseToCircle: false,
+          moveElemsAttrsToGroup: false,
           collapseGroups: false,
+          mergePaths: false,
+          inlineStyles: false,
+          removeDesc: false,
         },
       },
     },
@@ -39,7 +50,7 @@ export default {
 ```
 
 ```bash
-npx -y svgo@4 --config svgo.config.mjs in.svg -o out.svg
+npx -y svgo@4 --config assets/svgo.config.mjs in.svg -o out.svg
 python scripts/validate_svg.py out.svg --target standalone
 ```
 
@@ -53,7 +64,10 @@ Why each plugin is off:
 | `moveGroupAttrsToElems` | Moves a group's `transform` onto children, which breaks group-level `animateTransform` and CSS transforms. | https://github.com/svg/svgo/issues/1437 |
 | `removeUselessStrokeAndFill` | Removes strokes that are invisible at rest but drawn by animation. | https://github.com/svg/svgo/issues/1677 |
 | `convertShapeToPath` | Turns `<rect>`/`<circle>` into `<path>`, so `<animate attributeName="r">` or `width` target an attribute that no longer exists. | https://github.com/svg/svgo/issues/1634 |
-| `removeUnknownsAndDefaults` | Strips `href` from `<animate>` elements that target another element. | https://github.com/svg/svgo/issues/2061 |
+| `removeUnknownsAndDefaults` | Strips `href` from `<animate>` elements that target another element, and `role="img"` from the root (seen with svgo 4.1.0). | https://github.com/svg/svgo/issues/2061 |
+| `convertEllipseToCircle` | Same failure as `convertShapeToPath` for `attributeName="rx"` or `"ry"`. | precaution |
+| `moveElemsAttrsToGroup` | In a file without `<style>`, hoists a transform the children share onto the group; a child's own `animateTransform` then no longer replaces it. | precaution |
+| `mergePaths` | Joins sibling paths with equal attributes, so a shared line-draw class dashes one combined path and `nth-child` staggers shift. | precaution |
 | `removeDesc` | Keeps the `<desc>` that `aria-labelledby` points at ([accessibility.md](accessibility.md)). | precaution |
 | `inlineStyles` | Moves `.x { animation: ... }` into a `style` attribute, which then outranks the `@media (prefers-reduced-motion)` block. | precaution |
 | `collapseGroups` | Folds a positioning `<g transform>` into a child that CSS animates; the CSS `transform` then replaces it. | precaution |

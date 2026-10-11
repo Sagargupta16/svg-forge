@@ -13,6 +13,18 @@ You design animated SVGs that look deliberate, render everywhere they are shown,
 - Write the core mechanism as `input -> processing -> output` in those terms. The graphic shows that mechanism, not the category it belongs to.
 - Note where the graphic will be shown and at what sizes (README at 830 px wide, a 340 px card, a 96 px phone tile).
 
+## 1b. Pin the requirements
+
+Write these down before choosing anything, inferring from the request and the repo; ask only for what cannot be inferred:
+
+| Requirement | Settle it as |
+| --- | --- |
+| Where it is shown | README, social preview, LinkedIn or X banner, slide, app page, icon |
+| Size | a `--size` preset (`readme`, `card`, `og`, `linkedin-banner`, `square`, `icon-128`, ...; `python skills/animated-svg/scripts/sizes.py --list`) or WxH |
+| Theme and colors | GitHub dark and light as a `<picture>` pair (default for READMEs), a preset (`python skills/animated-svg/scripts/themes.py --list`), or `auto:<hex>` from the brand color |
+| Content | the real numbers, names, steps or dates, verbatim |
+| Motion | loops or plays once, and the timing preset |
+
 ## 2. Choose target and timing
 
 | Shown in | Target | Skill |
@@ -28,17 +40,18 @@ Write 3 to 6 beats. For each: what moves, from where to where, when (as a fracti
 
 ## 4. Build
 
-- Standalone: if a generator kind fits (`tiles`, `hero`, `marquee`, `chart`, `bars`, `flow`, `loader`, `typing`, `divider`, `badge`), run `python skills/animated-svg/scripts/forge.py --kind <kind> ...` and adjust the input data. Otherwise start from the closest file in `skills/animated-svg/assets/templates/` and hand-author.
+- Standalone: if a generator kind fits (`tiles`, `hero`, `marquee`, `chart`, `bars`, `flow`, `loader`, `typing`, `divider`, `badge`, `timeline`, `logos`, `calendar`, `ring`), run `python skills/animated-svg/scripts/forge.py --kind <kind> --size <preset> --theme <theme> ...` and adjust the input data. `--mode both` (or `--theme both` for GitHub) writes the dark and light pair. Read the stderr notes: they list colors moved to reach contrast. For icon sizes prefer a native kind (timeline, logos, calendar, ring) or a mark without labels; the other kinds scale down and their labels stop being readable. Otherwise start from the closest file in `skills/animated-svg/assets/templates/` and hand-author.
 - Scene: copy the primitives you need from `skills/motion-scene/assets/kit/` into the project and compose them.
 - Animate transform and opacity (and stroke dash for line draws). Keep animated elements to about 12 per scene.
 
 ## 5. Verify, then iterate
 
-- Standalone: `python skills/animated-svg/scripts/validate_svg.py <file> --target standalone` must report no errors.
-- Look at the result at every size it will be shown. If browser preview tools are available, use them; otherwise open the file and describe what you checked. Watch two full cycles for a seam.
+- Standalone: `python skills/animated-svg/scripts/validate_svg.py <file> --target standalone --strict-contrast` must report no errors; pass `--theme dark` or `--theme light` for each half of a pair.
+- See the motion: `python skills/animated-svg/scripts/frames.py <file>` writes a PNG contact sheet from t=0 to the loop seam (`--theme both` adds a light row). Open the PNG and check entrances, overlaps, that every label reads, and that the last frame leads back into the first. Exit 3 means no browser; open the `.html` it wrote instead.
+- Look at the result at every size it will be shown. If browser preview tools are available, use them as well. Watch two full cycles for a seam.
 - Scene: run the project's type-check and lint, then check it in the running app, including the app's reduced or static motion mode if it has one.
 - Fix what reads poorly (too small, too busy, unclear mechanism) and check again. Stop when it reads at the smallest size it will be shown.
 
 ## 6. Report
 
-Return the files written, the timing preset and storyboard used, the validator result, the sizes you checked, and anything you could not verify.
+Return the requirements you pinned, the files written, the size, theme and timing preset, the storyboard, the validator result (with contrast), the contact sheet path, the sizes you checked, and anything you could not verify.
