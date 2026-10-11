@@ -6,9 +6,9 @@ import zlib
 from html.parser import HTMLParser
 from pathlib import Path
 
-import frames
 import pytest
 
+import frames
 import validate_svg
 
 NS = 'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" role="img" aria-label="probe"'

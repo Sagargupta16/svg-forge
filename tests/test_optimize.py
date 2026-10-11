@@ -7,9 +7,9 @@ from decimal import Decimal
 from pathlib import Path
 from xml.dom import minidom
 
-import optimize_svg
 import pytest
 
+import optimize_svg
 import validate_svg
 
 ROOT = Path(__file__).resolve().parent.parent

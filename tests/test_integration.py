@@ -8,11 +8,11 @@ from pathlib import Path
 from xml.dom import minidom
 
 import pytest
-import sizes
-import themes
 
 import forge
 import poster
+import sizes
+import themes
 import validate_svg
 
 PRESET_SIZES = ["icon-128", "card", "readme", "og", "linkedin-banner"]
