@@ -1,0 +1,13 @@
+{
+  "kicker": "Claude Code plugin",
+  "title": "svg-forge",
+  "taglines": [
+    "Animated SVGs that render on GitHub",
+    "14 kinds, any size, any theme",
+    "Contrast checked on dark and light",
+    "Storyboard, generate, validate, ship"
+  ],
+  "status": "v0.2.0",
+  "meta": "MIT",
+  "nodes": ["hero", "flow", "ring", "bars", "tile"]
+}

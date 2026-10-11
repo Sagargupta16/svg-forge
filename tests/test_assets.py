@@ -18,7 +18,10 @@ import validate_svg
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATES = ROOT / "skills" / "animated-svg" / "assets" / "templates"
 EXAMPLES = ROOT / "examples"
-SHIPPED = sorted(TEMPLATES.glob("*.svg")) + sorted(EXAMPLES.glob("*.svg"))
+DOCS = ROOT / "docs"
+SHIPPED = (
+    sorted(TEMPLATES.glob("*.svg")) + sorted(EXAMPLES.glob("*.svg")) + sorted(DOCS.glob("*.svg"))
+)
 EXTRA_TEMPLATES = {"hero-light", "flow-short", "flow-long", "marquee-ambient"}
 
 

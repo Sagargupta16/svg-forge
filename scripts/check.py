@@ -35,7 +35,7 @@ SKIP_DIRS = {
     ".ruff_cache",
     "results",  # claude plugin eval output (local paths)
 }
-SVG_ROOTS = ("skills", "examples")
+SVG_ROOTS = ("skills", "examples", "docs")
 DATA_SVGS = "examples/data/"  # forge.py inputs (logos), validated without the contrast rules
 SECRETS = [
     ("aws access key", re.compile(r"\bA(?:KIA|SIA)[0-9A-Z]{16}\b")),

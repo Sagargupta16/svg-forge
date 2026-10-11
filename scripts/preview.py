@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "skills" / "animated-svg" / "scripts"
 TEMPLATES = ROOT / "skills" / "animated-svg" / "assets" / "templates"
 EXAMPLES = ROOT / "examples"
+DOCS = ROOT / "docs"
 OUT = ROOT / "preview"
 sys.path.insert(0, str(SCRIPTS))
 
@@ -93,6 +94,11 @@ RECIPES: list[Recipe] = [
             "--data",
             f"{E}/data/stack.json",
         ),
+    ),
+    Recipe(
+        "docs/hero.svg",
+        ("--kind", "hero", "--theme", "both", "--accent", "#38bdf8", "--data", "docs/hero.json"),
+        "the README header",
     ),
     Recipe(
         f"{E}/hero-violet.svg",
@@ -406,7 +412,11 @@ def write_readme() -> None:
 
 
 def gallery() -> Path:
-    files = sorted(TEMPLATES.glob("*.svg")) + sorted(EXAMPLES.glob("*.svg"))
+    files = (
+        sorted(TEMPLATES.glob("*.svg"))
+        + sorted(EXAMPLES.glob("*.svg"))
+        + sorted(DOCS.glob("*.svg"))
+    )
     cards = []
     for path in files:
         report = validate_svg.validate_file(path)
