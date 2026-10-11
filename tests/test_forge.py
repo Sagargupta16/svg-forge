@@ -25,14 +25,20 @@ CASES: dict[str, list[str]] = {
     "typing": ["long", "short", "ambient"],
     "divider": ["medium", "short", "ambient"],
     "badge": ["medium", "short"],
+    "timeline": ["long", "short", "medium"],
+    "logos": ["short", "ambient", "medium"],
+    "calendar": ["short", "medium"],
+    "ring": ["short", "medium"],
 }
 PARAMS = [(k, theme, t) for k, ts in CASES.items() for theme in ("dark", "light") for t in ts]
 HOSTILE = ['a<b&c"d', "</text><script>alert(1)</script>"]
 
 
-def check(svg: str) -> validate_svg.Report:
-    """Validate, parse with minidom, and return the report (asserting no findings)."""
-    report = validate_svg.validate_text(svg.encode("utf-8"))
+def check(svg: str, theme: str = "both") -> validate_svg.Report:
+    """Validate with contrast as errors on the GitHub page(s) the file is shown on (both for a
+    single file, dark or light for one half of a pair), parse with minidom, and return the
+    report (asserting no findings)."""
+    report = validate_svg.validate_text(svg.encode("utf-8"), contrast="error", theme=theme)
     assert report.findings == [], report.findings
     minidom.parseString(svg)
     return report
@@ -115,6 +121,10 @@ def hostile_data(kind: str, s: str) -> object:
         "typing": {"title": s, "lines": [{"cmd": s, "out": [s]}]},
         "divider": None,
         "badge": {"label": s, "value": s},
+        "timeline": [{"start": s, "end": s, "title": s, "subtitle": s, "current": True}],
+        "logos": [{"label": s}, {"label": s, "color": "#f472b6"}],
+        "calendar": {"title": s, "start": "2026-01-01", "counts": [1, 0, 3]},
+        "ring": [{"label": s, "value": 3, "max": 4}],
     }[kind]
 
 
@@ -145,7 +155,7 @@ def test_bad_accent_is_rejected(value: str) -> None:
 
 
 def test_short_hex_accent_expands() -> None:
-    svg = forge.render("divider", accent="#9CF")
+    svg = forge.render("chart", accent="#9CF")
 
     assert "#99ccff" in svg
 
@@ -153,9 +163,9 @@ def test_short_hex_accent_expands() -> None:
 def test_accent_ink_is_clamped_per_theme() -> None:
     dark, light = forge.THEMES["dark"], forge.THEMES["light"]
 
-    assert forge.ink_for("#1e3a8a", dark) != "#1e3a8a"
-    assert forge.ink_for("#60a5fa", dark) == "#60a5fa"
-    assert forge.ink_for("#60a5fa", light) != "#60a5fa"
+    assert forge.accent_ink("#1e3a8a", dark) != "#1e3a8a"
+    assert forge.accent_ink("#60a5fa", dark) == "#60a5fa"
+    assert forge.accent_ink("#60a5fa", light) != "#60a5fa"
 
 
 def test_cli_rejects_bad_accent_with_exit_2(capsys: pytest.CaptureFixture[str]) -> None:
@@ -179,8 +189,8 @@ def test_theme_both_writes_pair_and_prints_picture(
     assert dark.read_bytes() != light.read_bytes()
     assert '<source media="(prefers-color-scheme: dark)"' in printed
     assert "card-light.svg" in printed
-    for path in (dark, light):
-        check(path.read_text(encoding="utf-8"))
+    for path, theme in ((dark, "dark"), (light, "light")):
+        check(path.read_text(encoding="utf-8"), theme)
 
 
 def test_theme_both_needs_out() -> None:

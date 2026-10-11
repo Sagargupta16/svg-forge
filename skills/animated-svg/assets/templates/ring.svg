@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="552" height="191.3" viewBox="0 0 552 191.3" role="img" aria-labelledby="sfad8dc8-title sfad8dc8-desc" class="sfad8dc8-root">
+<title id="sfad8dc8-title">Progress rings</title>
+<desc id="sfad8dc8-desc">Progress rings: Coverage 87%; Tasks 75% (18 / 24); Docs 64%</desc>
+<style>.sfad8dc8-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sfad8dc8-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sfad8dc8-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
+<defs><linearGradient id="sfad8dc8-bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#0e1a24"/><stop offset="0.6" stop-color="#0b1012"/></linearGradient></defs>
+<rect x="0.5" y="0.5" width="551" height="190.3" rx="14" fill="url(#sfad8dc8-bg)" stroke="rgba(255,255,255,0.09)"/>
+<circle cx="106.67" cy="78" r="51.24" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="9.52" opacity="0.6"/>
+<text class="sfad8dc8-b" x="106.67" y="86.62" fill="#f3f4f6" font-size="24.64" text-anchor="middle">87%</text>
+<text class="sfad8dc8-m" x="106.67" y="153" fill="rgba(255,255,255,0.74)" font-size="9" text-anchor="middle">COVERAGE</text>
+<circle cx="276" cy="78" r="51.24" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="9.52" opacity="0.6"/>
+<text class="sfad8dc8-b" x="276" y="86.62" fill="#f3f4f6" font-size="24.64" text-anchor="middle">75%</text>
+<text class="sfad8dc8-m" x="276" y="153" fill="rgba(255,255,255,0.74)" font-size="9" text-anchor="middle">TASKS</text>
+<text class="sfad8dc8-m" x="276" y="166.6" fill="rgba(255,255,255,0.52)" font-size="8.5" text-anchor="middle">18 / 24</text>
+<circle cx="445.33" cy="78" r="51.24" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="9.52" opacity="0.6"/>
+<text class="sfad8dc8-b" x="445.33" y="86.62" fill="#f3f4f6" font-size="24.64" text-anchor="middle">64%</text>
+<text class="sfad8dc8-m" x="445.33" y="153" fill="rgba(255,255,255,0.74)" font-size="9" text-anchor="middle">DOCS</text>
+<g><circle cx="106.67" cy="78" r="51.24" fill="none" stroke="#60a5fa" stroke-width="9.52" stroke-linecap="round" stroke-dasharray="280.1 321.95" stroke-dashoffset="0" transform="rotate(-90 106.67 78)"><animate attributeName="stroke-dashoffset" values="280.1;280.1;0;0" keyTimes="0;0.0847;0.8475;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="1.18s" fill="freeze"/></circle><circle cx="276" cy="78" r="51.24" fill="none" stroke="#60a5fa" stroke-width="9.52" stroke-linecap="round" stroke-dasharray="241.46 321.95" stroke-dashoffset="0" transform="rotate(-90 276 78)"><animate attributeName="stroke-dashoffset" values="241.46;241.46;0;0" keyTimes="0;0.161;0.9237;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="1.18s" fill="freeze"/></circle><circle cx="445.33" cy="78" r="51.24" fill="none" stroke="#22c55e" stroke-width="9.52" stroke-linecap="round" stroke-dasharray="206.05 321.95" stroke-dashoffset="0" transform="rotate(-90 445.33 78)"><animate attributeName="stroke-dashoffset" values="206.05;206.05;0" keyTimes="0;0.2373;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1" dur="1.18s" fill="freeze"/></circle></g>
+</svg>

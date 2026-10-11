@@ -9,6 +9,7 @@ from xml.dom import minidom
 
 import pytest
 
+import check
 import forge
 import poster
 import preview
@@ -17,7 +18,10 @@ import validate_svg
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATES = ROOT / "skills" / "animated-svg" / "assets" / "templates"
 EXAMPLES = ROOT / "examples"
-SHIPPED = sorted(TEMPLATES.glob("*.svg")) + sorted(EXAMPLES.glob("*.svg"))
+DOCS = ROOT / "docs"
+SHIPPED = (
+    sorted(TEMPLATES.glob("*.svg")) + sorted(EXAMPLES.glob("*.svg")) + sorted(DOCS.glob("*.svg"))
+)
 EXTRA_TEMPLATES = {"hero-light", "flow-short", "flow-long", "marquee-ambient"}
 
 
@@ -31,7 +35,7 @@ def test_one_template_per_kind_plus_timing_variants() -> None:
 def test_shipped_svg_is_valid_and_poster_safe(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
 
-    report = validate_svg.validate_file(path)
+    report = validate_svg.validate_file(path, contrast="error", theme=check.svg_theme(path))
 
     assert report.errors == 0, report.findings
     minidom.parseString(text)
@@ -81,3 +85,27 @@ def test_gallery_builds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     html = index.read_text(encoding="utf-8")
     assert html.count("<figure>") == len(SHIPPED)
     assert "http" not in html.replace("http-equiv", "")
+
+
+def test_contact_sheets_are_skipped_without_a_browser(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(preview.frames, "find_browser", lambda override=None: None)
+
+    assert preview.contact_sheets() == ([], "no Chrome, Edge or Chromium found")
+
+
+def test_contact_sheets_render_each_example_on_its_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(preview, "OUT", tmp_path)
+    monkeypatch.setattr(preview.frames, "find_browser", lambda override=None: "chrome")
+    monkeypatch.setattr(preview.frames, "main", lambda argv: calls.append(argv) or 0)
+
+    sheets, skipped = preview.contact_sheets()
+
+    examples = sorted(EXAMPLES.glob("*.svg"))
+    assert skipped == "" and len(sheets) == len(calls) == len(examples)
+    themes = {Path(argv[0]).stem: argv[argv.index("--theme") + 1] for argv in calls}
+    assert themes["badge-status-light"] == "light" and themes["badge-status-dark"] == "dark"
+    assert themes["badge-once"] == "both"
+    assert all(Path(argv[2]).parent == tmp_path / "frames" for argv in calls)

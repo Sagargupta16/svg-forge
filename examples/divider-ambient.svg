@@ -1,9 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="840" height="14" viewBox="0 0 840 14" role="img" aria-labelledby="sf3aa98a-title sf3aa98a-desc" class="sf3aa98a-root">
-<title id="sf3aa98a-title">Divider</title>
-<desc id="sf3aa98a-desc">Decorative animated divider</desc>
-<style>.sf3aa98a-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sf3aa98a-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sf3aa98a-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
-<defs><linearGradient id="sf3aa98a-pulse" x1="0" x2="1"><stop offset="0" stop-color="#60a5fa" stop-opacity="0"/><stop offset="0.5" stop-color="#60a5fa"/><stop offset="1" stop-color="#60a5fa" stop-opacity="0"/></linearGradient></defs>
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="14" viewBox="0 0 840 14" role="img" aria-labelledby="sf90b0bd-title sf90b0bd-desc" class="sf90b0bd-root">
+<title id="sf90b0bd-title">Divider</title>
+<desc id="sf90b0bd-desc">Decorative animated divider</desc>
+<style>.sf90b0bd-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sf90b0bd-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sf90b0bd-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
+<defs><linearGradient id="sf90b0bd-pulse" x1="0" x2="1"><stop offset="0" stop-color="#4696f9" stop-opacity="0"/><stop offset="0.5" stop-color="#4696f9"/><stop offset="1" stop-color="#4696f9" stop-opacity="0"/></linearGradient></defs>
 <line x1="0" y1="7" x2="840" y2="7" stroke="rgba(127,127,127,0.3)" stroke-width="1"/>
-<circle cx="420" cy="7" r="2.5" fill="#60a5fa"/>
-<rect x="-220" y="6" width="220" height="2" fill="url(#sf3aa98a-pulse)"><animateTransform attributeName="transform" type="translate" values="0 0;1060 0" keyTimes="0;1" dur="20s" repeatCount="indefinite"/></rect>
+<circle cx="420" cy="7" r="2.5" fill="#4696f9"/>
+<rect x="-220" y="6" width="220" height="2" fill="url(#sf90b0bd-pulse)"><animateTransform attributeName="transform" type="translate" values="0 0;1060 0" keyTimes="0;1" dur="20s" repeatCount="indefinite"/></rect>
 </svg>

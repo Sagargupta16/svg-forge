@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 64 64" role="img" aria-labelledby="hexwire-title">
+<title id="hexwire-title">Hexwire logo</title>
+<rect width="64" height="64" rx="14" fill="#0b1012"/>
+<path d="M32 8 L53 20 V44 L32 56 L11 44 V20 Z" fill="none" stroke="#60a5fa" stroke-width="3" stroke-linejoin="round"/>
+<path d="M22 32 H42 M32 22 V42" stroke="#e5e7eb" stroke-width="3" stroke-linecap="round"/>
+<circle cx="32" cy="32" r="4" fill="#60a5fa"/>
+</svg>

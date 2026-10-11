@@ -7,4 +7,14 @@ select = ["E", "F", "W", "I", "UP", "B"]
 
 [lint.isort]
 # the CLIs are imported by path in tests; pin them so a local preview/ folder cannot reorder imports
-known-first-party = ["check", "forge", "poster", "preview", "validate_svg"]
+known-first-party = [
+  "check",
+  "forge",
+  "frames",
+  "optimize_svg",
+  "poster",
+  "preview",
+  "sizes",
+  "themes",
+  "validate_svg",
+]

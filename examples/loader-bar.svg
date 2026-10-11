@@ -1,8 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="240" height="8" viewBox="0 0 240 8" role="img" aria-labelledby="sf823dc5-title sf823dc5-desc" class="sf823dc5-root">
-<title id="sf823dc5-title">Loading</title>
-<desc id="sf823dc5-desc">Animated indeterminate progress bar</desc>
-<style>.sf823dc5-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sf823dc5-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sf823dc5-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
-<defs><clipPath id="sf823dc5-track"><rect width="240" height="8" rx="4"/></clipPath></defs>
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="8" viewBox="0 0 240 8" role="img" aria-labelledby="sfbae285-title sfbae285-desc" class="sfbae285-root">
+<title id="sfbae285-title">Loading</title>
+<desc id="sfbae285-desc">Animated indeterminate progress bar</desc>
+<style>.sfbae285-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sfbae285-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sfbae285-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
+<defs><clipPath id="sfbae285-track"><rect width="240" height="8" rx="4"/></clipPath></defs>
 <rect width="240" height="8" rx="4" fill="rgba(127,127,127,0.3)"/>
-<g clip-path="url(#sf823dc5-track)"><rect x="81.6" width="76.8" height="8" rx="4" fill="#60a5fa"><animateTransform attributeName="transform" type="translate" values="-158.4 0;158.4 0" keyTimes="0;1" calcMode="spline" keySplines="0.45 0 0.25 1" dur="1.26s" repeatCount="indefinite"/></rect></g>
+<g clip-path="url(#sfbae285-track)"><rect x="81.6" width="76.8" height="8" rx="4" fill="#0d75f7"><animateTransform attributeName="transform" type="translate" values="-158.4 0;158.4 0" keyTimes="0;1" calcMode="spline" keySplines="0.45 0 0.25 1" dur="1.26s" repeatCount="indefinite"/></rect></g>
 </svg>

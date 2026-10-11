@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="217.3" viewBox="0 0 720 217.3" role="img" aria-labelledby="sf0fb2e5-title sf0fb2e5-desc" class="sf0fb2e5-root">
+<title id="sf0fb2e5-title">Quarter goals</title>
+<desc id="sf0fb2e5-desc">Progress rings: Coverage 91%; Issues closed 70% (42 / 60); Docs pages 70% (7 / 10); Perf budget 38%</desc>
+<style>.sf0fb2e5-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sf0fb2e5-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sf0fb2e5-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
+<defs><linearGradient id="sf0fb2e5-bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#0e1a24"/><stop offset="0.6" stop-color="#0b1012"/></linearGradient></defs>
+<rect x="0.5" y="0.5" width="719" height="216.3" rx="14" fill="url(#sf0fb2e5-bg)" stroke="rgba(255,255,255,0.09)"/>
+<text class="sf0fb2e5-m" x="22" y="32" fill="#60a5fa" font-size="10">QUARTER GOALS</text>
+<circle cx="106.5" cy="104" r="51.24" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="9.52" opacity="0.6"/>
+<text class="sf0fb2e5-b" x="106.5" y="112.62" fill="#f3f4f6" font-size="24.64" text-anchor="middle">91%</text>
+<text class="sf0fb2e5-m" x="106.5" y="179" fill="rgba(255,255,255,0.74)" font-size="9" text-anchor="middle">COVERAGE</text>
+<circle cx="275.5" cy="104" r="51.24" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="9.52" opacity="0.6"/>
+<text class="sf0fb2e5-b" x="275.5" y="112.62" fill="#f3f4f6" font-size="24.64" text-anchor="middle">70%</text>
+<text class="sf0fb2e5-m" x="275.5" y="179" fill="rgba(255,255,255,0.74)" font-size="9" text-anchor="middle">ISSUES CLOSED</text>
+<text class="sf0fb2e5-m" x="275.5" y="192.6" fill="rgba(255,255,255,0.52)" font-size="8.5" text-anchor="middle">42 / 60</text>
+<circle cx="444.5" cy="104" r="51.24" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="9.52" opacity="0.6"/>
+<text class="sf0fb2e5-b" x="444.5" y="112.62" fill="#f3f4f6" font-size="24.64" text-anchor="middle">70%</text>
+<text class="sf0fb2e5-m" x="444.5" y="179" fill="rgba(255,255,255,0.74)" font-size="9" text-anchor="middle">DOCS PAGES</text>
+<text class="sf0fb2e5-m" x="444.5" y="192.6" fill="rgba(255,255,255,0.52)" font-size="8.5" text-anchor="middle">7 / 10</text>
+<circle cx="613.5" cy="104" r="51.24" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="9.52" opacity="0.6"/>
+<text class="sf0fb2e5-b" x="613.5" y="112.62" fill="#f3f4f6" font-size="24.64" text-anchor="middle">38%</text>
+<text class="sf0fb2e5-m" x="613.5" y="179" fill="rgba(255,255,255,0.74)" font-size="9" text-anchor="middle">PERF BUDGET</text>
+<g><circle cx="106.5" cy="104" r="51.24" fill="none" stroke="#60a5fa" stroke-width="9.52" stroke-linecap="round" stroke-dasharray="292.97 321.95" stroke-dashoffset="0" transform="rotate(-90 106.5 104)"><animate attributeName="stroke-dashoffset" values="292.97;292.97;0;0" keyTimes="0;0.0787;0.7874;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="1.27s" fill="freeze"/></circle><circle cx="275.5" cy="104" r="51.24" fill="none" stroke="#60a5fa" stroke-width="9.52" stroke-linecap="round" stroke-dasharray="225.37 321.95" stroke-dashoffset="0" transform="rotate(-90 275.5 104)"><animate attributeName="stroke-dashoffset" values="225.37;225.37;0;0" keyTimes="0;0.1496;0.8583;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="1.27s" fill="freeze"/></circle><circle cx="444.5" cy="104" r="51.24" fill="none" stroke="#22c55e" stroke-width="9.52" stroke-linecap="round" stroke-dasharray="225.37 321.95" stroke-dashoffset="0" transform="rotate(-90 444.5 104)"><animate attributeName="stroke-dashoffset" values="225.37;225.37;0;0" keyTimes="0;0.2205;0.9291;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="1.27s" fill="freeze"/></circle><circle cx="613.5" cy="104" r="51.24" fill="none" stroke="#f59e0b" stroke-width="9.52" stroke-linecap="round" stroke-dasharray="122.34 321.95" stroke-dashoffset="0" transform="rotate(-90 613.5 104)"><animate attributeName="stroke-dashoffset" values="122.34;122.34;0" keyTimes="0;0.2913;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1" dur="1.27s" fill="freeze"/></circle></g>
+</svg>

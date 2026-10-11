@@ -26,9 +26,12 @@ Installed with `/plugin marketplace add Sagargupta16/svg-forge` then `/plugin in
 
 ```
 python skills/animated-svg/scripts/forge.py --kind hero --title "Hello" --out hero.svg
-python skills/animated-svg/scripts/validate_svg.py hero.svg --target standalone
+python skills/animated-svg/scripts/forge.py --kind ring --theme nord --size og --out ring.svg
+python skills/animated-svg/scripts/validate_svg.py hero.svg --target standalone --strict-contrast
+python skills/animated-svg/scripts/frames.py hero.svg   # PNG contact sheet of the timeline (needs Chrome, Edge or Chromium)
 python scripts/preview.py
 python scripts/preview.py --rebuild   # regenerate every template, example and examples/README.md from the recipe table
+python scripts/preview.py --frames    # contact sheet per example into preview/
 ```
 
 ## Test
@@ -39,6 +42,7 @@ python -m pytest -q
 ruff check .
 ruff format --check .
 npx -y @sagargupta1610/skillcheck@0.2.5 lint skills
+claude plugin eval . --scaffold --allow-tools Write Edit   # real-model eval suite in evals/; costs money, run on request
 ```
 
 ## Entry points
@@ -47,8 +51,10 @@ npx -y @sagargupta1610/skillcheck@0.2.5 lint skills
 - `skills/motion-scene/SKILL.md` -- React + Motion scenes for apps
 - `skills/svg-audit/SKILL.md` -- audit an existing SVG or scene, report first, fix on request
 - `agents/svg-designer.md` -- subagent that storyboards, builds, validates and iterates
-- `skills/animated-svg/scripts/forge.py` -- generator CLI (kinds x themes x timing presets)
-- `skills/animated-svg/scripts/validate_svg.py` -- validator CLI (rule ids SV0xx)
+- `skills/animated-svg/scripts/forge.py` -- generator CLI (14 kinds x any `--size` x theme presets x timing presets)
+- `skills/animated-svg/scripts/themes.py`, `sizes.py` -- theme presets with the contrast guarantee, size presets and `Layout`
+- `skills/animated-svg/scripts/validate_svg.py` -- validator CLI (rule ids SV001-SV023, contrast SV021-SV023)
+- `skills/animated-svg/scripts/frames.py`, `optimize_svg.py` -- timeline contact sheets, animation-safe minifier
 
 ## Key files
 
@@ -60,7 +66,9 @@ npx -y @sagargupta1610/skillcheck@0.2.5 lint skills
 
 - Inline SVG in GitHub Markdown is sanitized away; only SVG referenced as an image animates. Test README output on a pushed branch, not in a local Markdown preview.
 - In-SVG `prefers-color-scheme` follows the OS, not GitHub's theme, and fails on WebKit. Ship `<picture>` pairs for dark and light.
-- SVGO's default preset breaks animations (cleanupIds, removeHiddenElems, removeUselessDefs...). Use the safe config in `skills/animated-svg/references/optimize.md`.
+- SVGO's default preset breaks animations (cleanupIds, removeHiddenElems, removeUselessDefs...). Use `optimize_svg.py` or `skills/animated-svg/assets/svgo.config.mjs`.
+- Headless Chrome follows the OS reduced-motion setting, which is on for the owner; `frames.py` passes `--force-prefers-no-reduced-motion`, keep it.
+- Contrast is a gate: a forge color change must be fixed in forge.py or themes.py (then `preview.py --rebuild`), never by editing generated SVGs.
 - `.gitattributes` forces LF; generator output must be byte-identical across runs (tests check it).
 
 ## Repo-specific rules

@@ -5,6 +5,8 @@
   python scripts/preview.py --rebuild   regenerate templates, examples and
                                         examples/README.md from RECIPES, then the gallery
   python scripts/preview.py --open      also open the gallery in the default browser
+  python scripts/preview.py --frames    also write a frames.py contact sheet per example into
+                                        preview/frames/ (skipped when no browser is found)
 
 Each SVG is shown on GitHub's dark (#0d1117) and light (#ffffff) page colors with its size
 and validator result. Commands run from the repository root.
@@ -27,10 +29,12 @@ ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "skills" / "animated-svg" / "scripts"
 TEMPLATES = ROOT / "skills" / "animated-svg" / "assets" / "templates"
 EXAMPLES = ROOT / "examples"
+DOCS = ROOT / "docs"
 OUT = ROOT / "preview"
 sys.path.insert(0, str(SCRIPTS))
 
 import forge  # noqa: E402
+import frames  # noqa: E402
 import validate_svg  # noqa: E402
 
 FORGE = "python skills/animated-svg/scripts/forge.py"
@@ -90,6 +94,11 @@ RECIPES: list[Recipe] = [
             "--data",
             f"{E}/data/stack.json",
         ),
+    ),
+    Recipe(
+        "docs/hero.svg",
+        ("--kind", "hero", "--theme", "both", "--accent", "#38bdf8", "--data", "docs/hero.json"),
+        "the README header",
     ),
     Recipe(
         f"{E}/hero-violet.svg",
@@ -233,6 +242,104 @@ RECIPES: list[Recipe] = [
         ),
         "one entrance and one shine",
     ),
+    Recipe(
+        f"{E}/timeline-career.svg",
+        ("--kind", "timeline", "--data", f"{E}/data/career.json"),
+        "rail draws in, the current role pulses",
+    ),
+    Recipe(
+        f"{E}/timeline-vertical.svg",
+        (
+            "--kind",
+            "timeline",
+            "--variant",
+            "vertical",
+            "--timing",
+            "short",
+            "--theme",
+            "light",
+            "--accent",
+            "#0ea5e9",
+            "--data",
+            f"{E}/data/career.json",
+        ),
+        "vertical rail, one-shot, light theme",
+    ),
+    Recipe(
+        f"{E}/logos-wall.svg",
+        ("--kind", "logos", "--data", f"{E}/data/logos.json"),
+        "inline SVG symbols, a PNG and text pills",
+    ),
+    Recipe(
+        f"{E}/logos-marquee.svg",
+        (
+            "--kind",
+            "logos",
+            "--timing",
+            "ambient",
+            "--speed",
+            "24",
+            "--data",
+            f"{E}/data/logos.json",
+        ),
+        "slow marquee at 24 px/s",
+    ),
+    Recipe(
+        f"{E}/calendar-green.svg",
+        ("--kind", "calendar", "--data", f"{E}/data/contributions.json"),
+        "quartile levels: one 140-count day does not flatten the rest",
+    ),
+    Recipe(
+        f"{E}/calendar-accent.svg",
+        (
+            "--kind",
+            "calendar",
+            "--variant",
+            "accent",
+            "--accent",
+            "#a78bfa",
+            "--theme",
+            "light",
+            "--timing",
+            "medium",
+            "--data",
+            f"{E}/data/activity.json",
+        ),
+        "accent ramp from start and counts, looping reveal",
+    ),
+    Recipe(
+        f"{E}/ring-goals.svg",
+        ("--kind", "ring", "--theme", "both", "--data", f"{E}/data/goals.json"),
+        "both themes, value/max labels and tones",
+    ),
+    Recipe(
+        f"{E}/ring-loop.svg",
+        (
+            "--kind",
+            "ring",
+            "--timing",
+            "medium",
+            "--accent",
+            "#34d399",
+            "--width",
+            "480",
+            "--height",
+            "360",
+            "--data",
+            f"{E}/data/goals.json",
+        ),
+        "fixed 480x360 canvas wraps the rings into rows",
+    ),
+    Recipe(
+        f"{E}/flow-text.svg",
+        ("--kind", "flow", "--timing", "long", "--data", f"{E}/data/pipeline.txt"),
+        "text spec file: parallel steps, edge labels, a return arc",
+    ),
+    Recipe(
+        f"{E}/flow-text-inline.svg",
+        ("--kind", "flow", "--data", "push -> build -> unit, e2e -> deploy"),
+        "inline text spec",
+    ),
 ]
 
 
@@ -305,7 +412,11 @@ def write_readme() -> None:
 
 
 def gallery() -> Path:
-    files = sorted(TEMPLATES.glob("*.svg")) + sorted(EXAMPLES.glob("*.svg"))
+    files = (
+        sorted(TEMPLATES.glob("*.svg"))
+        + sorted(EXAMPLES.glob("*.svg"))
+        + sorted(DOCS.glob("*.svg"))
+    )
     cards = []
     for path in files:
         report = validate_svg.validate_file(path)
@@ -347,10 +458,32 @@ figcaption{{padding:8px 12px;font-size:12px;border-top:1px solid #30363d}}
     return index
 
 
+def contact_sheets() -> tuple[list[Path], str]:
+    """A frames.py contact sheet per example in preview/frames/: a -dark or -light file on its
+    own page, any other on both. Returns the PNGs written, or no PNGs and why."""
+    browser = frames.find_browser()
+    if browser is None:
+        return [], "no Chrome, Edge or Chromium found"
+    written = []
+    for path in sorted(EXAMPLES.glob("*.svg")):
+        png = OUT / "frames" / f"{path.stem}.png"
+        theme = next((t for t in ("dark", "light") if path.stem.endswith(f"-{t}")), "both")
+        argv = [str(path), "--out", str(png), "--theme", theme, "--browser", browser]
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = frames.main(argv)
+        if code:
+            raise SystemExit(f"frames.py failed ({code}) on {path.relative_to(ROOT).as_posix()}")
+        written.append(png)
+    return written, ""
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="preview.py", description=__doc__.split("\n\n")[0])
     ap.add_argument("--rebuild", action="store_true", help="regenerate templates and examples")
     ap.add_argument("--open", action="store_true", help="open the gallery in a browser")
+    ap.add_argument(
+        "--frames", action="store_true", help="write a contact sheet per example (needs Chrome)"
+    )
     args = ap.parse_args(argv)
     if args.rebuild:
         changed = rebuild()
@@ -359,6 +492,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {f}")
     index = gallery()
     print(f"gallery: {index.relative_to(ROOT).as_posix()}")
+    if args.frames:
+        sheets, skipped = contact_sheets()
+        if skipped:
+            print(f"contact sheets skipped: {skipped}")
+        else:
+            print(
+                f"contact sheets: {len(sheets)} in {(OUT / 'frames').relative_to(ROOT).as_posix()}"
+            )
     if args.open:
         webbrowser.open(index.as_uri())
     return 0
