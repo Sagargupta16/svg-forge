@@ -7,7 +7,7 @@ Thanks for helping. svg-forge is small on purpose: three skills, one subagent, a
 ```bash
 git clone https://github.com/Sagargupta16/svg-forge
 cd svg-forge
-pip install ruff pytest
+pip install -r requirements-dev.txt
 ```
 
 No other dependencies. The scripts use the Python 3.12+ standard library only.

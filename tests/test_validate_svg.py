@@ -98,6 +98,7 @@ CASES: dict[str, tuple[str, str, dict[str, object], str]] = {
     ),
     "SV022": (svg('<text x="1" y="5" fill="#0d1117">Hi</text>'), "standalone", WARN, "warn"),
     "SV023": (svg('<circle cx="5" cy="5" r="2" fill="#0d1117"/>'), "standalone", WARN, "warn"),
+    "SV024": (svg('<rect width="-5" height="4"/>'), "standalone", {}, "error"),
 }
 
 
@@ -167,6 +168,19 @@ def test_xlink_href_and_javascript_urls() -> None:
 
     assert found["SV006"] == "error"
     assert found["SV008"] == "error"
+
+
+def test_animated_href_values_are_references() -> None:
+    image = svg(
+        '<image width="1" height="1" href="#x">'
+        '<animate attributeName="href" to="https://e.x/p" dur="1s"/></image>'
+    )
+    link = svg('<a href="#"><set attributeName="href" to="javascript:alert(1)"/></a>')
+    split = svg('<a href="java&#10;script:alert(1)"/>')
+
+    assert rules(image)["SV008"] == "error"
+    assert rules(link)["SV006"] == "error"
+    assert rules(split, target="web")["SV006"] == "error"
 
 
 def test_remote_font_face_is_flagged() -> None:

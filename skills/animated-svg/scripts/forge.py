@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import argparse
 import base64
-import colorsys
 import hashlib
 import html
 import itertools
@@ -311,13 +310,11 @@ def parse_color(value: object, what: str = "--accent") -> str:
 
 
 def _hls(hexcolor: str) -> tuple[float, float, float]:
-    r, g, b = (int(hexcolor[i : i + 2], 16) / 255 for i in (1, 3, 5))
-    return colorsys.rgb_to_hls(r, g, b)
+    return themes.hls(themes.parse_color(hexcolor))
 
 
 def _hex(h: float, light: float, sat: float) -> str:
-    rgb = colorsys.hls_to_rgb(h, min(max(light, 0.0), 1.0), min(max(sat, 0.0), 1.0))
-    return "#" + "".join(f"{round(ch * 255):02x}" for ch in rgb)
+    return themes.format_color(themes.from_hls(h, light, sat))
 
 
 def palette(accent: str, theme: Theme, text: tuple[str, ...], marks: tuple[str, ...]) -> Palette:
@@ -328,15 +325,8 @@ def palette(accent: str, theme: Theme, text: tuple[str, ...], marks: tuple[str, 
     return Palette(ink=ink, deep=_hex(h, light - 0.15, sat * 0.9), text=tune(ink, text, marks))
 
 
-def alpha(hexcolor: str, a: float) -> str:
-    r, g, b = (int(hexcolor[i : i + 2], 16) for i in (1, 3, 5))
-    return f"rgba({r},{g},{b},{num(a, 3)})"
-
-
-def mix(a: str, b: str, t: float) -> str:
-    """The solid #rrggbb t of the way from hex color a to hex color b."""
-    pairs = ((int(a[i : i + 2], 16), int(b[i : i + 2], 16)) for i in (1, 3, 5))
-    return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in pairs)
+alpha = themes.rgba  # a hex color at alpha a, as rgba(r,g,b,a)
+mix = themes.mix  # the solid #rrggbb t of the way from hex color a to hex color b
 
 
 # ---------------------------------------------------------------- text measurement
@@ -388,6 +378,9 @@ def snug(text: str, max_w: float, size: float, face: str = "sans", spacing: floa
 # ---------------------------------------------------------------- layout at any size
 
 FONT_FLOOR = 7.0  # px; smaller text stops reading on a phone
+MIN_EDGE = 8  # px for --width and --height; a divider or a bar loader is thinner than a canvas
+FLOW_MIN_NODE = 44  # px; a narrower flow node cannot hold even a three-letter label
+BAR_ROW_MIN = 18.0  # px; a bars row needs its 9 px label plus the 6 px track
 
 
 def clamp(value: float, lo: float, hi: float) -> float:
@@ -978,7 +971,7 @@ def kind_hero(c: Ctx) -> Art:
             parts.append(rotating(c, fitted, clock, **tag_attrs))
     if status:
         pill_w = text_width(status.upper(), 10, "mono", 1.0) + 46
-        pulse = c.cycle(1.8).sub(1.8) if not one else None
+        pulse = not one
         dot = el("circle", cx=x0 + 18, cy=190 * s, r=4, fill=p.ok)
         if pulse:
             dot = el(
@@ -1347,7 +1340,16 @@ def kind_bars(c: Ctx) -> Art:
     n = len(items)
     w = c.width or 600
     top_y = 50 if title else 22
-    row = 36
+    row = 36.0
+    if c.height is not None:  # a fixed canvas packs the rows instead of drawing past its edge
+        room = (c.height - top_y - 4) / n
+        if room < BAR_ROW_MIN:
+            fits = int((c.height - top_y - 4) // BAR_ROW_MIN)
+            raise ForgeError(
+                f"bars at --height {num(c.height)} fit at most {fits} item(s), got {n}; "
+                "raise the height or drop items"
+            )
+        row = clamp(room, BAR_ROW_MIN, 36.0)
     h = c.height or top_y + n * row + 4
     pad = 24
     tw = w - 2 * pad
@@ -1560,6 +1562,12 @@ def kind_flow(c: Ctx) -> Art:
     top = 52 if title else 24
     bottom = h - (54 if back else 22)
     lanes = (w - 2 * pad) / ranks
+    if lanes - 22 < FLOW_MIN_NODE:
+        least = math.ceil(2 * pad + ranks * (FLOW_MIN_NODE + 22))
+        raise ForgeError(
+            f"flow with {ranks} columns needs a width of at least {least}, got {num(w)}; "
+            "widen the canvas or put fewer steps in a row"
+        )
     longest = max(text_width(n.label.upper(), 9, "mono", MONO_LS) for n in nodes)
     nw = min(max(longest + 30, 88), 176, lanes - 22)
     for r in range(ranks):
@@ -2964,7 +2972,12 @@ def kind_calendar(c: Ctx) -> Art:
     if variant not in ("green", "accent"):
         raise ForgeError(f"calendar variant must be green or accent, got {variant!r}")
     last = max(days)
-    first = last - timedelta(days=(last.weekday() + 1) % 7 + 52 * 7)
+    try:
+        first = last - timedelta(days=(last.weekday() + 1) % 7 + 52 * 7)
+    except OverflowError as exc:
+        raise ForgeError(
+            f"calendar needs 53 weeks before its last day; {last.isoformat()} is too early"
+        ) from exc
     counts = [days.get(first + timedelta(days=k), 0.0) for k in range((last - first).days + 1)]
     active = sorted(v for v in counts if v > 0)
     cuts = [active[len(active) * q // 4] for q in (1, 2, 3)] if active else [0.0, 0.0, 0.0]
@@ -3594,8 +3607,8 @@ def build(
     if size is not None and (width is not None or height is not None):
         raise ForgeError("--size sets the canvas; drop --width and --height")
     for name, value in (("--width", width), ("--height", height)):
-        if value is not None and not 8 <= value <= 4000:
-            raise ForgeError(f"{name} must be between 8 and 4000")
+        if value is not None and not MIN_EDGE <= value <= sizes.MAX_SIDE:
+            raise ForgeError(f"{name} must be between {MIN_EDGE} and {sizes.MAX_SIDE}")
     if speed is not None and not 0 < speed <= 2000:
         raise ForgeError("--speed must be above 0 and at most 2000 px/s")
     if id_prefix is not None and not re.fullmatch(r"[A-Za-z][\w-]{0,23}", id_prefix):
@@ -3757,8 +3770,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ap.add_argument("--kind", required=True, choices=list(KINDS))
     ap.add_argument("--out", help="output .svg; omit to print to stdout (single theme only)")
-    ap.add_argument("--width", type=float, help="canvas width in px (kind default otherwise)")
-    ap.add_argument("--height", type=float, help="canvas height in px (most kinds size to content)")
+    ap.add_argument(
+        "--width",
+        type=float,
+        help=f"canvas width in px, {MIN_EDGE} to {sizes.MAX_SIDE} (kind default otherwise)",
+    )
+    ap.add_argument(
+        "--height",
+        type=float,
+        help=f"canvas height in px, {MIN_EDGE} to {sizes.MAX_SIDE} (most kinds size to content)",
+    )
     ap.add_argument(
         "--size", help="canvas: WxH, a width, or a preset like og, readme, card, icon-128"
     )

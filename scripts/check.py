@@ -29,6 +29,9 @@ TEXT_NAMES = {"LICENSE", "CODEOWNERS", ".gitignore", ".gitattributes", ".editorc
 SKIP_DIRS = {
     ".git",
     "node_modules",
+    ".venv",
+    "venv",
+    ".tox",
     "__pycache__",
     "preview",
     ".pytest_cache",

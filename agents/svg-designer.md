@@ -25,6 +25,10 @@ Write these down before choosing anything, inferring from the request and the re
 | Content | the real numbers, names, steps or dates, verbatim |
 | Motion | loops or plays once, and the timing preset |
 
+## 1c. Offer concepts
+
+Before the storyboard, offer two or three concepts, one line each: the scene or object, what moves, and what the resting frame shows and says. Let the user pick. Skip this when the request already names the scene and the motion; with nobody to ask, take the concept with the strongest resting frame and say which you took. Drop a concept that is dead at rest, needs a label to be understood, holds two ideas, or will not read at the smallest size it is shown. Hero and cover art drawn as line figures follow `skills/animated-svg/references/isometric.md`.
+
 ## 2. Choose target and timing
 
 | Shown in | Target | Skill |
@@ -38,6 +42,8 @@ Pick one timing preset: `micro` (120-300 ms feedback), `short` (0.4-1.2 s one-sh
 
 Write 3 to 6 beats. For each: what moves, from where to where, when (as a fraction of the cycle), and which label (if any) appears. Every beat uses the same clock. The last frame must lead back into the first without a jump.
 
+Design the rest first: the still frame is the thumbnail and the poster, so it is composed and uneven, with one bright mark where the eye should start. A loop is a sentence, not an inventory: three to six beats that each show a different state, then back to rest.
+
 ## 4. Build
 
 - Standalone: if a generator kind fits (`tiles`, `hero`, `marquee`, `chart`, `bars`, `flow`, `loader`, `typing`, `divider`, `badge`, `timeline`, `logos`, `calendar`, `ring`), run `python skills/animated-svg/scripts/forge.py --kind <kind> --size <preset> --theme <theme> ...` and adjust the input data. `--mode both` (or `--theme both` for GitHub) writes the dark and light pair. Read the stderr notes: they list colors moved to reach contrast. For icon sizes prefer a native kind (timeline, logos, calendar, ring) or a mark without labels; the other kinds scale down and their labels stop being readable. Otherwise start from the closest file in `skills/animated-svg/assets/templates/` and hand-author.
@@ -47,11 +53,25 @@ Write 3 to 6 beats. For each: what moves, from where to where, when (as a fracti
 ## 5. Verify, then iterate
 
 - Standalone: `python skills/animated-svg/scripts/validate_svg.py <file> --target standalone --strict-contrast` must report no errors; pass `--theme dark` or `--theme light` for each half of a pair.
-- See the motion: `python skills/animated-svg/scripts/frames.py <file>` writes a PNG contact sheet from t=0 to the loop seam (`--theme both` adds a light row). Open the PNG and check entrances, overlaps, that every label reads, and that the last frame leads back into the first. Exit 3 means no browser; open the `.html` it wrote instead.
+- See the motion: `python skills/animated-svg/scripts/frames.py <file>` writes a PNG contact sheet from t=0 to the loop seam (`--theme both` adds a light row). Open the PNG and check entrances, overlaps, that every label reads, and that the last frame leads back into the first. Exit 3 means no browser; open the `.html` it wrote instead. Run it again at `--width 240`, the size of a phone README card or a gallery tile, and check that every label and mark still reads.
 - Look at the result at every size it will be shown. If browser preview tools are available, use them as well. Watch two full cycles for a seam.
 - Scene: run the project's type-check and lint, then check it in the running app, including the app's reduced or static motion mode if it has one.
 - Fix what reads poorly (too small, too busy, unclear mechanism) and check again. Stop when it reads at the smallest size it will be shown.
 
 ## 6. Report
 
-Return the requirements you pinned, the files written, the size, theme and timing preset, the storyboard, the validator result (with contrast), the contact sheet path, the sizes you checked, and anything you could not verify.
+Return the requirements you pinned, the files written, the size, theme and timing preset, the storyboard, the validator result (with contrast), the contact sheet path, the sizes you checked, and anything you could not verify. When a logo or mark in the graphic belongs to someone else, say so: it is theirs to publish or not. Ask the user to watch one full loop and say whether it tells the story; with nobody to ask, say the loop was not judged.
+
+## If you catch yourself
+
+| Doing this | Do this instead |
+| --- | --- |
+| adding a label to explain what the drawing is | fix the drawing: identity comes from geometry, labels carry data |
+| reaching for a glow, a gradient fill or a second hue | move one stroke to the bright token; one accent plus neutrals |
+| leaving the resting frame flat, empty or perfectly regular | compose it: rest is the thumbnail and the poster |
+| lighting two places at once | one highlight; the active part takes it and the rest mark gives it up |
+| making the loop visit every part in turn | three to six beats that each show a different state, then rest |
+| letting a second idea in | cut it: one graphic, one idea |
+| putting beats on different clocks | one clock `T`; sub-loops divide it evenly |
+| a far edge or a wire showing through a near panel | paint back to front; a panel that hides something keeps its opaque fill |
+| shipping on a green validator alone | read the contact sheet at full width and at 240 px |

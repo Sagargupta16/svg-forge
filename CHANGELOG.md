@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented here. Follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-10-18
+
+### Added
+
+- **Validator rule SV024**: a negative `width`, `height`, `r`, `rx` or `ry` on a shape, image, `use`, nested `svg`, pattern, mask, marker or filter is an error, since the element is not rendered.
+- **Concepts before the storyboard**: the `animated-svg` workflow and the `svg-designer` agent offer two or three one-line concepts (the scene, what moves, what the resting frame shows), design the rest frame before any motion, and check the contact sheet at 240 px as well as full width. The agent gains an "If you catch yourself" table and asks the user to judge the loop.
+- **`references/isometric.md`** in `animated-svg`: isometric line figures for hero and cover art: the 2:1 projection, solids as a silhouette and one crease, four stroke weights on a filled plate, a designed rest, one highlight, honest paint order, and the clock standing in for the pointer. Distilled for SMIL and CSS from the hairline project (MIT).
+- Design rules shared across the skills: rest is designed, one highlight at a time, paint order is depth, hit areas do not move, two clocks (a tween for a choice, a spring for the pointer), and page-driven theming for inline files. `svg-audit` reviews the rest frame, the highlight count and the paint order.
+- `requirements-dev.txt` pins the development tools so Renovate tracks them; CI installs from it.
+
+### Fixed
+
+- `validate_svg.py` checks the `to`, `from`, `by` and `values` of SMIL animations that target `href` or `src`: an `<animate attributeName="href" to="https://...">` or a `<set>` to a `javascript:` URL passed with no finding. Tab, LF and CR inside a URL scheme are stripped before classifying, as browsers do, so `java&#10;script:` is SV006 under every target.
+- `forge.py --kind flow` with more columns than its width can hold emitted negative-width rects and the nodes vanished; it now exits 2 with the width it needs.
+- `forge.py --kind bars --height` packs the rows into the canvas instead of drawing past its bottom edge, and refuses a height that cannot hold the items.
+- `forge.py --kind calendar` with a date in the first year exits 2 with a message instead of a traceback.
+- `scripts/check.py` skips `.venv`, `venv` and `.tox`, so a contributor's virtual environment cannot turn the repo gate red.
+
+### Changed
+
+- `--width` and `--height` accept 8 to 4096 px, sharing the upper bound with `--size` (was 4000).
+- forge.py takes its HLS, alpha and mix helpers from themes.py instead of keeping a second copy; output is byte-identical.
+- CI runs the checks job on Python 3.15 and the tests on 3.12 to 3.15, with ruff 0.17.1.
+
 ## [0.2.0] - 2026-10-11
 
 ### Added

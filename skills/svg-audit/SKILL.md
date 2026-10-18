@@ -26,6 +26,8 @@ Find what is wrong with an SVG or an animated scene, rank it by how much it hurt
 
 Ask only if the target cannot be inferred from where the file lives or how it is referenced (grep the repo for its filename).
 
+The references above live in the sibling `animated-svg` and `motion-scene` skills of the svg-forge plugin; this skill reads them, so install the plugin, not this folder alone.
+
 ## 2. Run the validator (SVG files)
 
 ```bash
@@ -51,9 +53,12 @@ Work through each lens and record findings with a file and line.
 **Render-target safety**
 - Standalone: anything that needs network, script, or an HTML context fails silently on GitHub. External fonts fall back to system fonts, so check text still fits.
 - Dark and light: text needs 4.5:1 and marks 3:1 on both GitHub themes (the validator measures this), or the file must ship as a `<picture>` pair. In-SVG `prefers-color-scheme` does not follow GitHub's theme and fails on WebKit. For a fix, regenerate with forge.py `--theme both` or a preset; it tunes every color to pass.
+- Paint order: a far edge showing through a near panel, a wire crossing the face of the panel it should end at, a dashed guide over its own plate. The fix is order and an opaque fill, not a mask.
 - Browser quirks: SMIL path morphs are the only morphs Safari plays; `calcMode` misspelled (`calcmod`) silently drops `keySplines`; `pathLength` together with `vector-effect="non-scaling-stroke"` stops line draws short in Chrome.
 
 **Motion quality**
+- Rest frame: read the static attributes as the first frame and judge it as the thumbnail. A flat grid, an empty tray or every element at `opacity="0"` fails; so does a rest that looks like nothing rendered yet.
+- One highlight: one bright mark at rest; a beat moves it, never adds a second. Two lit places at once is a finding.
 - One clock: beats in a loop should share one duration so they never drift apart.
 - Seamless loop: the last keyframe equals the first, or the restart happens while the element is invisible.
 - Easing: multi-keyframe animations need per-segment easing (`keySplines` per segment, or an `ease` array in Motion when `times` is set).

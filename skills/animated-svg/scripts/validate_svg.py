@@ -37,6 +37,7 @@ Rules (error unless marked warn):
          threshold on GitHub dark (#0d1117) or GitHub light (#ffffff)
   SV023  warn: a solid shape below 3:1 (WCAG 1.4.11) against what is painted beneath it,
          or against a GitHub theme where the SVG paints nothing
+  SV024  negative width, height, r, rx or ry: the element is not rendered
   --strict-contrast turns SV021-SV023 into errors. --theme dark or --theme light tests
   only that GitHub theme (the matching half of a <picture> pair). The Python API runs
   them only when asked: validate_text(..., contrast="warn" or "error").
@@ -98,6 +99,7 @@ RULES = {
     "SV021": "text contrast below WCAG",
     "SV022": "text fails on a GitHub theme",
     "SV023": "graphic contrast below 3:1",
+    "SV024": "negative length",
 }
 # Run when contrast is on: the CLI default (warn), or contrast="warn"/"error" in the API.
 CONTRAST_RULES = {rule: RULES[rule] for rule in ("SV021", "SV022", "SV023")}
@@ -226,7 +228,8 @@ def seconds(value: str | None) -> float | None:
 
 def classify(ref: str) -> str:
     """local (#id or empty), data, file, js, or remote (http, https, //, relative path)."""
-    r = ref.strip().lower()
+    # browsers drop ASCII tab, LF and CR from a URL before reading its scheme
+    r = re.sub(r"[\t\n\r]", "", ref).strip().lower()
     if not r or r.startswith("#"):
         return "local"
     if r.startswith("data:"):
@@ -434,6 +437,10 @@ LARGE_PX, LARGE_BOLD_PX = 24.0, 18.66
 DECORATIVE_ALPHA = 0.5
 OPAQUE = 0.999
 SHAPES = {"rect", "circle", "ellipse", "line", "polyline", "polygon", "path"}
+# elements whose width, height, r, rx or ry must not be negative (an error: not rendered)
+SIZED = SHAPES | {"image", "use", "svg", "foreignObject", "pattern", "mask", "marker", "filter"}
+# SMIL targets that hold a URL: their to, from, by and values are references too
+REF_TARGETS = {"href", "src"}
 TEXT_TAGS = {"text", "tspan", "textPath"}
 GRADIENTS = {"linearGradient", "radialGradient"}
 NOT_RENDERED = set(
@@ -1453,6 +1460,24 @@ def validate_text(
             elif local != "style":
                 for m in URL_REF.finditer(value):
                     check_ref(report, node.line, f"<{node.tag}> {local}", m.group(2), web)
+        target = (node.attr("attributeName") or "").rpartition(":")[2]
+        if node.tag in SMIL and target in REF_TARGETS:
+            for key in ("to", "from", "by", "values"):
+                raw = node.attr(key)
+                if raw is None:
+                    continue
+                for item in raw.split(";") if key == "values" else [raw]:
+                    check_ref(report, node.line, f"<{node.tag}> {key}", item, web)
+        if node.tag in SIZED:
+            for local in ("width", "height", "r", "rx", "ry"):
+                m = LENGTH.fullmatch(node.attr(local) or "")
+                if m and float(m.group(1)) < 0:
+                    report.add(
+                        "SV024",
+                        "error",
+                        node.line,
+                        f'<{node.tag}> {local}="{node.attr(local)}" is negative: not rendered',
+                    )
         if node.attr("pathLength") is not None:
             effect = node.attr("vector-effect") or ""
             style = node.attr("style") or ""

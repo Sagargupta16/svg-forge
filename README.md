@@ -7,7 +7,7 @@
 </picture>
 
 [![CI](https://github.com/Sagargupta16/svg-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/Sagargupta16/svg-forge/actions/workflows/ci.yml)
-![Version](https://img.shields.io/badge/version-0.2.0-2563eb)
+![Version](https://img.shields.io/badge/version-0.3.0-2563eb)
 ![License](https://img.shields.io/badge/license-MIT-2563eb)
 
 </div>
@@ -29,13 +29,13 @@ The generator and validator are plain Python 3.12+ scripts with no dependencies,
 
 | Part | Use it for |
 | --- | --- |
-| [`animated-svg`](skills/animated-svg/SKILL.md) skill | Standalone `.svg` files: README headers and stat cards, diagrams, loaders, badges, marquees. Covers what GitHub's image proxy allows, a SMIL and CSS cookbook, timing, design, safe optimization, gotchas and accessibility. |
+| [`animated-svg`](skills/animated-svg/SKILL.md) skill | Standalone `.svg` files: README headers and stat cards, diagrams, loaders, badges, marquees. Covers what GitHub's image proxy allows, a SMIL and CSS cookbook, timing, design, isometric line figures, safe optimization, gotchas and accessibility. |
 | [`motion-scene`](skills/motion-scene/SKILL.md) skill | Animated illustrations inside a React app with Motion: cover art, card scenes, mechanism diagrams. Research, build and verify modes, plus a copy-in TypeScript kit. |
 | [`svg-audit`](skills/svg-audit/SKILL.md) skill | Ranked findings for an existing SVG or scene: render-target safety, accessibility, motion quality, weight. Reports first, fixes on request. |
 | [`svg-designer`](agents/svg-designer.md) agent | End to end: studies the subject, storyboards, builds, validates and iterates until it reads at the size it is shown. |
 | [`forge.py`](skills/animated-svg/scripts/forge.py) | Generator: 14 kinds (tiles, hero, marquee, chart, bars, flow, loader, typing, divider, badge, timeline, logos, calendar, ring) at any size, in 15 theme presets or a theme built from one brand color, with 5 timing presets. Every color is tuned to WCAG contrast; output is deterministic and escaped. |
 | [`themes.py`](skills/animated-svg/scripts/themes.py) and [`sizes.py`](skills/animated-svg/scripts/sizes.py) | GitHub, Nord, Dracula, Catppuccin, Tokyo Night, Gruvbox, Solarized, One Dark, high-contrast and transparent themes, `auto:<hex>` brand themes and palette files; 15 size presets from `favicon-32` to `youtube-banner`. |
-| [`validate_svg.py`](skills/animated-svg/scripts/validate_svg.py) | Validator: rules SV001 to SV023 for GitHub safety, accessibility (including WCAG contrast on both GitHub themes), ids, size and animation sanity. |
+| [`validate_svg.py`](skills/animated-svg/scripts/validate_svg.py) | Validator: rules SV001 to SV024 for GitHub safety, accessibility (including WCAG contrast on both GitHub themes), ids, size and animation sanity. |
 | [`frames.py`](skills/animated-svg/scripts/frames.py) | Renders an animation's timeline as a PNG contact sheet (headless Chrome, Edge or Chromium), so an agent can see the timing, overlaps and loop seam. |
 | [`optimize_svg.py`](skills/animated-svg/scripts/optimize_svg.py) | An animation-safe minifier that checks its output before writing, plus an [SVGO config](skills/animated-svg/assets/svgo.config.mjs) that keeps animations intact. |
 

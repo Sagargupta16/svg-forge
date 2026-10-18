@@ -36,7 +36,7 @@ For a finished graphic end to end (storyboard, build, validate, iterate at every
 ## Modes
 
 - `create` (default): a new file from a description or data. Run the workflow below from step 1.
-- `animate`: add motion to an existing static SVG. Read it, name the mechanism (step 3), then add techniques from [references/smil-and-css.md](references/smil-and-css.md) without changing its geometry. Prefix any ids you add. Then steps 5 to 7.
+- `animate`: add motion to an existing static SVG. Say what the drawing is and which two or three parts make it that; the part that gives it away is the one that moves. Name the mechanism (step 3), then add techniques from [references/smil-and-css.md](references/smil-and-css.md) without changing its geometry. Prefix any ids you add. Then steps 5 to 7.
 - `optimize`: make an existing animated file smaller without breaking it. Go straight to [references/optimize.md](references/optimize.md), then steps 5 and 6.
 
 ## Workflow
@@ -67,9 +67,11 @@ The clock starts when the image loads, not when it scrolls into view, so a one-s
 ### 3. Design the mechanism and storyboard before drawing
 
 1. Write the subject as `input -> processing -> output` in its own nouns (read the code or the user's description, not a generic category).
-2. Give every moving element a meaning: packet = request or artifact, line draw = progress, pulse = live, highlight = active step. Cut motion that means nothing.
-3. Choose one clock `T`. Write the beat table: what moves, from where to where, during which fraction of `T`. Every element uses `T` (or `T / k`).
-4. Check the budget: about 12 animated elements per scene, 40 per file, one accent plus neutrals, labels of 12 characters or fewer.
+2. Offer two or three concepts, one line each (the scene or object, what moves, what the resting frame shows) and let the user pick; skip this when the request already names them. Line-figure hero art: [references/isometric.md](references/isometric.md).
+3. Design the rest before the motion: the still frame is the thumbnail, so it is composed, with one bright mark where the eye starts ([references/design.md](references/design.md) section 1).
+4. Give every moving element a meaning: packet = request or artifact, line draw = progress, pulse = live, highlight = active step. Cut motion that means nothing.
+5. Choose one clock `T`. Write the beat table: what moves, from where to where, during which fraction of `T`. Every element uses `T` (or `T / k`).
+6. Check the budget: about 12 animated elements per scene, 40 per file, one accent plus neutrals, one highlight at a time, labels of 12 characters or fewer.
 
 ```
 clock T = 6 s loop (medium)
@@ -107,7 +109,7 @@ If a kind fits, generate it with `scripts/forge.py` and change the data, not the
 
 Common options:
 - `--kind KIND` (required), `--out FILE` (omit to print one theme to stdout).
-- `--size`: `WxH`, a width, or a preset (`readme`, `card`, `og`, `linkedin-banner`, `square`, `story`, `icon-128` and more). timeline, logos, calendar and ring lay out natively; the other ten scale their layout in, centered and never distorted, but their labels do not grow, so keep icon sizes to native kinds or marks. Use it or `--width`/`--height` (8 to 4000), not both.
+- `--size`: `WxH`, a width, or a preset (`readme`, `card`, `og`, `linkedin-banner`, `square`, `story`, `icon-128` and more). timeline, logos, calendar and ring lay out natively; the other ten scale their layout in, centered and never distorted, but their labels do not grow, so keep icon sizes to native kinds or marks. Use it or `--width`/`--height` (8 to 4096), not both.
 - `--theme`: `dark` (default), `light`, `both` (the GitHub pair), a preset (`nord`, `dracula`, `catppuccin-mocha`, `tokyo-night`, ...), a family, `auto:<hex>` for a brand color, or a palette `.json`. `--mode dark|light|both` picks a family's variant; `both` needs `--out`, writes `NAME-dark.svg` and `NAME-light.svg` and prints a `<picture>` snippet with the paths as given, so pass a repo-relative `--out`.
 - `--accent "#rrggbb"` (default: the theme's own). Text reaches 4.5:1 and marks 3:1 in every theme; a color that falls short, your accent included, moves to the nearest passing lightness and is noted on stderr.
 - Every preset, the native and scaled kinds, palette files and the contrast rules: [references/themes-and-sizes.md](references/themes-and-sizes.md).
@@ -139,7 +141,7 @@ python scripts/validate_svg.py assets/hero-light.svg --theme light --strict-cont
 ```
 
 - `FILE_OR_DIR...` one or more files, or folders to scan for `*.svg`; `--target standalone|web` (default `standalone`; `web` downgrades external references, `<foreignObject>` and a missing xmlns to warnings); `--max-kb N` (error above N, warning above half; defaults 100 KB standalone, 200 KB web); `--json` for machine-readable findings.
-- Each finding has a rule id, severity and line. Exit status is 1 when any file has an error. Fix every error: SV001-SV004 structure, SV005-SV009 blocked content (script, handlers, `<foreignObject>`, external references, `@import` and remote fonts), SV010-SV011 accessible name, SV012 duplicate ids, SV013 size, SV014 en or em dashes.
+- Each finding has a rule id, severity and line. Exit status is 1 when any file has an error. Fix every error: SV001-SV004 structure, SV005-SV009 blocked content (script, handlers, `<foreignObject>`, external references, `@import` and remote fonts), SV010-SV011 accessible name, SV012 duplicate ids, SV013 size, SV014 en or em dashes, SV024 a negative width, height or radius (the element is not rendered).
 - Then read the warnings: SV017 and SV018 (keyTimes, values and keySplines counts, keySplines without `calcMode="spline"`) usually mean an animation silently does nothing; SV015 more than 40 animated elements; SV016 a repeat under 100 ms; SV019 `pathLength` with `non-scaling-stroke`; SV020 a data URI over 64 KB.
 - SV021-SV023 check contrast: text 4.5:1 (3:1 at 24 px, or 18.66 px bold) on the SVG's own background, or on both GitHub pages when it has none (SV022); solid shapes 3:1 (SV023, WCAG 1.4.11); gradients by their worst stop. `--theme dark|light` per half of a pair, `--strict-contrast` to make them errors, `stats.contrast` in `--json`.
 - Generated files: fix the data or the generator, never the output.
@@ -149,7 +151,7 @@ python scripts/validate_svg.py assets/hero-light.svg --theme light --strict-cont
 
 A passing validator is not a working animation.
 
-1. See the timing: `python scripts/frames.py FILE.svg` writes `FILE.frames.png`, frames from t=0 to just before the loop restarts, so the start and the seam sit on one sheet. Read the PNG: entrances, overlaps, and the loop landing back on frame one. `--times 0,1.2,2.4` picks moments; `--theme both` adds a light row; captions show `k`, the keyTimes position. It needs headless Chrome, Edge or Chromium; exit 3 means none was found, so open the `.html` it wrote.
+1. See the timing: `python scripts/frames.py FILE.svg` writes `FILE.frames.png`, frames from t=0 to just before the loop restarts, so the start and the seam sit on one sheet. Read the PNG: entrances, overlaps, and the loop landing back on frame one. `--times 0,1.2,2.4` picks moments; `--theme both` adds a light row; captions show `k`, the keyTimes position. It needs headless Chrome, Edge or Chromium; exit 3 means none was found, so open the `.html` it wrote. Run it again with `--width 240` (a phone README card, a gallery tile) and fix any label that stops reading there.
 2. Open the file directly in Chrome and Firefox (and Safari or WebKit when you can). Watch two full cycles; the seam is where loops break.
 3. Seek exact frames by hand when the sheet is not enough: with the `.svg` open as its own page, run `document.documentElement.pauseAnimations(); document.documentElement.setCurrentTime(2.4)` in the console for SMIL, and `document.getAnimations().forEach(a => { a.pause(); a.currentTime = 2400; })` for CSS. Check each beat boundary from the storyboard.
 4. README files: push to a branch and view the README on GitHub for that branch, in both GitHub themes, and at 375 px wide. An 840 px card renders at about 0.41x on a phone; anything that must be read needs about 22-24 px drawn size.
@@ -181,6 +183,7 @@ Hand back:
 - Never switch themes with `prefers-color-scheme` inside the file for a README; ship a `<picture>` pair.
 - Never put pale accents or light text on a transparent file without a light variant.
 - Never put information only in motion: the resting frame holds the whole message.
+- Never light two places at once: one highlight, which moves to the active part.
 - Never run beats on different clocks or ship a loop that jumps at its seam.
 - Never animate `d` with CSS (Safari ignores it) or draw lines with a negative `stroke-dashoffset`.
 - Never run SVGO's default preset on an animated file or hand-edit a generated one.
@@ -197,4 +200,5 @@ Hand back:
 - [references/optimize.md](references/optimize.md): `optimize_svg.py`, the animation-safe SVGO v4 config, id prefixing, size budgets, determinism.
 - [references/themes-and-sizes.md](references/themes-and-sizes.md): theme presets, families and `--mode`, brand and palette themes, the contrast guarantee, size presets, native versus scaled kinds.
 - [references/gotchas.md](references/gotchas.md): symptom, cause and fix for the failures that cost the most time.
+- [references/isometric.md](references/isometric.md): isometric line figures for hero and cover art: projection, solids, stroke weights, a designed rest, one highlight, paint order, the clock as the pointer.
 - [references/accessibility.md](references/accessibility.md): naming the file, alt text, decorative graphics, contrast, motion and WCAG.

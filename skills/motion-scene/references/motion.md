@@ -86,6 +86,8 @@ document.getAnimations().filter((a) => a.effect.getKeyframes().length > 2 && a.e
 - Time and scroll cause, tweens answer: every loop, reveal and fade.
 - Gate hover effects to hover-capable pointers (`@media (hover: hover) and (pointer: fine)`); touch gets tap feedback only.
 - Put hover transforms on a wrapper, not on the looping element, so the two never fight over `transform`.
+- Two clocks. A discrete change (which item is chosen) gets a long ease-out tween, about 700 ms on `cubic-bezier(0.32, 0.72, 0, 1)`; a continuous input (where the pointer is) gets a spring (about stiffness 100, damping 18), because its target moves every frame and a timed ease would always be chasing it. Never a tween on the pointer's position, never a spring on a choice.
+- Hit areas do not move. Test hover against the element's rest footprint (a static wrapper, or an invisible box at the rest position), never against the element that lifts; otherwise it lifts out from under the pointer, the hover drops, it falls back and the hover returns, a flicker loop.
 
 ## 9. Enter and exit
 

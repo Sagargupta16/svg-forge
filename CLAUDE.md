@@ -19,7 +19,7 @@ Installed with `/plugin marketplace add Sagargupta16/svg-forge` then `/plugin in
 - **Language**: Python 3.12+ standard library (generator, validator, repo checks); TypeScript + React 19 + Motion for the copy-in scene kit
 - **Framework**: none at runtime; the plugin is Markdown skills, one subagent, scripts and starter files
 - **Database**: none
-- **Package manager**: none required; `pip install ruff pytest` for development
+- **Package manager**: none required; `pip install -r requirements-dev.txt` for development
 - **Deploy target**: GitHub repo + self-hosted plugin marketplace (`.claude-plugin/marketplace.json`, `source: "./"`)
 
 ## Run
@@ -53,7 +53,7 @@ claude plugin eval . --scaffold --allow-tools Write Edit   # real-model eval sui
 - `agents/svg-designer.md` -- subagent that storyboards, builds, validates and iterates
 - `skills/animated-svg/scripts/forge.py` -- generator CLI (14 kinds x any `--size` x theme presets x timing presets)
 - `skills/animated-svg/scripts/themes.py`, `sizes.py` -- theme presets with the contrast guarantee, size presets and `Layout`
-- `skills/animated-svg/scripts/validate_svg.py` -- validator CLI (rule ids SV001-SV023, contrast SV021-SV023)
+- `skills/animated-svg/scripts/validate_svg.py` -- validator CLI (rule ids SV001-SV024, contrast SV021-SV023)
 - `skills/animated-svg/scripts/frames.py`, `optimize_svg.py` -- timeline contact sheets, animation-safe minifier
 
 ## Key files

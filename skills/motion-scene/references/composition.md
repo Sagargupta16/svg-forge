@@ -7,6 +7,7 @@ What goes on the stage, where, and in which colors. Motion rules live in `motion
 - Show what the subject does, as input -> processing -> output, in its own nouns: command names, file names, table names, model names, UI labels. Read the code, not the README.
 - The test: someone who knows the subject recognises it in one glance at the smallest slot width. A generic "dashboard with bars", "cloud with arrows" or "brain with sparkles" fails even when it looks good.
 - Labels are not accuracy. One generic scene reused for six unrelated subjects with only the chip text changed is still wrong for five of them.
+- Geometry carries identity. If the scene needs a label to be recognised, the drawing has failed; fix the drawing before the words.
 - Depict the subject, not its technology. A tax tool whose value is the computation shows the computation, not a protocol hub diagram because it happens to speak that protocol.
 - For a service or offering with no repo, depict the deliverable (a module library with its tests, a blue/green cutover, a pipeline with a drift alarm), not the buzzword.
 - Good mechanisms have a visible cause and effect inside one loop: a request is denied at a layer, a cache slot fills on the way back, a canary takes one request in two, a job retries once and lands.
@@ -46,6 +47,7 @@ Build everything from `createPalette({ tint, scheme })`:
 
 - The tint comes from the host (the card's accent, the brand color). Pass a 6 digit hex; ladders are 8 digit hex, valid in SVG attributes and CSS.
 - Never add a hue because the real product uses it. A grid of 40 cards must read as one palette.
+- One highlight at a time: at rest one bright mark (`t[55]` or `n[88]`) says where to start, and when a beat chooses a part the bright moves to it and the rest mark gives it up.
 - Never: gradient text, glow halos (box-shadow or drop-shadow), blur filters, a rainbow of per-item colors.
 - `scheme: "light"` swaps the neutral to a dark ink on a light canvas. Check that `n[55]` labels still read on it.
 

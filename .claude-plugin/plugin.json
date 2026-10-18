@@ -1,6 +1,6 @@
 {
   "name": "svg-forge",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Design animated SVGs that render everywhere: self-contained README cards, banners, loaders, icons and diagrams, plus React and Motion scenes for web apps. Three skills, a designer subagent, a stdlib generator for 14 kinds at any size with 15 contrast-checked themes or a brand color, a validator with WCAG contrast rules, a frame renderer and a safe minifier.",
   "author": {
     "name": "Sagar Gupta",
