@@ -59,7 +59,8 @@ Work through each lens and record findings with a file and line.
 **Motion quality**
 - Rest frame: read the static attributes as the first frame and judge it as the thumbnail. A flat grid, an empty tray or every element at `opacity="0"` fails; so does a rest that looks like nothing rendered yet.
 - One highlight: one bright mark at rest; a beat moves it, never adds a second. Two lit places at once is a finding.
-- Loop shape: a loop that opens on an empty stage leaves a half-built poster and frozen frame; opening on the finished state with a clear window, or a clean rest pose at t=0, is the fix.
+- Loop shape: a loop that opens on an empty stage leaves a half-built poster and frozen frame; opening on the finished state with a clear window, or a static ghost layer under the build-up, is the fix.
+- A state change: at least one beat decides something (a row rejected, a check popped, a slot filled); motion with nothing decided is a polish finding.
 - One clock: beats in a loop should share one duration so they never drift apart.
 - Seamless loop: the last keyframe equals the first, or the restart happens while the element is invisible.
 - Easing: multi-keyframe animations need per-segment easing (`keySplines` per segment, or an `ease` array in Motion when `times` is set).

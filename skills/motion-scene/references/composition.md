@@ -10,8 +10,9 @@ What goes on the stage, where, and in which colors. Motion rules live in `motion
 - Geometry carries identity. If the scene needs a label to be recognised, the drawing has failed; fix the drawing before the words.
 - Depict the subject, not its technology. A tax tool whose value is the computation shows the computation, not a protocol hub diagram because it happens to speak that protocol.
 - For a service or offering with no repo, depict the deliverable (a module library with its tests, a blue/green cutover, a pipeline with a drift alarm), not the buzzword.
-- A deployed app gets a scene, not a screenshot. The scene echoes the real UI at the mechanism's moment: the panel layout in slot percent, rows as bars, the one control or state that matters, and none of the rest of the chrome.
+- A deployed app gets a scene, not a screenshot. The scene keeps the UI's layout skeleton and one signature control (a URL bar, a 3 by 3 post grid, a search pill, a command palette), rows as bars, and only that one control ever moves. Leave out real copy, numbers, logos and brand colours.
 - Good mechanisms have a visible cause and effect inside one loop: a request is denied at a layer, a cache slot fills on the way back, a canary takes one request in two, a job retries once and lands.
+- At least one beat changes a state: a row is rejected, a check pops, a slot fills, a gate opens. Motion with nothing decided is the first way a scene fails; labels as the only difference between variants is the second; nothing visible in the frozen frame is the third.
 
 ## 2. Labels
 
@@ -21,7 +22,7 @@ What goes on the stage, where, and in which colors. Motion rules live in `motion
 | Icon-size card (an 80 px source canvas the host scales 1.5x on phones, 1.8x on desktop) | 2 | 6 px in source, so 9 to 10.8 px rendered, never smaller | 10 chars or fewer |
 
 - Uppercase monospace, letter-spacing about 0.08em, no dashes of any kind.
-- Words come only from the brief's vocabulary list (verbatim terms from the source).
+- Words come only from the brief's vocabulary list (verbatim terms from the source), read from the code as it is today: a README can still name a dependency the code swapped months ago.
 - Labels are HTML (`Label`), not SVG `<text>`. HTML keeps its px size at every slot width; SVG text scales with the stage, turning to mush at 165 px and shouting at hero size.
 - No prose and no numbers that read as claims ("99.9%", "10x", fake metrics). The host card's title and description carry meaning; the scene is decoration.
 - At small scales labels become texture. The motion must still carry the mechanism without them.
@@ -48,7 +49,7 @@ Build everything from `createPalette({ tint, scheme })`:
 | `p.warn` | Warning, miss, denied, drift. Status only |
 
 - The tint comes from the host (the card's accent, the brand color). Pass a 6 digit hex; ladders are 8 digit hex, valid in SVG attributes and CSS.
-- Never add a hue because the real product uses it. A grid of 40 cards must read as one palette.
+- Never add a hue because the real product uses it. A grid of 40 cards must read as one palette. A colourful subject (folk art, a brand mark, a photo app) is drawn as tint line work; its colour is the one thing the scene does not keep.
 - One highlight at a time: at rest one bright mark (`t[55]` or `n[88]`) says where to start, and when a beat chooses a part the bright moves to it and the rest mark gives it up.
 - Never: gradient text, glow halos (box-shadow or drop-shadow), blur filters, a rainbow of per-item colors.
 - `scheme: "light"` swaps the neutral to a dark ink on a light canvas. Check that `n[55]` labels still read on it.

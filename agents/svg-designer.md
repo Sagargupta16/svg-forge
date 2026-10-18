@@ -27,7 +27,7 @@ Write these down before choosing anything, inferring from the request and the re
 
 ## 1c. Offer concepts
 
-Before the storyboard, offer two or three concepts, one line each: the scene or object, what moves, and what the resting frame shows and says. Let the user pick. Skip this when the request already names the scene and the motion; with nobody to ask, take the concept with the strongest resting frame and say which you took. Drop a concept that is dead at rest, needs a label to be understood, holds two ideas, or will not read at the smallest size it is shown. Hero and cover art drawn as line figures follow `skills/animated-svg/references/isometric.md`.
+Before the storyboard, offer two or three concepts, one line each: the scene or object, what moves, and what the resting frame shows and says. Let the user pick. Skip this when the request already names the scene and the motion; with nobody to ask, take the concept with the strongest resting frame and say which you took. Drop a concept that is dead at rest, needs a label to be understood, holds two ideas, has no beat that changes a state, or will not read at the smallest size it is shown. Hero and cover art drawn as line figures follow `skills/animated-svg/references/isometric.md`.
 
 ## 2. Choose target and timing
 
@@ -75,4 +75,5 @@ Return the requirements you pinned, the files written, the size, theme and timin
 | putting beats on different clocks | one clock `T`; sub-loops divide it evenly |
 | a far edge or a wire showing through a near panel | paint back to front; a panel that hides something keeps its opaque fill |
 | shipping on a green validator alone | read the contact sheet at full width and at 240 px |
-| a loop whose first frame is an empty stage | open on the finished state and clear in the first 4 to 8 percent, or hide what builds up so frame 0 is a clean rest |
+| a loop whose first frame is an empty stage | open on the finished state and clear at about 0.03 to 0.08, or build up over a static ghost layer so frame 0 still reads |
+| motion with nothing decided | give one beat a state change: a row rejected, a check popped, a slot filled |

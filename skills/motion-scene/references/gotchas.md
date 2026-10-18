@@ -48,7 +48,7 @@ Each entry: what you see, why, and the fix. The kit already applies every fix; t
 
 - **Symptom**: sampled values repeat, loops look stuck, frame timings are huge.
 - **Cause**: background or unfocused tabs throttle rendering to about one frame per 300 ms.
-- **Fix**: measure only in a focused, visible tab; bring the page to the front before sampling and compare against `requestAnimationFrame` timestamps.
+- **Fix**: measure only in a focused, visible tab; bring the page to the front before sampling and compare against `requestAnimationFrame` timestamps. An unfocused embedded preview pane is the same trap at about 2 fps; use headless Playwright for frame-accurate checks.
 
 ## 9. Packets stutter under load
 

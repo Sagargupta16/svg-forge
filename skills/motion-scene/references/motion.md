@@ -76,11 +76,12 @@ document.getAnimations().filter((a) => a.effect.getKeyframes().length > 2 && a.e
 - Packets: fade in on the first stop, travel and hold, fade out just after the last stop, slide home while hidden, fade back in next cycle. `ride` and `comet` emit exactly this.
 - Linear sweeps move exactly one period: a texture drifts one cell, a marquee of two copies translates by -50 percent.
 - Watch two full cycles; the seam is where jumps hide.
-- Two loop shapes. **Build up**: the stage starts empty, parts arrive, everything lit holds until `END` (0.92) and is gone by `GONE` (0.95), then resets while hidden; one `END`/`GONE` pair per scene, so every track shares the same exit (`shown(on, GONE)`). **Open on the finished state**: frame 0 is the complete mechanism, a clear window in the first 4 to 8 percent fades the built parts out, the loop rebuilds them and holds to the end: `times: [0, 0.04, 0.08, at, at + ramp, 1]` with `opacity: [1, 1, 0, 0, 1, 1]`. Prefer the second when the frozen reduced frame, a link preview or a static render must show the finished thing; the first when the arrival is the story.
+- Two loop shapes, decided by one question: what does the frozen frame show? **Build up**: the stage starts empty, parts arrive, everything lit holds until `END` (about 0.90 to 0.92) and is gone by `GONE` (about 0.94 to 0.95), then resets while hidden; one `END`/`GONE` pair per scene, so every track shares the same exit (`shown(on, GONE)`). It only works over a static ghost layer (dim tiles, wires and empty slots that never animate), so the frozen frame still reads as the diagram. **Open on the finished state**: frame 0 is the complete mechanism, a clear window at about 0.03 to 0.08 fades the built parts out, the loop rebuilds them and holds to the end: `times: [0, 0.04, 0.08, at, at + ramp, 1]` with `opacity: [1, 1, 0, 0, 1, 1]`. Prefer it when the end state alone explains the subject (a published chapter, an optimised bill); prefer the build-up when the story is a pipeline whose end state needs its steps.
 
 ## 7. Stagger
 
 - Loops: same clock, different phase (offsets inside `times`, or a constant `delay` for identical loops).
+- Identical round trips (several callers hitting one service) start about 0.2 of the cycle apart (0.04, 0.24, 0.44), so the trips overlap and the many-to-one reuse reads at a glance.
 - Entrances: 60 to 120 ms per item with a short lead, capped so a grid fills fast (`Math.min(index * 0.05, 0.3)` s).
 - Never stagger beats of one storyboard with separate durations.
 
