@@ -42,7 +42,7 @@ Pick one timing preset: `micro` (120-300 ms feedback), `short` (0.4-1.2 s one-sh
 
 Write 3 to 6 beats. For each: what moves, from where to where, when (as a fraction of the cycle), and which label (if any) appears. Every beat uses the same clock. The last frame must lead back into the first without a jump.
 
-Design the rest first: the still frame is the thumbnail and the poster, so it is composed and uneven, with one bright mark where the eye should start. A loop is a sentence, not an inventory: three to six beats that each show a different state, then back to rest.
+Design the rest first: the still frame is the thumbnail and the poster, so it is composed and uneven, with one bright mark where the eye should start. A loop is a sentence, not an inventory: three to six beats that each show a different state, then back to rest. Choose the loop shape: build up and clear at the end, or open on the finished state and clear in the first 4 to 8 percent, so the poster and a frozen frame show the complete thing.
 
 ## 4. Build
 
@@ -75,3 +75,4 @@ Return the requirements you pinned, the files written, the size, theme and timin
 | putting beats on different clocks | one clock `T`; sub-loops divide it evenly |
 | a far edge or a wire showing through a near panel | paint back to front; a panel that hides something keeps its opaque fill |
 | shipping on a green validator alone | read the contact sheet at full width and at 240 px |
+| a loop whose first frame is an empty stage | open on the finished state and clear in the first 4 to 8 percent, or hide what builds up so frame 0 is a clean rest |

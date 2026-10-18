@@ -10,6 +10,7 @@ What goes on the stage, where, and in which colors. Motion rules live in `motion
 - Geometry carries identity. If the scene needs a label to be recognised, the drawing has failed; fix the drawing before the words.
 - Depict the subject, not its technology. A tax tool whose value is the computation shows the computation, not a protocol hub diagram because it happens to speak that protocol.
 - For a service or offering with no repo, depict the deliverable (a module library with its tests, a blue/green cutover, a pipeline with a drift alarm), not the buzzword.
+- A deployed app gets a scene, not a screenshot. The scene echoes the real UI at the mechanism's moment: the panel layout in slot percent, rows as bars, the one control or state that matters, and none of the rest of the chrome.
 - Good mechanisms have a visible cause and effect inside one loop: a request is denied at a layer, a cache slot fills on the way back, a canary takes one request in two, a job retries once and lands.
 
 ## 2. Labels
@@ -17,13 +18,14 @@ What goes on the stage, where, and in which colors. Motion rules live in `motion
 | Slot | Max labels | Size | Length |
 | --- | --- | --- | --- |
 | Cover or card art (about 300 to 400 px wide) | 4 | 7 to 9 px | 12 chars or fewer |
-| Icon-size card (about 80 to 150 px) | 2 | 5 to 7 px in source | 10 chars or fewer |
+| Icon-size card (an 80 px source canvas the host scales 1.5x on phones, 1.8x on desktop) | 2 | 6 px in source, so 9 to 10.8 px rendered, never smaller | 10 chars or fewer |
 
 - Uppercase monospace, letter-spacing about 0.08em, no dashes of any kind.
 - Words come only from the brief's vocabulary list (verbatim terms from the source).
 - Labels are HTML (`Label`), not SVG `<text>`. HTML keeps its px size at every slot width; SVG text scales with the stage, turning to mush at 165 px and shouting at hero size.
 - No prose and no numbers that read as claims ("99.9%", "10x", fake metrics). The host card's title and description carry meaning; the scene is decoration.
 - At small scales labels become texture. The motion must still carry the mechanism without them.
+- Everything that would be text but is not one of the labels is a bar: a rounded rect 2.5 to 4 px tall at `n[16]` to `n[40]`, uneven lengths so a file reads as a file. Never real words as decoration.
 
 ## 3. Palette: one tint plus neutrals
 
@@ -68,6 +70,7 @@ Decoration never sits over the host's text, buttons or links.
 - Design for the smallest render first, then check the largest.
 - Keep a margin where the host draws overlays. A bottom fade that starts at 72 percent of the slot height means content stays above about y 170 of 200; corner badges need their corner clear.
 - Position with stage coordinates you can name (`RAIL_Y`, `CACHE_X`) and derive the rest, so a layout change is one edit.
+- Write the beat table as a comment at the top of the scene file (what moves, when, as cycle fractions, plus the node and label counts), so the storyboard ships with the code and a later edit moves a window instead of guessing.
 
 ## 6. Element budgets
 

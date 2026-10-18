@@ -108,7 +108,7 @@ const after = snap();
 });
 ```
 
-Both must be 0, and the artwork must still be visible (panels, wires, labels present in a screenshot). Turn the setting off again and confirm the scene restarts without a reload.
+Both must be 0, and the artwork must still be visible (panels, wires, labels present in a screenshot). The frozen frame is the finished state or a clean rest pose, never a half-built one. Turn the setting off again and confirm the scene restarts without a reload.
 
 ## 9. Gates
 

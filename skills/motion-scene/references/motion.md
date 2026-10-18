@@ -8,6 +8,7 @@ How things move in a scene and in the host chrome around it. Examples use the ki
 - Never animate `width`, `height`, `top`, `left`, `padding`, `filter`, `box-shadow` or `backdrop-filter`. They relayout or repaint every frame, and 40 cards turn the page into a fan heater.
 - No permanent `will-change`; the browser promotes on demand.
 - For HTML parts that travel continuously, prefer `transform` strings (`ride` emits them): Motion hands them to the browser's animation engine, while `x` and `y` shorthands run on the main thread.
+- A state change (a gate turns green, a panel lights, a slot fills) is two stacked elements and an opacity window on the top one: the rest state drawn statically, the lit state faded in over it. Never animate `fill`, `stroke`, `border` or `background`.
 
 ## 2. Timing presets in scenes
 
@@ -54,6 +55,8 @@ times.push(1);
 y.push(0);
 ```
 
+- Pop, for a pip or a commit landing: `times: [0, on, on + 0.03, on + 0.06, off - 0.05, off, 1]`, `scale: [0.6, 0.6, 1.3, 1, 1, 0.6, 0.6]`, `opacity: [0, 0, 1, 1, 1, 0, 0]`. A small overshoot, a settle, a shrink away, hidden across the seam.
+
 ## 5. Per-segment easing whenever `times` is set
 
 Motion runs `opacity`, `transform` strings, `filter`, `clipPath` and `backgroundColor` through the Web Animations API (WAAPI) on HTML and SVG elements, and runs `x`, `y`, `scale`, `rotate`, `pathLength` and `pathOffset` on its own JS frameloop. With `times` and a single ease string, the frameloop eases each segment, but WAAPI gets the string as the effect easing over the whole iteration with linear keyframes. Opacity then drifts away from position and hold segments shrink.
@@ -73,6 +76,7 @@ document.getAnimations().filter((a) => a.effect.getKeyframes().length > 2 && a.e
 - Packets: fade in on the first stop, travel and hold, fade out just after the last stop, slide home while hidden, fade back in next cycle. `ride` and `comet` emit exactly this.
 - Linear sweeps move exactly one period: a texture drifts one cell, a marquee of two copies translates by -50 percent.
 - Watch two full cycles; the seam is where jumps hide.
+- Two loop shapes. **Build up**: the stage starts empty, parts arrive, everything lit holds until `END` (0.92) and is gone by `GONE` (0.95), then resets while hidden; one `END`/`GONE` pair per scene, so every track shares the same exit (`shown(on, GONE)`). **Open on the finished state**: frame 0 is the complete mechanism, a clear window in the first 4 to 8 percent fades the built parts out, the loop rebuilds them and holds to the end: `times: [0, 0.04, 0.08, at, at + ramp, 1]` with `opacity: [1, 1, 0, 0, 1, 1]`. Prefer the second when the frozen reduced frame, a link preview or a static render must show the finished thing; the first when the arrival is the story.
 
 ## 7. Stagger
 
