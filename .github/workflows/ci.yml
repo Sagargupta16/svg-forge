@@ -17,14 +17,14 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: "3.15"
 
       - name: Repo checks (dashes, secrets, home paths, frontmatter, links, manifests, SVGs)
         run: python scripts/check.py
 
       - name: Install lint and test tools
         run: |
-          pip install --only-binary :all: ruff==0.16.6 pytest==9.1.1
+          pip install --only-binary :all: -r requirements-dev.txt
 
       - name: Ruff lint
         run: ruff check .
@@ -44,7 +44,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.12", "3.13", "3.14"]
+        python: ["3.12", "3.13", "3.14", "3.15"]
     steps:
       - uses: actions/checkout@v7
 
@@ -52,9 +52,9 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
-      - name: Install pytest
+      - name: Install test tools
         run: |
-          pip install --only-binary :all: pytest==9.1.1
+          pip install --only-binary :all: -r requirements-dev.txt
 
       - name: Tests
         run: python -m pytest -q

@@ -191,13 +191,13 @@ def contrast(fg: str, bg: str, base: str | None = None) -> float:
     return _ratio(parse_color(fg, "fg"), _under(bg, base))
 
 
-def _from_hls(h: float, light: float, sat: float) -> Color:
+def from_hls(h: float, light: float, sat: float) -> Color:
     rgb = colorsys.hls_to_rgb(h, min(max(light, 0.0), 1.0), min(max(sat, 0.0), 1.0))
     r, g, b = (round(ch * 255) for ch in rgb)
     return (r, g, b, 1.0)
 
 
-def _hls(color: Color) -> tuple[float, float, float]:
+def hls(color: Color) -> tuple[float, float, float]:
     return colorsys.rgb_to_hls(*(round(v) / 255 for v in color[:3]))
 
 
@@ -211,11 +211,11 @@ def _nearest(fg: Color, needs: list[tuple[Color, float]], what: str) -> str:
     if all(_ratio(fg, s) >= m for s, m in needs):
         return format_color(fg)
     flat = _over(fg, needs[0][0])
-    h, light, sat = _hls(flat)
+    h, light, sat = hls(flat)
     signs = (1, -1) if _lum(flat) >= _lum(needs[0][0]) else (-1, 1)
     for step in range(1, 1001):
         for sign in signs:
-            candidate = _from_hls(h, light + sign * step / 1000, sat)
+            candidate = from_hls(h, light + sign * step / 1000, sat)
             if all(_ratio(candidate, s) >= m for s, m in needs):
                 return format_color(candidate)
     shown = ", ".join(f"{m:g}:1 on {format_color(s)}" for s, m in needs)
@@ -261,9 +261,9 @@ def _surfaces(theme: Mapping[str, Any], both: bool) -> list[Color]:
 
 def _clamped(accent: Color, mode: str) -> Color:
     """forge 0.1.0 ink_for: at least 60% HLS lightness on dark, at most 42% on light."""
-    h, light, sat = _hls(accent)
+    h, light, sat = hls(accent)
     target = max(light, 0.6) if mode == "dark" else min(light, 0.42)
-    return accent if target == light else _from_hls(h, target, sat)
+    return accent if target == light else from_hls(h, target, sat)
 
 
 def accent_ink(accent: str, theme: Mapping[str, Any]) -> str:
@@ -278,11 +278,11 @@ def accent_ink(accent: str, theme: Mapping[str, Any]) -> str:
 # ---------------------------------------------------------------- presets
 
 
-def _rgba(hexcolor: str, a: float) -> str:
+def rgba(hexcolor: str, a: float) -> str:
     return format_color((*parse_color(hexcolor)[:3], a))
 
 
-def _mix(a: str, b: str, t: float) -> str:
+def mix(a: str, b: str, t: float) -> str:
     """t of the way from a to b, as opaque hex."""
     ca, cb = parse_color(a), parse_color(b)
     return format_color((*(ca[i] + (cb[i] - ca[i]) * t for i in range(3)), 1.0))
@@ -313,15 +313,15 @@ def _preset(
     return {
         "name": name,
         "bg": bg,
-        "wash": wash or _mix(bg, accent, 0.06 if dark else 0.1),
+        "wash": wash or mix(bg, accent, 0.06 if dark else 0.1),
         "card": card,
         "ink": ink,
         "text": text,
         "dim": dim,
-        "border": _rgba(line, border),
-        "panel": _rgba(line, panel),
-        "panel_stroke": _rgba(line, stroke),
-        "grid": _rgba(line, grid),
+        "border": rgba(line, border),
+        "panel": rgba(line, panel),
+        "panel_stroke": rgba(line, stroke),
+        "grid": rgba(line, grid),
         "ok": ok,
         "warn": warn,
         "muted": muted,
@@ -387,7 +387,7 @@ PRESETS: dict[str, dict[str, Any]] = {
         dim="rgba(216,222,233,0.62)",
         ok="#a3be8c",
         warn="#ebcb8b",
-        muted=_mix("#2e3440", "#d8dee9", 0.7),  # nord4 at 70% over nord0
+        muted=mix("#2e3440", "#d8dee9", 0.7),  # nord4 at 70% over nord0
         accent="#88c0d0",
     ),
     # https://spec.draculatheme.com/ (Background, Current Line, Foreground, Green, Orange, Purple);
@@ -402,7 +402,7 @@ PRESETS: dict[str, dict[str, Any]] = {
         dim="rgba(248,248,242,0.62)",
         ok="#50fa7b",
         warn="#ffb86c",
-        muted=_mix("#282a36", "#f8f8f2", 0.62),  # Foreground at 62% over Background
+        muted=mix("#282a36", "#f8f8f2", 0.62),  # Foreground at 62% over Background
         accent="#bd93f9",
     ),
     # https://github.com/catppuccin/palette/blob/main/palette.json (mocha)
@@ -628,13 +628,13 @@ def derive_theme(brand: str, mode: str = "dark") -> dict[str, Any]:
     if mode not in ("dark", "light"):
         raise ThemeError(f"mode must be dark or light, got {mode!r}")
     color = _opaque(brand, "brand color")
-    h, _light, sat = _hls(color)
+    h, _light, sat = hls(color)
     k = min(1.0, sat * 1.25)
     accent = format_color(color)
     name = f"auto-{mode}-{accent[1:]}"
 
     def tint(light: float, s: float) -> str:
-        return format_color(_from_hls(h, light, s * k))
+        return format_color(from_hls(h, light, s * k))
 
     if mode == "dark":
         return {
@@ -653,12 +653,12 @@ def derive_theme(brand: str, mode: str = "dark") -> dict[str, Any]:
         "wash": tint(0.959, 0.68),
         "card": tint(0.973, 0.26),
         "ink": ink,
-        "text": _rgba(ink, 0.76),
-        "dim": _rgba(ink, 0.58),
-        "border": _rgba(ink, 0.13),
-        "panel": _rgba(ink, 0.035),
-        "panel_stroke": _rgba(ink, 0.2),
-        "grid": _rgba(ink, 0.05),
+        "text": rgba(ink, 0.76),
+        "dim": rgba(ink, 0.58),
+        "border": rgba(ink, 0.13),
+        "panel": rgba(ink, 0.035),
+        "panel_stroke": rgba(ink, 0.2),
+        "grid": rgba(ink, 0.05),
         "accent": accent,
     }
 

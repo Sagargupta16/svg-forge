@@ -8,6 +8,7 @@ How things move in a scene and in the host chrome around it. Examples use the ki
 - Never animate `width`, `height`, `top`, `left`, `padding`, `filter`, `box-shadow` or `backdrop-filter`. They relayout or repaint every frame, and 40 cards turn the page into a fan heater.
 - No permanent `will-change`; the browser promotes on demand.
 - For HTML parts that travel continuously, prefer `transform` strings (`ride` emits them): Motion hands them to the browser's animation engine, while `x` and `y` shorthands run on the main thread.
+- A state change (a gate turns green, a panel lights, a slot fills) is two stacked elements and an opacity window on the top one: the rest state drawn statically, the lit state faded in over it. Never animate `fill`, `stroke`, `border` or `background`.
 
 ## 2. Timing presets in scenes
 
@@ -54,6 +55,8 @@ times.push(1);
 y.push(0);
 ```
 
+- Pop, for a pip or a commit landing: `times: [0, on, on + 0.03, on + 0.06, off - 0.05, off, 1]`, `scale: [0.6, 0.6, 1.3, 1, 1, 0.6, 0.6]`, `opacity: [0, 0, 1, 1, 1, 0, 0]`. A small overshoot, a settle, a shrink away, hidden across the seam.
+
 ## 5. Per-segment easing whenever `times` is set
 
 Motion runs `opacity`, `transform` strings, `filter`, `clipPath` and `backgroundColor` through the Web Animations API (WAAPI) on HTML and SVG elements, and runs `x`, `y`, `scale`, `rotate`, `pathLength` and `pathOffset` on its own JS frameloop. With `times` and a single ease string, the frameloop eases each segment, but WAAPI gets the string as the effect easing over the whole iteration with linear keyframes. Opacity then drifts away from position and hold segments shrink.
@@ -73,10 +76,12 @@ document.getAnimations().filter((a) => a.effect.getKeyframes().length > 2 && a.e
 - Packets: fade in on the first stop, travel and hold, fade out just after the last stop, slide home while hidden, fade back in next cycle. `ride` and `comet` emit exactly this.
 - Linear sweeps move exactly one period: a texture drifts one cell, a marquee of two copies translates by -50 percent.
 - Watch two full cycles; the seam is where jumps hide.
+- Two loop shapes, decided by one question: what does the frozen frame show? **Build up**: the stage starts empty, parts arrive, everything lit holds until `END` (about 0.90 to 0.92) and is gone by `GONE` (about 0.94 to 0.95), then resets while hidden; one `END`/`GONE` pair per scene, so every track shares the same exit (`shown(on, GONE)`). It only works over a static ghost layer (dim tiles, wires and empty slots that never animate), so the frozen frame still reads as the diagram. **Open on the finished state**: frame 0 is the complete mechanism, a clear window at about 0.03 to 0.08 fades the built parts out, the loop rebuilds them and holds to the end: `times: [0, 0.04, 0.08, at, at + ramp, 1]` with `opacity: [1, 1, 0, 0, 1, 1]`. Prefer it when the end state alone explains the subject (a published chapter, an optimised bill); prefer the build-up when the story is a pipeline whose end state needs its steps.
 
 ## 7. Stagger
 
 - Loops: same clock, different phase (offsets inside `times`, or a constant `delay` for identical loops).
+- Identical round trips (several callers hitting one service) start about 0.2 of the cycle apart (0.04, 0.24, 0.44), so the trips overlap and the many-to-one reuse reads at a glance.
 - Entrances: 60 to 120 ms per item with a short lead, capped so a grid fills fast (`Math.min(index * 0.05, 0.3)` s).
 - Never stagger beats of one storyboard with separate durations.
 
@@ -86,6 +91,8 @@ document.getAnimations().filter((a) => a.effect.getKeyframes().length > 2 && a.e
 - Time and scroll cause, tweens answer: every loop, reveal and fade.
 - Gate hover effects to hover-capable pointers (`@media (hover: hover) and (pointer: fine)`); touch gets tap feedback only.
 - Put hover transforms on a wrapper, not on the looping element, so the two never fight over `transform`.
+- Two clocks. A discrete change (which item is chosen) gets a long ease-out tween, about 700 ms on `cubic-bezier(0.32, 0.72, 0, 1)`; a continuous input (where the pointer is) gets a spring (about stiffness 100, damping 18), because its target moves every frame and a timed ease would always be chasing it. Never a tween on the pointer's position, never a spring on a choice.
+- Hit areas do not move. Test hover against the element's rest footprint (a static wrapper, or an invisible box at the rest position), never against the element that lifts; otherwise it lifts out from under the pointer, the hover drops, it falls back and the hover returns, a flicker loop.
 
 ## 9. Enter and exit
 

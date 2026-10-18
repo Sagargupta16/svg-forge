@@ -1,6 +1,6 @@
 # Verify
 
-A scene is done when it has been seen running at its real sizes and the numbers below were measured, not assumed. Run the app's dev server, open the page that renders the scene, hard reload (hot reload keeps old transitions on mounted elements), and keep the tab focused and visible: background tabs throttle to about one frame per 300 ms and every timing sample lies.
+A scene is done when it has been seen running at its real sizes and the numbers below were measured, not assumed. Run the app's dev server, open the page that renders the scene, hard reload (hot reload keeps old transitions on mounted elements), and keep the tab focused and visible: background tabs throttle to about one frame per 300 ms and every timing sample lies. An embedded preview pane that is not focused runs `requestAnimationFrame` at about 2 frames per second, so its screenshots show transforms lagging behind their on-time opacity; take frame-accurate captures with headless Playwright or Chrome.
 
 Paste the snippets into the DevTools console (it accepts top-level `await`), or run them through a browser automation tool. Define the slot selector first, for example `const SCENE = "[data-scene]";`.
 
@@ -12,7 +12,7 @@ Paste the snippets into the DevTools console (it accepts top-level `await`), or 
 | Icon-size card | as rendered (for example 144 px) | as rendered (for example 96 px) |
 | Hero | 1280 px viewport | 375 px viewport |
 
-The mechanism must read at both sizes. Labels may turn into texture on the phone; the motion must still tell the story. Take one screenshot per beat if the storyboard has distinct states, and look at them: numbers catch regressions, eyes catch ugliness.
+The mechanism must read at both sizes. Labels may turn into texture on the phone; the motion must still tell the story. Take one screenshot per beat if the storyboard has distinct states, and look at them: numbers catch regressions, eyes catch ugliness. Check that every label stays inside its panel or button at the real width, and that every glyph has all its parts. For a still capture (a README or social card), take three frames across the cycle and keep the one that shows the finished state; a single capture can land on the clear window or an empty phase.
 
 ## 2. Budgets
 
@@ -108,7 +108,7 @@ const after = snap();
 });
 ```
 
-Both must be 0, and the artwork must still be visible (panels, wires, labels present in a screenshot). Turn the setting off again and confirm the scene restarts without a reload.
+Both must be 0, and the artwork must still be visible (panels, wires, labels present in a screenshot). The frozen frame is the finished state or a clean rest pose, never a half-built one. Turn the setting off again and confirm the scene restarts without a reload.
 
 ## 9. Gates
 

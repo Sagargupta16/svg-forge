@@ -12,7 +12,7 @@
       "name": "svg-forge",
       "source": "./",
       "description": "3 skills (animated-svg, motion-scene, svg-audit), a designer subagent, a generator for 14 kinds at any size and theme, a contrast-checking validator, a frame renderer and a safe minifier.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "license": "MIT",
       "category": "design"
     }

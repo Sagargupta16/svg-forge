@@ -7,6 +7,7 @@ Composition rules for README cards, banners, diagrams, loaders and badges: what 
 - Show what the thing does, in its own nouns: input, processing, output. Read the code or the user's description for the real stages; renaming labels on a generic scene does not make it accurate.
 - Every moving element means something: a packet is a request or an artifact, a line draw is progress or time, a pulse is live status, a highlight is the active step. If an element moves and means nothing, cut it or demote it to ambient texture.
 - One idea per graphic. A card that explains the build pipeline does not also show stars and languages.
+- Rest is designed, never flat. The still frame is the thumbnail, the link preview and what a static renderer draws, so it is already a composition: uneven values, one bright mark where the eye should start. Rest and nothing rendered yet must not look alike.
 - No numbers that read as claims unless they come from real data. Placeholder metrics in a public README become claims.
 - Labels in diagrams: at most about 4, uppercase mono, 12 characters or fewer, no sentences. Prose belongs in the README text next to the image.
 
@@ -33,6 +34,7 @@ Composition rules for README cards, banners, diagrams, loaders and badges: what 
 
 - One accent family: a light shade for ink and lines, a deep shade for fills. Derive the deep shade by one rule and use it everywhere (for example HLS lightness minus 0.15 and saturation times 0.9). Two different derivations in one project produce near-miss colors.
 - Semantic colors keep one meaning: green only for live or ok, amber only for warning, red only for failure.
+- One highlight at a time. At rest, one bright mark says where to start; when a beat chooses a part, the bright goes to it and the rest mark gives it up. Two bright places read as decoration, and the color stops meaning anything.
 - Tints through 8-digit hex alpha on the accent: `14` (about 8%) for fills, `22`-`30` for active fills, `55` for chip borders, `cc` for strong strokes. Expand a 3-digit accent (`#abc` to `#aabbcc`) before appending alpha; `#abc14` is invalid.
 - Neutrals as an alpha ladder of white on dark (or near-black on light): 3% panel fill, 8-12% borders and rules, 35-50% secondary text, 70-85% body text, solid `#f3f4f6` for primary text. The light variant mirrors it with `rgba(11,16,18,a)`.
 - Avoid gradient text, glow and blur filters: filters are expensive to repaint on every frame and blur the edges that make small text legible.
@@ -77,6 +79,8 @@ No single color reaches 4.5:1 on both backgrounds (the best gray tops out at 4.3
 2. Middle: panels with a 1 px border at 8-12% and a 3% fill; opaque where wires pass under them.
 3. Front: packets, pips, highlights and labels. Nothing decorative ever sits on top of text.
 
+Paint order is depth. Append back to front, give a panel that must hide what is behind it an opaque fill (the ground color, not `none`), and paint dashed guides before the panel they belong to. A far edge showing through a near panel, or a guide crossing its own plate, is a construction error, not a style.
+
 ## 6. Fitting text and labels
 
 - Wrap at a character budget on word boundaries, cap the line count (2-3 lines on a card), and end a cut summary at a word boundary with `...`.
@@ -90,6 +94,7 @@ No single color reaches 4.5:1 on both backgrounds (the best gray tops out at 4.3
 - A card that draws its own opaque background can ship as one file; it reads as a dark (or light) card on either GitHub theme.
 - Transparent pieces (headers, dividers, footers, badges) ship as a dark and light pair through `<picture>` ([github-readme.md](github-readme.md) section 3). The light variant swaps ink to near-black and drops pale accents to their deep shade.
 - Check both variants side by side before delivering; the light one is where contrast fails.
+- Inline in a page you control (the `web` target): take colors from CSS custom properties on the page root, `fill="var(--card-ink, #e6edf3)"`, so the page's own theme switch (a `.dark` class or `data-theme="dark"` on an ancestor) recolors the file. `prefers-color-scheme` inside the file follows the OS, not the app.
 
 ## 8. Element budgets
 
@@ -103,3 +108,7 @@ No single color reaches 4.5:1 on both backgrounds (the best gray tops out at 4.3
 | file size | aim under 50 KB, hard stop 100 KB ([optimize.md](optimize.md)) |
 
 Over budget reads as noise, costs CPU on every page that shows the README, and usually means the graphic is explaining two things.
+
+## 9. Isometric line figures
+
+Hero and cover art drawn as line figures (rounded solids in one stroke width, four stroke weights, plates filled with the ground color, a 2:1 isometric view) follow [isometric.md](isometric.md): the projection, how a solid is a silhouette and one crease, why the rest pose is designed, one highlight, honest paint order, and how the clock stands in for the pointer in a file that gets none.

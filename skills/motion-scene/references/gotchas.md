@@ -48,7 +48,7 @@ Each entry: what you see, why, and the fix. The kit already applies every fix; t
 
 - **Symptom**: sampled values repeat, loops look stuck, frame timings are huge.
 - **Cause**: background or unfocused tabs throttle rendering to about one frame per 300 ms.
-- **Fix**: measure only in a focused, visible tab; bring the page to the front before sampling and compare against `requestAnimationFrame` timestamps.
+- **Fix**: measure only in a focused, visible tab; bring the page to the front before sampling and compare against `requestAnimationFrame` timestamps. An unfocused embedded preview pane is the same trap at about 2 fps; use headless Playwright for frame-accurate checks.
 
 ## 9. Packets stutter under load
 
@@ -99,3 +99,15 @@ Sonar-style rules that scene code trips most, as code-quality guidance whether o
 | S6767 unused prop types | declare `variant` only in a family that reads it |
 | S1192 duplicated literals | hoist repeated strings (`"none"`, colors) to constants |
 | S3776 cognitive complexity over 15 | split sub-panels into small components in the same file |
+
+## 16. A label jumps off its point when it moves
+
+- **Symptom**: a centred HTML label snaps left or up the moment its loop starts.
+- **Cause**: the label is centred with `transform: translate(-50%, -50%)` and the loop animates `x` or `y`, which Motion writes into the same `transform`.
+- **Fix**: fade the label and move its parent, or centre with the CSS `translate` property as the kit's `Label` does, so `transform` stays free for the loop.
+
+## 17. The frozen frame is half built
+
+- **Symptom**: with the app's reduced setting on, a scene shows an empty stage, or a packet stuck mid-wire.
+- **Cause**: the loop builds up from nothing and frame 0 is its empty state.
+- **Fix**: open on the finished state and clear in the first 4 to 8 percent (`motion.md` section 6), or start every element that builds up hidden so frame 0 is a clean rest pose.

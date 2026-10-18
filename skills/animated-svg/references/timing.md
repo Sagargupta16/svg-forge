@@ -92,6 +92,15 @@ Keep the table in the generator (or as a short comment in a hand-authored file) 
 - Chain-based loops restart with `begin="0s;last.end"` on the first link.
 - Watch two full cycles before shipping; the seam is where loops fail.
 
+Two loop shapes, decided by what the first frame shows. A **build-up** loop starts empty, parts arrive, everything holds until about 0.90 to 0.92 and is gone by 0.94 to 0.95, then resets while hidden (`forge.py` does this with its veil); it needs a static ghost layer (dim nodes, wires, empty slots) that never animates, so the poster still reads as the diagram. A loop that **opens on the finished state** shows the complete mechanism at t=0, clears it at about 0.03 to 0.08, rebuilds it and holds to the end:
+
+```xml
+<animate attributeName="opacity" values="1;1;0;0;1;1" keyTimes="0;0.04;0.08;0.46;0.5;1"
+  dur="6s" repeatCount="indefinite"/>
+```
+
+Prefer it when the end state alone explains the subject (a published chapter, an optimised bill): the poster is the finished thing, not an empty stage. Prefer the build-up when the story is a pipeline whose end state needs its steps. Either way every reset happens at opacity 0, and a still capture takes three frames across the cycle and keeps the one that shows the finished state.
+
 ## 6. Length budgets
 
 | Thing | Budget |
