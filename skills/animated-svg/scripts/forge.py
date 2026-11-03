@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Generate self-contained animated SVGs for READMEs, docs and the web (stdlib only).
 
-Kinds: tiles, hero, marquee, chart, bars, flow, loader, typing, divider, badge, timeline,
-logos, calendar, ring.
+Kinds: tiles, hero, marquee, chart, bars, flow, loader, typing, divider, badge, banner,
+heading, timeline, stats, streak, logos, breakdown, radar, calendar, card, quote, ring,
+skyline. Every kind with text also has a phone layout (--device phone or both).
 
 Every file is standalone: SMIL and CSS animation only, no script, no foreignObject, no
 external fonts, images or links, system font stacks, role="img" with <title> and <desc>,
@@ -24,6 +25,8 @@ Examples:
   python forge.py --kind flow --data "push -> build -> unit, e2e -> deploy" --out ci.svg
   python forge.py --kind timeline --variant vertical --data career.json --out career.svg
   python forge.py --kind calendar --data contributions.json --out calendar.svg
+  python forge.py --kind stats --theme both --device both --data stats.json --out stats.svg
+  python forge.py --kind breakdown --variant donut --data languages.json --out langs.svg
 """
 
 from __future__ import annotations
@@ -6631,7 +6634,9 @@ KINDS: dict[str, KindSpec] = {
         (3, 3),
         phone=True,
     ),
-    "loader": KindSpec(kind_loader, "medium", "spinner, dots or bar loader (--variant)", (1, 1)),
+    "loader": KindSpec(
+        kind_loader, "medium", "11 loaders: spinner, dots, bars, ... (--variant)", (1, 1)
+    ),
     "typing": KindSpec(kind_typing, "long", "terminal typing lines", (3, 1), phone=True),
     "divider": KindSpec(kind_divider, "medium", "hairline divider with a pulse", (3, 1)),
     "badge": KindSpec(kind_badge, "medium", "label and value pill with a shine sweep", (1, 1)),
@@ -7334,7 +7339,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--variant",
         help="loader: spinner, dots, bar, pulse, orbit, bars, wave, ring, blocks, clock or "
-        "bounce; timeline: horizontal or vertical; calendar: green or accent",
+        "bounce; banner: wave, waving, slice, rounded, cylinder or speech; breakdown: bar, donut "
+        "or pie; timeline: horizontal or vertical; calendar and skyline: green or accent",
     )
     ap.add_argument(
         "--device",
