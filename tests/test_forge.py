@@ -37,6 +37,7 @@ CASES: dict[str, list[str]] = {
     "card": ["medium", "short", "long", "ambient"],
     "quote": ["long", "short", "medium", "ambient"],
     "ring": ["short", "medium"],
+    "skyline": ["short", "medium"],
 }
 PARAMS = [(k, theme, t) for k, ts in CASES.items() for theme in ("dark", "light") for t in ts]
 HOSTILE = ['a<b&c"d', "</text><script>alert(1)</script>"]
@@ -154,6 +155,7 @@ def hostile_data(kind: str, s: str) -> object:
         },
         "quote": {"quotes": [{"text": s, "author": s}, {"text": s, "author": s}]},
         "ring": [{"label": s, "value": 3, "max": 4}],
+        "skyline": {"title": s, "start": "2026-01-01", "counts": [1, 0, 3]},
     }[kind]
 
 

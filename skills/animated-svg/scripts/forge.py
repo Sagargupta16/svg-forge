@@ -6225,6 +6225,368 @@ def kind_ring(c: Ctx) -> Art:
     return art
 
 
+# ---------------------------------------------------------------- skyline
+
+# The 2:1 view of references/isometric.md: azimuth 45 degrees, k = sin(elevation) = 0.5. World x
+# and y lie on the ground (x runs right and down on screen, y left and down), z points up.
+ISO_C = ISO_S = math.sqrt(0.5)
+ISO_K = 0.5
+ISO_ZF = math.sqrt(1 - ISO_K * ISO_K)
+SKY_CELL = 0.78  # a day's footprint side, as a share of the grid pitch
+SKY_ROUND = 0.22  # its corner radius, as a share of the side
+SKY_CREASE = 0.12  # the lid crease's inset, as a share of the side
+SKY_RISE = (0.0, 0.42, 0.9, 1.45, 2.05)  # block height per level, in pitches
+SKY_PROUD = 0.35  # the busiest day stands this much taller than its level
+SKY_MARGIN, SKY_SLAB, SKY_SLAB_ROUND = 0.45, 0.5, 0.6  # base slab margin, thickness, corner
+SKY_LIFT = 0.45  # how far below its place a band starts its rise, in pitches
+
+Pt = tuple[float, float]
+Run = list[tuple[bool, Pt]]  # (is an arc, world point) steps of a ring, clockwise on screen
+
+
+def iso(x: float, y: float, z: float = 0.0) -> Pt:
+    """A world point on screen, in units of the world."""
+    return (x - y) * ISO_C, (x + y) * ISO_S * ISO_K - z * ISO_ZF
+
+
+def sky_ring(x0: float, y0: float, x1: float, y1: float, r: float) -> tuple[Pt, Run, Pt, Run]:
+    """A rounded rectangle on the ground: (left extreme, upper run, right extreme, lower run).
+
+    The extremes are where a block's walls stand: the middle of the left and right corner
+    arcs. The upper run walks the far edges from the left extreme to the right one, the lower
+    run the camera-facing edges back. A circle of radius r projects to an r by r * k ellipse
+    with level axes, so every corner is one SVG arc.
+    """
+    q = r * math.sqrt(0.5)
+    left, right = (x0 + r - q, y1 - r + q), (x1 - r + q, y0 + r - q)
+    upper = [(True, (x0, y1 - r)), (False, (x0, y0 + r)), (True, (x0 + r, y0))]
+    upper += [(False, (x1 - r, y0)), (True, right)]
+    lower = [(True, (x1, y0 + r)), (False, (x1, y1 - r)), (True, (x1 - r, y1))]
+    lower += [(False, (x0 + r, y1)), (True, left)]
+    return left, upper, right, lower
+
+
+def backwards(start: Pt, run: Run) -> Run:
+    """The run walked the other way, from its last point back to start."""
+    pts = [start, *(pt for _, pt in run)]
+    return [(run[i][0], pts[i]) for i in range(len(run) - 1, -1, -1)]
+
+
+class IsoPen:
+    """One path from world points: an absolute start, then steps between rounded screen points,
+    so relative steps never drift."""
+
+    def __init__(self, at: Pt, z: float) -> None:
+        self.at = self.screen(at, z)
+        self.d = [f"M{num(self.at[0])} {num(self.at[1])}"]
+
+    @staticmethod
+    def screen(pt: Pt, z: float) -> Pt:
+        x, y = iso(pt[0], pt[1], z)
+        return round(x, 2), round(y, 2)
+
+    def to(self, pt: Pt, z: float, arc: float = 0.0, sweep: int = 1) -> IsoPen:
+        nxt = self.screen(pt, z)
+        dx, dy = num(nxt[0] - self.at[0]), num(nxt[1] - self.at[1])
+        if arc:
+            self.d.append(f"a{num(arc)} {num(arc * ISO_K)} 0 0 {sweep} {dx} {dy}")
+        else:
+            self.d.append(f"v{dy}" if dx == "0" else f"l{dx} {dy}")
+        self.at = nxt
+        return self
+
+    def run(self, steps: Run, z: float, r: float, sweep: int = 1) -> IsoPen:
+        for is_arc, pt in steps:
+            self.to(pt, z, r if is_arc else 0.0, sweep)
+        return self
+
+    def path(self, close: bool = False) -> str:
+        return "".join(self.d) + ("z" if close else "")
+
+
+def sky_block(a: float, r: float, h: float) -> tuple[str, str]:
+    """A day's block on an a by a footprint at the origin: (silhouette, lid crease) paths.
+
+    The silhouette is the hull of the lid ring at height h and the foot ring, one closed path;
+    the crease is the camera-facing run of the lid ring inset by SKY_CREASE.
+    """
+    left, upper, right, lower = sky_ring(0, 0, a, a, r)
+    hull = IsoPen(left, h).run(upper, h, r).to(right, 0).run(lower, 0, r).path(close=True)
+    e = SKY_CREASE * a
+    _, _, inner, run = sky_ring(e, e, a - e, a - e, r - e)
+    return hull, IsoPen(inner, h).run(run, h, r - e).path()
+
+
+def sky_tile(a: float, r: float) -> str:
+    """An empty day: the foot ring alone, flat on the slab."""
+    left, upper, _, lower = sky_ring(0, 0, a, a, r)
+    return IsoPen(left, 0).run(upper, 0, r).run(lower, 0, r).path(close=True)
+
+
+def sky_slab(x1: float, y1: float, m: float, r: float, t: float) -> tuple[str, str]:
+    """The base slab under a grid from (0, 0) to (x1, y1): (far outline, front skirt).
+
+    The far outline is the upper run of its top ring, painted before the blocks. The skirt is
+    the band of front faces below the top ring's camera-facing run, painted after them: no
+    block stands there, and it hides a rising band's foot.
+    """
+    left, upper, right, lower = sky_ring(-m, -m, x1 + m, y1 + m, r)
+    far = IsoPen(left, 0).run(upper, 0, r).path()
+    skirt = IsoPen(right, 0).run(lower, 0, r).to(left, -t)
+    skirt.run(backwards(right, lower), -t, r, sweep=0)
+    return far, skirt.path(close=True)
+
+
+@dataclass(frozen=True)
+class SkyLay:
+    """The skyline laid out on a canvas: scale, pitch, origin and where its text goes."""
+
+    s: float
+    pad: float
+    p: float  # px between days
+    ox: float  # the world origin on screen
+    oy: float
+    height: float
+    head: str  # the title as drawn, or ""
+    hf: float
+    lines: tuple[str, ...]  # the caption: (total, date range) on one baseline, or stacked
+    two: bool
+    cf: float
+    clear: bool  # the text fits its corners, clear of the figure
+
+
+def kind_skyline(c: Ctx) -> Art:
+    """Contribution year as an isometric city: one rounded block per day on a base slab, its
+    height set by the day's level, in the line-figure style of references/isometric.md.
+
+    --data takes the calendar shape, {"days": [{"date", "count"}, ...]} or {"start", "counts":
+    [...]}. The last 53 weeks show, Sunday first, oldest at the front left; a phone layout shows
+    the last 26 weeks at the year's levels. Levels are the calendar's quartiles of the active
+    days; the outlines climb from a quiet tint of the theme's ok green, or of the accent with
+    --variant accent, to the full tone. Each block is a plate in the card color with its
+    silhouette and one crease, painted back to front so nearer blocks hide what stands behind;
+    the busiest day stands a little proud and carries the one bright edge. Depth bands rise in,
+    oldest first, at most 10 animated groups; on a loop the bright edge pulses while the city
+    stands, then the city fades and rises again on the same clock.
+    """
+    spec = spec_of(c, "days")
+    days = calendar_days(spec)
+    variant = c.variant or "green"
+    if variant not in ("green", "accent"):
+        raise ForgeError(f"skyline variant must be green or accent, got {variant!r}")
+    last = max(days)
+    try:
+        start = last - timedelta(days=(last.weekday() + 1) % 7 + 52 * 7)
+    except OverflowError as exc:
+        raise ForgeError(
+            f"skyline needs 53 weeks before its last day; {last.isoformat()} is too early"
+        ) from exc
+    year = [days.get(start + timedelta(days=k), 0.0) for k in range((last - start).days + 1)]
+    active = sorted(v for v in year if v > 0)
+    cuts = [active[len(active) * q // 4] for q in (1, 2, 3)] if active else [0.0, 0.0, 0.0]
+    weeks = 26 if c.phone else 53
+    skip = (53 - weeks) * 7
+    first = start + timedelta(days=skip)
+    counts = year[skip:]
+    total, best = sum(counts), max(counts)
+    peak = counts.index(best) if best > 0 else -1
+    # (depth, row, col, level, height in pitches); depth is world x + y, growing toward the
+    # viewer, so sorting by it paints back to front
+    cells = []
+    for k, v in enumerate(counts):
+        col, row = divmod(k, 7)
+        level = 0 if v <= 0 else 1 + sum(v > cut for cut in cuts)
+        rise_k = SKY_RISE[level] + (SKY_PROUD if k == peak else 0.0)
+        cells.append((row + weeks - 1 - col, row, col, level, rise_k))
+    cells.sort()
+
+    # the figure in pitches: its box, and the two long edges text must stay clear of
+    a, m, t, rs = SKY_CELL, SKY_MARGIN, SKY_SLAB, SKY_SLAB_ROUND
+    r = SKY_ROUND * a
+    gx, gy = 6 + a, weeks - 1 + a
+    slab_left, _, slab_right, _ = sky_ring(-m, -m, gx + m, gy + m, rs)
+    x_lo, x_hi = iso(*slab_left)[0], iso(*slab_right)[0]
+    y_hi = iso(gx + m - rs, gy + m - rs, -t)[1] + rs * ISO_K
+    y_lo = min(
+        iso(rs - m, rs - m)[1] - rs * ISO_K,
+        *(iso(row + r, weeks - 1 - col + r, z)[1] - r * ISO_K for _, row, col, _, z in cells),
+    )
+    tallest = max(z for *_, z in cells)
+    far_x, far_y = iso(-m, gy + m, tallest)  # the left corner, raised to the tallest block
+    near_x, near_y = iso(gx + m, gy + m, -t)  # the front corner, at the foot of the slab
+    slope = ISO_S * ISO_K / ISO_C  # both long edges climb this many px per px to the right
+    box_w, box_h = x_hi - x_lo, y_hi - y_lo
+
+    title = c.title or (text_of(spec["title"], "skyline title") if spec.get("title") else "")
+    span = f"{MONTHS[first.month - 1]} {first.year} - {MONTHS[last.month - 1]} {last.year}"
+    say = (f"{fmt_count(total)} contributions".upper(), span.upper())
+    years = f"{first.year} - {last.year}" if first.year != last.year else str(last.year)
+    brief = (fmt_count(total), years)  # what a stacked caption falls back to
+    w = c.width or 840
+
+    def lay(s: float, top_band: bool, two: bool, low_band: bool) -> SkyLay:
+        """The layout at scale s, the title in a band of its own or in the empty top left
+        corner, the caption on one line or two, in a band or in the empty bottom right."""
+        pad = max(20 * s, 12.0)
+        hf, cf = c.fs(scaled(10, s)), c.fs(scaled(8.5, s))
+        room = w - 2 * pad
+        head = fit(title.upper(), room, hf, "mono", MONO_LS) if title else ""
+        rows = 2 if two else 1
+        lines = say
+        cw = text_width(" ".join(say), cf, "mono", MONO_LS)
+        if two:
+            picks = (
+                full if text_width(full, cf, "mono", MONO_LS) <= room else short
+                for full, short in zip(say, brief, strict=True)
+            )
+            lines = tuple(snug(text, room, cf, "mono", MONO_LS) for text in picks)
+            cw = max(text_width(x, cf, "mono", MONO_LS) for x in lines)
+        top = hf * 1.25 + 8 * s if head and top_band else 0.0
+        low = cf * (1.4 * rows - 0.4) + 8 * s if low_band else 0.0
+        p = room / box_w
+        if c.height is not None:
+            p = min(p, (c.height - 2 * pad - top - low) / box_h)
+        p = max(p, 0.05)
+        need = 2 * pad + top + low + box_h * p
+        h = c.height or need
+        oy = pad + top + max(0.0, (h - need) / 2) - y_lo * p
+        ox = (w - box_w * p) / 2 - x_lo * p
+        gap = 6 * s
+        clear = two or cw <= room
+        if head and not top_band:  # the title's lower right corner stays above the far edge
+            hx = pad + text_width(head, hf, "mono", MONO_LS)
+            edge = oy + far_y * p - (hx - ox - far_x * p) * slope
+            clear = clear and pad + hf * 1.25 + gap <= edge
+        if not low_band:  # the caption's upper left corner stays below the front edge
+            cx = w - pad - min(cw, room)
+            edge = oy + near_y * p - (cx - ox - near_x * p) * slope
+            clear = clear and h - pad - cf * (1.4 * rows - 0.4) - gap >= edge
+        return SkyLay(s, pad, p, ox, oy, h, head, hf, lines, two, cf, clear)
+
+    def settle(top_band: bool, two: bool, low_band: bool) -> SkyLay:
+        def need(k: float) -> float:
+            return lay(k, top_band, two, low_band).height
+
+        return lay(layout_scale(w, 840, c.height, need), top_band, two, low_band)
+
+    plans = [
+        (top, two, low) for low in (False, True) for top in (False, True) for two in (False, True)
+    ]
+    got = next((g for g in (settle(*q) for q in plans) if g.clear), settle(True, True, True))
+    p, s, h = got.p, got.s, got.height
+
+    lit = f"; the busiest, {(first + timedelta(days=peak)).isoformat()}, has {fmt_count(best)}"
+    desc = (
+        f"Contribution skyline from {first.isoformat()} to {last.isoformat()}: "
+        f"{fmt_count(total)} contributions on {sum(v > 0 for v in counts)} days, one block "
+        f"per day that rises with its level{lit if peak >= 0 else ''}."
+    )
+    art = Art(w, h, title or "Contribution skyline", desc)
+    th = c.theme
+    frame(c, art, rx=clamp(14 * s, 6, 24), solid=True)
+
+    # plates repeat the card, outlines climb the level ramp, and one edge is bright
+    plate = th.bg
+    tone = c.tone("ok") if variant == "green" else c.pal.ink
+    quiet = tune(mix(th.bg, tone, 0.3), marks=c.marks_on)
+    ramp = [quiet, *(tune(mix(quiet, tone, f), marks=c.marks_on) for f in (1 / 3, 2 / 3)), tone]
+    hi = c.mark(th.ink)
+    mid = c.mark(composite(th.dim, th.bg))
+    lo = th.panel_stroke  # under half opacity: a texture for empty days, not a mark
+    pen = {
+        "stroke_width": num(clamp(0.06 * p, 0.9, 1.5)),
+        "stroke_linejoin": "round",
+        "stroke_linecap": "round",
+    }
+
+    # Every plate is drawn through <use>. It repeats the card color on purpose, to hide what
+    # stands behind it; validate_svg does not follow <use>, and a plate read as a graphic
+    # would be 1:1 on the card. The outlines are theme tokens tuned to 3:1, or a texture under
+    # half opacity (lo and the creases).
+    ap, rp = a * p, r * p
+    art.defs.append(el("path", id=c.id("k0"), d=sky_tile(ap, rp), fill=plate, stroke=lo, **pen))
+    blocks = [(f"k{level}", level, SKY_RISE[level]) for level in range(1, 5)]
+    if peak >= 0:
+        level = next(lvl for _, row, col, lvl, _ in cells if row + 7 * col == peak)
+        blocks.append(("kp", level, SKY_RISE[level] + SKY_PROUD))
+    shapes = {}
+    for name, level, z in blocks:
+        hull, crease = sky_block(ap, rp, z * p)
+        shapes[name] = hull
+        stroke = ramp[level - 1]
+        art.defs.append(
+            el(
+                "g",
+                el("path", d=hull, stroke=stroke),
+                el("path", d=crease, fill="none", stroke=fade(stroke, 0.45)),
+                id=c.id(name),
+                fill=plate,
+                **pen,
+            )
+        )
+    far, skirt = sky_slab(gx * p, gy * p, m * p, rs * p, t * p)
+    art.defs.append(el("path", id=c.id("skirt"), d=skirt, fill=plate))
+
+    # depth bands, back to front, each rising in on its own beat: nearest (oldest) first
+    n_bands = 10 if weeks == 53 else 8
+    bands: list[list[tuple[int, int, int]]] = [[] for _ in range(n_bands)]
+    for depth, row, col, level, _ in cells:
+        bands[depth * n_bands // (weeks + 6)].append((row, col, level))
+    bands = [b for b in bands if b]
+    clock, begins, item = paced(c, len(bands), distance=w)
+    pulse = ""
+    done, stop = (max(begins) + item) / clock.dur + 0.05, 1 - clock.exit - 0.04
+    if clock.loop and stop - done > 0.1:
+        beats = max(1, round((stop - done) * clock.dur / 2.4))
+        step = (stop - done) / beats
+        frames: list[tuple[float, object]] = [(0, 1), (done, 1)]
+        for j in range(beats):
+            frames += [(done + (j + 0.5) * step, 0.2), (done + (j + 1) * step, 1)]
+        pulse = animate("stroke-opacity", frames, clock, ease=EASE_IN_OUT)
+    layer = []
+    for i, band in enumerate(bands):
+        parts = []
+        for row, col, level in band:
+            x, y = iso(row * p, (weeks - 1 - col) * p)
+            x, y = num(got.ox + x, 1), num(got.oy + y, 1)
+            name = "kp" if row + 7 * col == peak else f"k{level}"
+            parts.append(el("use", href=f"#{c.id(name)}", x=x, y=y))
+            if name == "kp":  # the bright edge, right above its block in paint order
+                parts.append(
+                    el(
+                        "path",
+                        pulse,
+                        d=shapes["kp"],
+                        transform=f"translate({x} {y})",
+                        fill="none",
+                        stroke=hi,
+                        **pen,
+                    )
+                )
+        begin = begins[len(bands) - 1 - i]
+        layer.append(el("g", rise(clock, begin, item, dy=SKY_LIFT * p), *parts))
+    at = f"translate({num(got.ox)} {num(got.oy)})"
+    art.body.append(el("path", d=far, transform=at, fill="none", stroke=mid, **pen))
+    art.body.append(el("g", veil(clock), *layer))
+    art.body.append(el("use", href=f"#{c.id('skirt')}", x=num(got.ox), y=num(got.oy)))
+    art.body.append(el("path", d=skirt, transform=at, fill="none", stroke=mid, **pen))
+
+    if got.head:
+        heading(c, art, got.head, x=got.pad, y=got.pad + got.hf, size=got.hf)
+    # the caption: the total in body text, the date range in label text, right-aligned
+    right, base, cf = w - got.pad, h - got.pad, got.cf
+    count, when = got.lines
+    if when:
+        art.body.append(mono(c, when, right, base, th.dim, cf, text_anchor="end"))
+    if got.two:
+        base -= cf * 1.4
+    else:
+        right -= text_width(" " + when, cf, "mono", MONO_LS)
+    if count:
+        art.body.append(mono(c, count, right, base, th.text, cf, text_anchor="end"))
+    return art
+
+
 # ---------------------------------------------------------------- registry and samples
 
 
@@ -6329,6 +6691,12 @@ KINDS: dict[str, KindSpec] = {
         kind_quote, "long", "quote card; several quotes take turns, one fades in", phone=True
     ),
     "ring": KindSpec(kind_ring, "short", "progress rings that draw in, static values", phone=True),
+    "skyline": KindSpec(
+        kind_skyline,
+        "short",
+        "contribution year as an isometric city, busiest day lit (--variant accent)",
+        phone=True,
+    ),
 }
 # Kinds with no card of their own keep a transparent margin when scaled into a canvas.
 UNFRAMED = frozenset({"loader", "divider", "badge"})
@@ -6562,6 +6930,7 @@ SAMPLES: dict[str, Any] = {
             {"label": "Docs", "value": 64, "tone": "ok"},
         ]
     },
+    "skyline": {"start": "2025-10-05", "counts": sample_counts()},
 }
 
 
