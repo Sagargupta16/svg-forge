@@ -375,6 +375,36 @@ def snug(text: str, max_w: float, size: float, face: str = "sans", spacing: floa
     return fit(text, max_w, size, face, spacing)
 
 
+def wrap(
+    text: str,
+    max_w: float,
+    size: float,
+    face: str = "sans",
+    spacing: float = 0.0,
+    lines: int = 3,
+) -> list[str]:
+    """Greedy word wrap into at most `lines` lines that each fit max_w.
+
+    A word wider than a line is cut with an ellipsis; text left over after the last line
+    ends that line with an ellipsis; a lone last word pulls the previous word down when
+    both fit, so a paragraph never ends on a widow.
+    """
+    out: list[list[str]] = [[]]
+    for word in text.split():
+        trial = " ".join([*out[-1], word])
+        if out[-1] and text_width(trial, size, face, spacing) > max_w:
+            out.append([])
+        out[-1].append(word)
+    rows = [" ".join(row) for row in out if row]
+    if len(rows) > lines:  # the rest spans two lines or more, so fit() ends it with an ellipsis
+        rows = [*rows[: lines - 1], fit(" ".join(rows[lines - 1 :]), max_w, size, face, spacing)]
+    elif len(out) > 1 and len(out[-1]) == 1 and len(out[-2]) > 2:
+        moved = " ".join([out[-2][-1], out[-1][0]])
+        if text_width(moved, size, face, spacing) <= max_w:
+            rows[-2:] = [" ".join(out[-2][:-1]), moved]
+    return [fit(row, max_w, size, face, spacing) for row in rows]
+
+
 # ---------------------------------------------------------------- layout at any size
 
 FONT_FLOOR = 7.0  # px; smaller text stops reading on a phone
@@ -737,6 +767,7 @@ def frame(c: Ctx, art: Art, *, rx: float = 14, solid: bool = False) -> None:
 
 
 def heading(c: Ctx, art: Art, text: str, x: float = 20, y: float = 28, size: float = 10) -> None:
+    size = c.fs(size)
     label = fit(text.upper(), art.width - 2 * x, size, "mono", MONO_LS)
     art.body.append(
         el("text", esc(label), class_=c.cls("m"), x=x, y=y, fill=c.pal.text, font_size=size)
@@ -778,6 +809,85 @@ def paced(
 def regular(c: Ctx, art: Art) -> None:
     """Add the regular-weight sans class (cls "r") for secondary lines."""
     art.css.append(f".{c.cls('r')}{{font-family:{c.sans};font-weight:400}}")
+
+
+# ---------------------------------------------------------------- glyphs
+
+
+def _ring(cx: float, cy: float, r: float) -> str:
+    """A circle as a path, so a glyph is one path."""
+    arc = f"a{num(r)} {num(r)} 0 1 0"
+    return f"M{num(cx - r)} {num(cy)}{arc} {num(2 * r)} 0{arc} {num(-2 * r)} 0"
+
+
+# Small line icons in a 16 by 16 box, drawn for this generator: (stroked path, filled path).
+# Stroke width is GLYPH_STROKE box units, so a 16 px glyph has a 1.5 px line.
+GLYPHS: dict[str, tuple[str, str]] = {
+    "star": ("", "M8 1.4l1.95 4.2 4.55.5-3.4 3.1 1 4.5L8 11.4l-4.1 2.3 1-4.5-3.4-3.1 4.55-.5z"),
+    "fork": (
+        _ring(4, 3.2, 1.6)
+        + _ring(12, 3.2, 1.6)
+        + _ring(8, 12.8, 1.6)
+        + "M4 4.8V6a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V4.8M8 8v3.2",
+        "",
+    ),
+    "commit": (_ring(8, 8, 2.6) + "M1 8h4.4M10.6 8H15", ""),
+    "pull": (
+        _ring(4, 3.2, 1.6)
+        + _ring(4, 12.8, 1.6)
+        + _ring(12, 12.8, 1.6)
+        + "M4 4.8v6.4M12 11.2V6.2a2 2 0 0 0-2-2H7.4M9 2.6 7.4 4.2 9 5.8",
+        "",
+    ),
+    "issue": (_ring(8, 8, 6), _ring(8, 8, 1.3)),
+    "flame": (
+        "M8 14.8c-2.9 0-4.9-2.1-4.9-4.9 0-2.6 1.8-4 2.6-6.4.5 1.6 1.4 2.4 2.3 2.6C8.3 4 8.5 2.6 "
+        "9.3 1.2c1.4 2 3.6 4.4 3.6 8 0 3.4-2 5.6-4.9 5.6z",
+        "",
+    ),
+    "check": ("M3 8.6l3.2 3.2L13 4.8", ""),
+    "clock": (_ring(8, 8, 6) + "M8 4.4V8l2.6 1.6", ""),
+    "eye": ("M1.4 8S4 3.6 8 3.6 14.6 8 14.6 8 12 12.4 8 12.4 1.4 8 1.4 8z" + _ring(8, 8, 2), ""),
+    "code": ("M5.6 4 1.6 8l4 4M10.4 4l4 4-4 4", ""),
+    "repo": (
+        "M3 2.4h9.6v10.4H4.4A1.4 1.4 0 0 0 3 14.2zM3 14.2v-11.8M5.4 12.8v2.8l1.3-.9 1.3.9v-2.8",
+        "",
+    ),
+    "calendar": ("M2.4 3.6h11.2v10H2.4zM2.4 6.6h11.2M5.4 2v3M10.6 2v3", ""),
+    "trophy": (
+        "M4.6 2.2h6.8v4a3.4 3.4 0 0 1-6.8 0zM4.6 3.6H2.4a2.2 2.2 0 0 0 2.4 2.6M11.4 3.6h2.2"
+        "a2.2 2.2 0 0 1-2.4 2.6M8 9.6v2.4M5.2 14h5.6M6 12h4v2H6z",
+        "",
+    ),
+    "heart": (
+        "M8 13.6S1.8 9.8 1.8 5.6A3.2 3.2 0 0 1 8 4.2a3.2 3.2 0 0 1 6.2 1.4c0 4.2-6.2 8-6.2 8z",
+        "",
+    ),
+    "bolt": ("", "M9.2 1.2 3 9h4.2L6.6 14.8 13 7H8.8z"),
+}
+GLYPH_STROKE = 1.5
+
+
+def glyph(name: str, x: float, y: float, size: float, color: str) -> str:
+    """Glyph `name` drawn size px square with its top-left corner at (x, y), in color."""
+    stroked, filled = GLYPHS[name]
+    k = size / 16
+    parts = []
+    if stroked:
+        parts.append(
+            el(
+                "path",
+                d=stroked,
+                fill="none",
+                stroke=color,
+                stroke_width=GLYPH_STROKE,
+                stroke_linecap="round",
+                stroke_linejoin="round",
+            )
+        )
+    if filled:
+        parts.append(el("path", d=filled, fill=color))
+    return el("g", *parts, transform=f"translate({num(x)} {num(y)}) scale({num(k, 4)})")
 
 
 # ---------------------------------------------------------------- kinds
