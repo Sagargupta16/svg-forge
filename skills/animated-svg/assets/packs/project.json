@@ -1,0 +1,72 @@
+{
+  "theme": "both",
+  "accent": "#a78bfa",
+  "device": "both",
+  "out_dir": "assets/cards",
+  "cards": [
+    {
+      "name": "build",
+      "kind": "badge",
+      "row": "badges",
+      "alt": "Build: passing",
+      "link": "https://example.com/northwind/actions",
+      "data": {"label": "build", "value": "passing", "tone": "ok"}
+    },
+    {
+      "name": "release",
+      "kind": "badge",
+      "row": "badges",
+      "alt": "Release: v1.4.0",
+      "link": "CHANGELOG.md",
+      "data": {"label": "release", "value": "v1.4.0"}
+    },
+    {
+      "name": "license",
+      "kind": "badge",
+      "row": "badges",
+      "alt": "License: MIT",
+      "link": "LICENSE",
+      "data": {"label": "license", "value": "MIT"}
+    },
+    {
+      "name": "quickstart",
+      "kind": "typing",
+      "alt": "Quick start: pip install northwind, then northwind init my-app, then northwind deploy, which reports deployed in 4.2 s.",
+      "data": {
+        "title": "bash",
+        "prompt": "$",
+        "lines": [
+          {"cmd": "pip install northwind", "out": ["installed northwind 1.4.0"]},
+          {"cmd": "northwind init my-app", "out": ["created my-app/northwind.toml"]},
+          {"cmd": "northwind deploy", "out": ["deployed in 4.2 s"], "tone": "ok"}
+        ]
+      }
+    },
+    {
+      "name": "pipeline",
+      "kind": "flow",
+      "alt": "How a deploy runs: config, then plan, then build and test side by side, then release.",
+      "data": {
+        "title": "How a deploy runs",
+        "nodes": ["config", "plan", "build", "test", {"id": "release", "tone": "ok"}],
+        "edges": [
+          ["config", "plan"],
+          ["plan", "build"],
+          ["plan", "test"],
+          ["build", "release"],
+          ["test", "release"]
+        ]
+      }
+    },
+    {
+      "name": "downloads",
+      "kind": "chart",
+      "alt": "Weekly downloads over 12 weeks, rising from 1,800 to 5,600.",
+      "data": {
+        "title": "Weekly downloads",
+        "values": [1800, 2100, 2050, 2600, 2900, 3100, 3600, 3500, 4200, 4700, 5100, 5600],
+        "labels": ["W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8", "W9", "W10", "W11", "W12"]
+      }
+    }
+  ]
+}

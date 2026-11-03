@@ -1,0 +1,80 @@
+{
+  "theme": "both",
+  "accent": "#38bdf8",
+  "device": "both",
+  "out_dir": "assets/cards",
+  "cards": [
+    {
+      "name": "hero",
+      "kind": "hero",
+      "alt": "Northwind Labs: developer tools for cloud teams. Open source, shipping weekly, remote first.",
+      "data": {
+        "kicker": "Hello, we are",
+        "title": "Northwind Labs",
+        "taglines": [
+          "Developer tools for cloud teams",
+          "Open source under the MIT license",
+          "Small tools with sharp docs",
+          "A release every week since 2021"
+        ],
+        "status": "Shipping weekly",
+        "meta": "Remote first",
+        "nodes": ["cli", "sdk", "api", "docs", "ci"]
+      }
+    },
+    {
+      "name": "divider",
+      "kind": "divider",
+      "alt": ""
+    },
+    {
+      "name": "timeline",
+      "kind": "timeline",
+      "alt": "Milestones: 2019 first commit; 2021 version 1.0; 2023 hosted runners; 2025 to now, 40k weekly installs.",
+      "data": {
+        "title": "Milestones",
+        "items": [
+          {"start": "2019", "title": "First commit", "subtitle": "A weekend CLI"},
+          {"start": "2021", "title": "Version 1.0", "subtitle": "Stable plugin API"},
+          {"start": "2023", "title": "Hosted runners", "subtitle": "Builds in the cloud"},
+          {
+            "start": "2025",
+            "title": "40k weekly installs",
+            "subtitle": "Community plugins",
+            "current": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "stats",
+      "kind": "tiles",
+      "alt": "Stats: 4.8k stars, 120 contributors, 310 releases, 99.95% uptime.",
+      "data": {
+        "items": [
+          {"value": "4.8k", "label": "stars"},
+          {"value": "120", "label": "contributors"},
+          {"value": "310", "label": "releases"},
+          {"value": "99.95%", "label": "uptime", "tone": "ok"}
+        ]
+      }
+    },
+    {
+      "name": "stack",
+      "kind": "marquee",
+      "alt": "Built with Python, Go, TypeScript, Rust, PostgreSQL, Redis, Docker, Kubernetes, Terraform and GitHub Actions.",
+      "data": [
+        "python",
+        "go",
+        "typescript",
+        "rust",
+        "postgresql",
+        "redis",
+        "docker",
+        "kubernetes",
+        "terraform",
+        "github actions"
+      ]
+    }
+  ]
+}
