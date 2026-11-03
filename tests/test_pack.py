@@ -87,8 +87,19 @@ def test_starter_packs_cover_a_profile_and_a_project() -> None:
         for p in STARTERS
     }
 
-    assert kinds["profile"] == {"hero", "tiles", "marquee", "timeline", "divider"}
-    assert kinds["project"] == {"badge", "flow", "chart", "typing"}
+    assert kinds["profile"] == {
+        "hero",
+        "heading",
+        "stats",
+        "streak",
+        "breakdown",
+        "tiles",
+        "marquee",
+        "timeline",
+        "divider",
+        "banner",
+    }
+    assert kinds["project"] == {"banner", "badge", "flow", "chart", "typing", "breakdown"}
 
 
 def test_snippet_lists_sources_alt_links_and_width_only_rows(
@@ -160,7 +171,8 @@ def test_phone_layouts_swap_at_desktop_width_and_rows_set_only_width(
     assert text.count(f' and {forge.DESKTOP_MEDIA}" srcset=') == 4
     more = re.search(r'^<a href="https://x\.test/\?a=1&amp;b=2"><picture><source .*$', text, re.M)
     assert more, "a linked card sits on one line inside its <a>"
-    img = '<img alt="More" src="assets/cards/more-dark-mobile.svg" width="100%">'
+    more_width = svg_width(out / "more-dark.svg")
+    img = f'<img alt="More" src="assets/cards/more-dark-mobile.svg" width="{more_width}">'
     assert more.group(0).endswith(f"{img}</picture></a>")
     row = re.search(r'<p align="center">\n(.*)\n</p>', text)
     assert row

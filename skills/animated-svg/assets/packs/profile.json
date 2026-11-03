@@ -19,13 +19,137 @@
         ],
         "status": "Shipping weekly",
         "meta": "Remote first",
-        "nodes": ["cli", "sdk", "api", "docs", "ci"]
+        "nodes": [
+          "cli",
+          "sdk",
+          "api",
+          "docs",
+          "ci"
+        ]
       }
     },
     {
-      "name": "divider",
-      "kind": "divider",
-      "alt": ""
+      "name": "heading-numbers",
+      "kind": "heading",
+      "alt": "01, In numbers",
+      "data": {
+        "number": "01",
+        "title": "In numbers",
+        "subtitle": "Updated every week"
+      }
+    },
+    {
+      "name": "stats",
+      "kind": "stats",
+      "alt": "Northwind Labs on GitHub: 4.8k stars, 1,920 commits this year, 310 pull requests, 120 contributors; grade A.",
+      "data": {
+        "title": "Northwind Labs on GitHub",
+        "rows": [
+          {
+            "label": "Stars",
+            "value": "4.8k",
+            "glyph": "star"
+          },
+          {
+            "label": "Commits this year",
+            "value": "1,920",
+            "glyph": "commit"
+          },
+          {
+            "label": "Pull requests",
+            "value": "310",
+            "glyph": "pull"
+          },
+          {
+            "label": "Contributors",
+            "value": "120",
+            "glyph": "heart"
+          }
+        ],
+        "grade": {
+          "label": "A",
+          "value": 0.82
+        }
+      }
+    },
+    {
+      "name": "streak",
+      "kind": "streak",
+      "alt": "Streak: 2,140 contributions since Jan 2025, current streak 18 days, longest 64 days.",
+      "data": {
+        "total": 2140,
+        "total_range": "Jan 2025 - Present",
+        "current": 18,
+        "current_range": "Oct 16 - Nov 2",
+        "longest": 64,
+        "longest_range": "Mar 3 - May 5"
+      }
+    },
+    {
+      "name": "languages",
+      "kind": "breakdown",
+      "alt": "Languages: Go 38%, TypeScript 27%, Python 19%, Rust 9%, Shell 7%.",
+      "data": {
+        "title": "Languages",
+        "items": [
+          {
+            "label": "Go",
+            "value": 38
+          },
+          {
+            "label": "TypeScript",
+            "value": 27
+          },
+          {
+            "label": "Python",
+            "value": 19
+          },
+          {
+            "label": "Rust",
+            "value": 9
+          },
+          {
+            "label": "Shell",
+            "value": 7
+          }
+        ]
+      }
+    },
+    {
+      "name": "tiles",
+      "kind": "tiles",
+      "alt": "Stats: 4.8k stars, 120 contributors, 310 releases, 99.95% uptime.",
+      "data": {
+        "items": [
+          {
+            "value": "4.8k",
+            "label": "stars"
+          },
+          {
+            "value": "120",
+            "label": "contributors"
+          },
+          {
+            "value": "310",
+            "label": "releases"
+          },
+          {
+            "value": "99.95%",
+            "label": "uptime",
+            "tone": "ok"
+          }
+        ]
+      }
+    },
+    {
+      "name": "heading-journey",
+      "kind": "heading",
+      "alt": "02, The journey",
+      "data": {
+        "number": "02",
+        "title": "The journey",
+        "subtitle": "From a weekend CLI"
+      }
     },
     {
       "name": "timeline",
@@ -34,28 +158,27 @@
       "data": {
         "title": "Milestones",
         "items": [
-          {"start": "2019", "title": "First commit", "subtitle": "A weekend CLI"},
-          {"start": "2021", "title": "Version 1.0", "subtitle": "Stable plugin API"},
-          {"start": "2023", "title": "Hosted runners", "subtitle": "Builds in the cloud"},
+          {
+            "start": "2019",
+            "title": "First commit",
+            "subtitle": "A weekend CLI"
+          },
+          {
+            "start": "2021",
+            "title": "Version 1.0",
+            "subtitle": "Stable plugin API"
+          },
+          {
+            "start": "2023",
+            "title": "Hosted runners",
+            "subtitle": "Builds in the cloud"
+          },
           {
             "start": "2025",
             "title": "40k weekly installs",
             "subtitle": "Community plugins",
             "current": true
           }
-        ]
-      }
-    },
-    {
-      "name": "stats",
-      "kind": "tiles",
-      "alt": "Stats: 4.8k stars, 120 contributors, 310 releases, 99.95% uptime.",
-      "data": {
-        "items": [
-          {"value": "4.8k", "label": "stars"},
-          {"value": "120", "label": "contributors"},
-          {"value": "310", "label": "releases"},
-          {"value": "99.95%", "label": "uptime", "tone": "ok"}
         ]
       }
     },
@@ -75,6 +198,25 @@
         "terraform",
         "github actions"
       ]
+    },
+    {
+      "name": "divider",
+      "kind": "divider",
+      "alt": ""
+    },
+    {
+      "name": "footer",
+      "kind": "banner",
+      "alt": "Thanks for stopping by. Issues and pull requests are welcome.",
+      "data": {
+        "section": "footer",
+        "kicker": "Northwind Labs",
+        "lines": [
+          "Thanks for stopping by",
+          "Issues and pull requests welcome",
+          "Built in the open"
+        ]
+      }
     }
   ]
 }

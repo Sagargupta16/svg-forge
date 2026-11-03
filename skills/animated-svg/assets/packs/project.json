@@ -5,12 +5,32 @@
   "out_dir": "assets/cards",
   "cards": [
     {
+      "name": "banner",
+      "kind": "banner",
+      "alt": "Bluefin: a tiny job queue for Python services. Retries with backoff, cron schedules, a live dashboard.",
+      "data": {
+        "section": "header",
+        "kicker": "Open source",
+        "title": "Bluefin",
+        "subtitle": "A tiny job queue for Python services",
+        "lines": [
+          "Retries with backoff",
+          "Cron schedules",
+          "A live dashboard"
+        ]
+      }
+    },
+    {
       "name": "build",
       "kind": "badge",
       "row": "badges",
       "alt": "Build: passing",
       "link": "https://example.com/northwind/actions",
-      "data": {"label": "build", "value": "passing", "tone": "ok"}
+      "data": {
+        "label": "build",
+        "value": "passing",
+        "tone": "ok"
+      }
     },
     {
       "name": "release",
@@ -18,7 +38,10 @@
       "row": "badges",
       "alt": "Release: v1.4.0",
       "link": "CHANGELOG.md",
-      "data": {"label": "release", "value": "v1.4.0"}
+      "data": {
+        "label": "release",
+        "value": "v1.4.0"
+      }
     },
     {
       "name": "license",
@@ -26,7 +49,10 @@
       "row": "badges",
       "alt": "License: MIT",
       "link": "LICENSE",
-      "data": {"label": "license", "value": "MIT"}
+      "data": {
+        "label": "license",
+        "value": "MIT"
+      }
     },
     {
       "name": "quickstart",
@@ -36,9 +62,25 @@
         "title": "bash",
         "prompt": "$",
         "lines": [
-          {"cmd": "pip install northwind", "out": ["installed northwind 1.4.0"]},
-          {"cmd": "northwind init my-app", "out": ["created my-app/northwind.toml"]},
-          {"cmd": "northwind deploy", "out": ["deployed in 4.2 s"], "tone": "ok"}
+          {
+            "cmd": "pip install northwind",
+            "out": [
+              "installed northwind 1.4.0"
+            ]
+          },
+          {
+            "cmd": "northwind init my-app",
+            "out": [
+              "created my-app/northwind.toml"
+            ]
+          },
+          {
+            "cmd": "northwind deploy",
+            "out": [
+              "deployed in 4.2 s"
+            ],
+            "tone": "ok"
+          }
         ]
       }
     },
@@ -48,13 +90,37 @@
       "alt": "How a deploy runs: config, then plan, then build and test side by side, then release.",
       "data": {
         "title": "How a deploy runs",
-        "nodes": ["config", "plan", "build", "test", {"id": "release", "tone": "ok"}],
+        "nodes": [
+          "config",
+          "plan",
+          "build",
+          "test",
+          {
+            "id": "release",
+            "tone": "ok"
+          }
+        ],
         "edges": [
-          ["config", "plan"],
-          ["plan", "build"],
-          ["plan", "test"],
-          ["build", "release"],
-          ["test", "release"]
+          [
+            "config",
+            "plan"
+          ],
+          [
+            "plan",
+            "build"
+          ],
+          [
+            "plan",
+            "test"
+          ],
+          [
+            "build",
+            "release"
+          ],
+          [
+            "test",
+            "release"
+          ]
         ]
       }
     },
@@ -64,8 +130,60 @@
       "alt": "Weekly downloads over 12 weeks, rising from 1,800 to 5,600.",
       "data": {
         "title": "Weekly downloads",
-        "values": [1800, 2100, 2050, 2600, 2900, 3100, 3600, 3500, 4200, 4700, 5100, 5600],
-        "labels": ["W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8", "W9", "W10", "W11", "W12"]
+        "values": [
+          1800,
+          2100,
+          2050,
+          2600,
+          2900,
+          3100,
+          3600,
+          3500,
+          4200,
+          4700,
+          5100,
+          5600
+        ],
+        "labels": [
+          "W1",
+          "W2",
+          "W3",
+          "W4",
+          "W5",
+          "W6",
+          "W7",
+          "W8",
+          "W9",
+          "W10",
+          "W11",
+          "W12"
+        ]
+      }
+    },
+    {
+      "name": "languages",
+      "kind": "breakdown",
+      "alt": "Languages: Python 71%, TypeScript 18%, Shell 6%, Dockerfile 5%.",
+      "data": {
+        "title": "Languages",
+        "items": [
+          {
+            "label": "Python",
+            "value": 71
+          },
+          {
+            "label": "TypeScript",
+            "value": 18
+          },
+          {
+            "label": "Shell",
+            "value": 6
+          },
+          {
+            "label": "Dockerfile",
+            "value": 5
+          }
+        ]
       }
     }
   ]

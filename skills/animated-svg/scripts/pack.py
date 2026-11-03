@@ -75,7 +75,6 @@ NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 SUFFIXES = ("-dark", "-light", "-mobile")  # forge.file_name() adds these
 SCHEME = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*):")
 LINK_SCHEMES = frozenset({"http", "https", "mailto"})
-SVG_WIDTH = re.compile(r'<svg\b[^>]*?\swidth="([0-9.]+)"')
 
 
 class PackError(Exception):
@@ -102,8 +101,11 @@ class Card:
     def width(self) -> str:
         """The desktop file's width in px (the phone file's when there is no desktop one)."""
         svgs = [svg for (_, device), svg in self.files.items() if device == "desktop"]
-        found = SVG_WIDTH.search((svgs or list(self.files.values()))[0])
-        return str(max(1, round(float(found.group(1)))))
+        return forge.svg_width((svgs or list(self.files.values()))[0])
+
+    @property
+    def both_devices(self) -> bool:
+        return len({device for _, device in self.files}) == 2
 
 
 def unknown(key: str, allowed: tuple[str, ...]) -> str:
@@ -215,7 +217,9 @@ def snippet(cards: list[Card], src_dir: str, label: str) -> str:
             key: f"{src_dir}/{forge.file_name(Path(card.name), *key).name}" for key in card.files
         }
         if card.row is None:
-            blocks.append((None, [linked(forge.picture_set(paths, card.alt), card.link)]))
+            width = card.width if card.both_devices else None  # never the column's 100%
+            markup = forge.picture_set(paths, card.alt, width=width)
+            blocks.append((None, [linked(markup, card.link)]))
             continue
         sized = forge.picture_set(paths, card.alt, width=card.width)  # width only, never height
         item = linked(one_line(sized), card.link)

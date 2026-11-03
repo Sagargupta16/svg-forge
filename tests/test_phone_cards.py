@@ -198,7 +198,8 @@ def test_cli_device_both_theme_both_writes_four_files(
     assert printed.count("<source ") == 4
     assert f"(prefers-color-scheme: dark) and {forge.DESKTOP_MEDIA}" in printed
     assert 'media="(prefers-color-scheme: light)" srcset' in printed
-    assert re.search(r'<img alt="[^"]*" src="[^"]*x-dark-mobile\.svg" width="100%">', printed)
+    width = root_of(files["x-dark"].read_text(encoding="utf-8")).getAttribute("width")
+    assert f'src="{files["x-dark-mobile"].as_posix()}" width="{width}">' in printed
     for name, path in files.items():
         svg = path.read_text(encoding="utf-8")
         check(svg, "light" if "light" in name else "dark")

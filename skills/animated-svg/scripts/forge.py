@@ -7214,6 +7214,15 @@ def write(path: Path, svg: str) -> bool:
     return True
 
 
+SVG_WIDTH = re.compile(r'<svg\b[^>]*?\swidth="([0-9.]+)"')
+
+
+def svg_width(svg: str) -> str:
+    """The root width of an SVG document in whole px, for an <img> width ("" when unset)."""
+    found = SVG_WIDTH.search(svg)
+    return str(max(1, round(float(found.group(1))))) if found else ""
+
+
 def picture(dark: str, light: str, alt: str) -> str:
     return picture_set({("dark", "desktop"): dark, ("light", "desktop"): light}, alt)
 
@@ -7436,7 +7445,11 @@ def main(argv: list[str] | None = None) -> int:
         )
     alt = re.search(r"<title[^>]*>(.*?)</title>", next(iter(svgs.values())))
     shown = {key: path.as_posix() for key, path in paths.items()}
-    print(picture_set(shown, html.unescape(alt.group(1) if alt else "")))
+    # a desktop and phone set shows at the desktop file's own width: a 495 px card must not
+    # stretch to the column, and GitHub caps a wider image at the column on a phone
+    desktop = next((svg for (_, device), svg in svgs.items() if device == "desktop"), "")
+    width = svg_width(desktop) if len(devices) == 2 else None
+    print(picture_set(shown, html.unescape(alt.group(1) if alt else ""), width=width))
     return 0
 
 
