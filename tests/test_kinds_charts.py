@@ -8,12 +8,12 @@ from pathlib import Path
 from xml.dom import minidom
 
 import pytest
+from test_integration import FACES, overflow
 
 import forge
 import poster
 import themes
 import validate_svg
-from test_integration import FACES, overflow
 
 LANGUAGES = [
     {"label": name, "value": value}

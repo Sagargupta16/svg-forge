@@ -8,11 +8,11 @@ from pathlib import Path
 from xml.dom import minidom
 
 import pytest
+from test_integration import overflow
 
 import forge
 import poster
 import validate_svg
-from test_integration import overflow
 
 KINDS = ["tiles", "hero", "marquee", "chart", "bars", "typing"]
 HOSTILE = ['a<b&c"d', "</text><script>alert(1)</script>"]

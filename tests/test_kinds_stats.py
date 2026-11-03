@@ -12,11 +12,11 @@ from pathlib import Path
 from xml.dom import minidom
 
 import pytest
+from test_integration import overflow
 
 import forge
 import poster
 import validate_svg
-from test_integration import overflow
 
 ROOT = Path(__file__).resolve().parent.parent
 KINDS = ["stats", "streak"]
