@@ -1,0 +1,14 @@
+{
+  "title": "Team skills",
+  "max": 5,
+  "series": ["2026", "2025"],
+  "axes": [
+    {"label": "Frontend", "value": 4.2, "compare": 3.1},
+    {"label": "Backend", "value": 4.6, "compare": 4.4},
+    {"label": "Data", "value": 3.4, "compare": 2.2},
+    {"label": "Infra", "value": 3.9, "compare": 3.0},
+    {"label": "Security", "value": 3.1, "compare": 2.4},
+    {"label": "Testing", "value": 4.0, "compare": 3.3},
+    {"label": "Docs", "value": 2.8, "compare": 2.9}
+  ]
+}

@@ -3032,6 +3032,548 @@ def kind_logos(c: Ctx) -> Art:
     return art
 
 
+# ---------------------------------------------------------------- breakdown and radar
+
+BREAKDOWN_NAMED = 10  # items shown by name; the rest share one Other item
+GOLDEN = 0.381966  # 2 - phi: a hue stride of this share of the categories keeps neighbours apart
+
+
+def breakdown_items(spec: dict[str, Any]) -> list[dict[str, Any]]:
+    """Items largest first: at most BREAKDOWN_NAMED by name, then one Other item that holds
+    the rest and any item the data already calls Other. Each item gets its share of the
+    total and a percent label in tenths, rounded by largest remainder so the legend adds up
+    to exactly 100%."""
+    items: list[dict[str, Any]] = []
+    other: float | None = None
+    for i, raw in enumerate(need_list(spec.get("items"), "breakdown items", 200)):
+        if not isinstance(raw, dict):
+            raise ForgeError(f"breakdown item {i} must be an object with label and value")
+        label = text_of(raw.get("label", ""), f"breakdown item {i} label", 40)
+        if not label:
+            raise ForgeError(f"breakdown item {i} needs a label")
+        value = count_of(raw.get("value"), f"breakdown item {i} value")
+        if label.casefold() == "other":
+            other = (other or 0.0) + value
+            continue
+        color = raw.get("color")
+        if color not in (None, ""):
+            color = parse_color(color, f"breakdown item {i} color")
+        items.append({"label": label, "value": value, "color": color or None})
+    items.sort(key=lambda it: -it["value"])  # stable: equal values keep their order
+    if len(items) > BREAKDOWN_NAMED:
+        other = (other or 0.0) + sum(it["value"] for it in items[BREAKDOWN_NAMED:])
+        del items[BREAKDOWN_NAMED:]
+    if other is not None:
+        items.append({"label": "Other", "value": other, "color": None, "other": True})
+    total = sum(it["value"] for it in items)
+    if not 0 < total < math.inf:
+        raise ForgeError("breakdown values must add up to a finite number above 0")
+    exact = [it["value"] * 1000 / total for it in items]
+    tenths = [math.floor(v) for v in exact]
+    for k in sorted(range(len(items)), key=lambda k: tenths[k] - exact[k])[: 1000 - sum(tenths)]:
+        tenths[k] += 1
+    for it, t in zip(items, tenths, strict=True):
+        it["share"] = it["value"] / total
+        it["pct"] = f"{t / 10:.1f}%"
+    return items
+
+
+def category_colors(c: Ctx, items: list[dict[str, Any]]) -> list[str]:
+    """One mark color per item: muted grey for Other, an item's own color, else hues spaced
+    evenly around the circle from the accent, taken in a stride of about GOLDEN of the
+    count so neighbours differ most, every other one a step further from the card. Each is
+    tuned to 3:1 wherever marks are drawn."""
+    n = sum(1 for it in items if not it.get("other"))
+    stride = min(
+        (k for k in range(1, n) if math.gcd(k, n) == 1),
+        key=lambda k: abs(k - n * GOLDEN),
+        default=1,
+    )
+    h, light, sat = _hls(c.pal.ink)
+    lift = 0.08 if is_dark(c.theme) else -0.08
+    out = []
+    for k, it in enumerate(items):
+        if it.get("other"):
+            out.append(c.tone("muted"))
+        elif it["color"]:
+            out.append(c.mark(it["color"]))
+        else:
+            hue = (h + ((k * stride) % n) / n) % 1
+            out.append(c.mark(_hex(hue, light + lift * (k % 2), max(sat, 0.45))))
+    return out
+
+
+def legend_entry(
+    c: Ctx, x: float, y: float, col_w: float, lf: float, color: str, it: dict[str, Any]
+) -> list[str]:
+    """Swatch, label and percent with its baseline at y, inside a col_w wide column."""
+    dot, gap = lf * 0.4, lf * 0.6
+    pct_w = text_width(it["pct"], lf, "mono", MONO_LS)
+    tx = x + 2 * dot + gap
+    room = col_w - (tx - x) - gap - pct_w - lf * 0.5
+    label = snug(it["label"].upper(), room, lf, "mono", MONO_LS)
+    out = [el("circle", cx=x + dot, cy=y - lf * 0.35, r=dot, fill=color)]
+    if label:
+        out.append(mono(c, label, tx, y, c.theme.text, lf))
+        tx += text_width(label, lf, "mono", MONO_LS) + gap
+    pct = snug(it["pct"], x + col_w - tx, lf, "mono", MONO_LS)
+    if pct:
+        out.append(mono(c, pct, tx, y, c.theme.dim, lf))
+    return out
+
+
+def kind_breakdown(c: Ctx) -> Art:
+    """Parts of a whole, such as a repository's languages: a heading, the chart and a legend
+    of swatch, label and percent per item, each legend entry arriving as the chart reaches
+    its item.
+
+    --variant bar (the default) is one stacked bar that grows in from the left; donut and
+    pie draw the same shares as a ring or a disc that one clockwise sweep reveals from the
+    top, and the donut names its largest item in the middle. Data: {"title", "items":
+    [{"label", "value", "color"?}]} or the bare list; a value is any non-negative size
+    (bytes, hours, counts). Items show largest first, ten by name and the rest as Other.
+    The chart sits beside its legend, or above it on a phone and on a canvas about as tall
+    as wide.
+    """
+    spec = spec_of(c, "items")
+    variant = c.variant or "bar"
+    if variant not in ("bar", "donut", "pie"):
+        raise ForgeError(f"breakdown variant must be bar, donut or pie, got {variant!r}")
+    items = breakdown_items(spec)
+    colors = category_colors(c, items)
+    title = c.title or (text_of(spec["title"], "breakdown title") if spec.get("title") else "")
+    n = len(items)
+    w = c.width or 495
+    bar = variant == "bar"
+    stack = bar or c.phone or (c.height is not None and c.height >= 0.8 * w)
+    if bar and not c.phone:
+        most = 2 if n <= 6 else 3  # rows of two, three once the list runs long
+    else:
+        most = 1 if n <= 4 and not stack else 2
+
+    def lay(s: float) -> dict[str, float]:
+        pad = (16 if c.phone else 22) * s
+        hf, lf = c.fs(scaled(10, s)), c.fs(scaled(10, s))
+        row = lf + max(11 * s, 0.45 * lf)
+        widest = max(
+            lf * 2.6
+            + text_width(it["label"].upper(), lf, "mono", MONO_LS)
+            + text_width(it["pct"], lf, "mono", MONO_LS)
+            for it in items
+        )
+        top = pad + (hf + 14 * s if title else 0)
+        dia = 0.0
+        if bar:
+            room, legend_y = w - 2 * pad, top + 14 * s + 24 * s
+        elif stack:
+            dia = min((150 if c.phone else 140) * s, w - 2 * pad)
+            room, legend_y = w - 2 * pad, top + dia + 20 * s
+        else:
+            dia = 124 * s
+            room, legend_y = w - 2 * pad - dia - 36 * s, 0.0
+        cols = max(1, min(most, n, int(room // (widest + 8 * s))))
+        rows = math.ceil(n / cols)
+        col_w = room / cols if bar else min(room / cols, widest + 28 * s)
+        block = rows * row
+        if bar or stack:
+            need = legend_y + block + pad * 0.8
+        else:
+            need = top + max(dia, block) + pad
+        return {
+            "pad": pad,
+            "hf": hf,
+            "lf": lf,
+            "row": row,
+            "top": top,
+            "dia": dia,
+            "legend_y": legend_y,
+            "cols": cols,
+            "col_w": col_w,
+            "block": block,
+            "need": need,
+        }
+
+    s = layout_scale(w, PHONE_W if c.phone else 495, c.height, lambda k: lay(k)["need"])
+    m = lay(s)
+    # a desktop card is at least 195 tall at 495 wide, the size of the common stats card
+    h = c.height or max(m["need"], 0 if c.phone else 195 * s)
+    oy = max(0.0, (h - m["need"]) / 2)
+    pad, lf, dia, cols, col_w = m["pad"], m["lf"], m["dia"], int(m["cols"]), m["col_w"]
+    top = oy + m["top"]
+    if bar:
+        legend_x, legend_y = pad, oy + m["legend_y"]
+    elif stack:
+        cx, cy = w / 2, top + dia / 2
+        legend_x, legend_y = (w - cols * col_w) / 2, oy + m["legend_y"]
+    else:
+        ox = max(0.0, (w - 2 * pad - dia - 36 * s - cols * col_w) / 2)
+        cx, cy = pad + ox + dia / 2, top + max(dia, m["block"]) / 2
+        legend_x, legend_y = pad + ox + dia + 36 * s, cy - m["block"] / 2
+    desc = "; ".join(f"{it['label']} {it['pct']}" for it in items)
+    art = Art(w, h, title or "Breakdown", "Breakdown: " + desc)
+    p = c.theme
+    frame(c, art, rx=clamp(14 * s, 6, 24))
+    if title:
+        heading(c, art, title, x=pad, y=oy + pad + m["hf"], size=scaled(10, s))
+    if c.one_shot:
+        q = c.preset
+        start = 0.1 if q.name == "short" else 0.0
+        item = round(q.item * 0.8, 3)
+        draw = round(max(q.total - start - item - 0.05, 0.1), 3)
+        total = round(start + draw + item, 3)
+        clock = Clock(PRESETS["medium"].fit(total + 2.4), True) if c.loop else Clock(total, False)
+    else:
+        clock = c.cycle(c.preset.base, distance=w)
+        start = 0.04 * clock.dur
+        draw, item = min(0.3 * clock.dur, 1.8), min(0.08 * clock.dur, 0.5)
+    d = clock.dur
+    a, b = start / d, (start + draw) / d
+    cums = list(itertools.accumulate((it["share"] for it in items), initial=0.0))
+    gap = 2 * s if n > 1 else 0.0
+    segs = []
+    if bar:
+        bx, by, bw, bh = pad, top, w - 2 * pad, 14 * s
+        for k, color in enumerate(colors):
+            x0 = bx + cums[k] * bw + (gap / 2 if k else 0)
+            x1 = bx + cums[k + 1] * bw - (gap / 2 if k < n - 1 else 0)
+            if x1 - x0 >= 0.5:
+                segs.append(el("rect", x=x0, y=by, width=x1 - x0, height=bh, fill=color))
+        reveal = animate("width", [(0, 0), (a, 0), (b, num(bw))], clock)
+        art.defs.append(
+            el(
+                "clipPath",
+                el("rect", reveal, x=bx, y=by, width=bw, height=bh, rx=bh / 2),
+                id=c.id("bar"),
+            )
+        )
+        chart = el("g", *segs, clip_path=c.url("bar"))
+    else:
+        r = dia / 2
+        thick = max(dia * 0.17, 3.0) if variant == "donut" else r
+        rr = r - thick / 2
+        circ = 2 * math.pi * rr
+        for k, color in enumerate(colors):
+            length = items[k]["share"] * circ - gap
+            if length < 0.5:
+                continue
+            turn = -90 + 360 * (cums[k] + gap / 2 / circ)
+            segs.append(
+                el(
+                    "circle",
+                    cx=cx,
+                    cy=cy,
+                    r=rr,
+                    fill="none",
+                    stroke=color,
+                    stroke_width=thick,
+                    stroke_dasharray=f"{num(length)} {num(circ)}",
+                    transform=f"rotate({num(turn)} {num(cx)} {num(cy)})",
+                )
+            )
+        # one sweep reveals every segment in turn: a mask ring whose dash runs clockwise
+        mr = r / 2 + 1
+        dash = 2 * math.pi * mr + 1
+        sweep = animate("stroke-dashoffset", [(0, num(dash)), (a, num(dash)), (b, 0)], clock)
+        art.defs.append(
+            el(
+                "mask",
+                el(
+                    "circle",
+                    sweep,
+                    cx=cx,
+                    cy=cy,
+                    r=mr,
+                    fill="none",
+                    stroke="#fff",
+                    stroke_width=r + 2,
+                    stroke_dasharray=num(dash),
+                    stroke_dashoffset=0,
+                    transform=f"rotate(-90 {num(cx)} {num(cy)})",
+                ),
+                id=c.id("sweep"),
+                maskUnits="userSpaceOnUse",
+                x=cx - r - 2,
+                y=cy - r - 2,
+                width=dia + 4,
+                height=dia + 4,
+            )
+        )
+        chart = el("g", *segs, mask=c.url("sweep"))
+    layer = [chart]
+    for k, color in enumerate(colors):
+        row, col = divmod(k, cols)
+        x = legend_x + col * col_w
+        y = legend_y + (row + 0.5) * m["row"] + lf * 0.35
+        at = round(start + draw * cums[k], 3)
+        entry = legend_entry(c, x, y, col_w, lf, color, items[k])
+        layer.append(el("g", rise(clock, at, item, dy=4 * s), *entry))
+    if variant == "donut":
+        hole = dia - 2 * thick
+        big, size = shrink(
+            items[0]["pct"],
+            hole * 0.66,
+            c.fs(max(dia * 0.13, FONT_FLOOR)),
+            "bold",
+            c.fs(FONT_FLOOR),
+        )
+        sf = c.fs(scaled(8.5, s))
+        name = snug(items[0]["label"].upper(), hole * 0.78, sf, "mono", MONO_LS)
+        y1 = cy + (size * 0.72 - (sf * 1.5 if name else 0)) / 2
+        center = [sans(c, big, cx, y1, p.ink, size, "b", text_anchor="middle")]
+        if name:
+            center.append(mono(c, name, cx, y1 + sf * 1.5, p.dim, sf, text_anchor="middle"))
+        at = round(max(start, start + draw - item * 0.5), 3)
+        layer.append(el("g", rise(clock, at, item, dy=4 * s), *center))
+    art.body.append(el("g", veil(clock), *layer))
+    return art
+
+
+def radar_axes(spec: dict[str, Any]) -> tuple[list[dict[str, Any]], float, bool]:
+    """Axes with their value as a share of max (clamped to 0..1) and as shown text, the max,
+    and whether every axis has a compare value (some but not all is an error). Shown values
+    share one decimal when any value has a fraction, so 4 reads as 4.0 beside 4.2."""
+    top = number_of(spec.get("max", 100), "radar max")
+    if top <= 0:
+        raise ForgeError("radar max must be above 0")
+    rows = []
+    for i, raw in enumerate(need_list(spec.get("axes"), "radar axes", 8, 3)):
+        if not isinstance(raw, dict):
+            raise ForgeError(f"radar axis {i} must be an object with label and value")
+        label = text_of(raw.get("label", ""), f"radar axis {i} label", 40)
+        if not label:
+            raise ForgeError(f"radar axis {i} needs a label")
+        value = number_of(raw.get("value"), f"radar axis {i} value")
+        was = raw.get("compare")
+        rows.append(
+            (label, value, None if was is None else number_of(was, f"radar axis {i} compare"))
+        )
+    paired = [was is not None for _, _, was in rows]
+    if any(paired) and not all(paired):
+        raise ForgeError("radar compare goes on every axis or on none")
+    places = int(not all(float(v).is_integer() for _, *vs in rows for v in vs if v is not None))
+
+    def shown(v: float) -> str:
+        return fmt_value(v) if abs(v) >= 1000 else f"{v:.{places}f}"
+
+    axes = [
+        {
+            "label": label,
+            "frac": clamp(value / top, 0.0, 1.0),
+            "shown": shown(value),
+            "back": None if was is None else clamp(was / top, 0.0, 1.0),
+            "was": None if was is None else shown(was),
+        }
+        for label, value, was in rows
+    ]
+    return axes, top, all(paired)
+
+
+def kind_radar(c: Ctx) -> Art:
+    """Radar chart of 3 to 8 axes on one shared max: grid rings and spokes, each axis label
+    with its value outside the rings, and the value polygon growing from the center before
+    its points pop in around the clock.
+
+    Data: {"title", "max": 100, "series"?: [value name, compare name], "axes": [{"label",
+    "value", "compare"?}]} or the bare axes list. With compare on every axis a second,
+    muted dashed polygon stays drawn underneath for comparison, and a key names both
+    series. Labels that would collide are shortened, never overlapped.
+    """
+    spec = spec_of(c, "axes")
+    axes, top_value, paired = radar_axes(spec)
+    names = spec.get("series", ["Value", "Compare"])
+    if not isinstance(names, list) or len(names) != 2:
+        raise ForgeError("radar series must be a list of two names: the value's, the compare's")
+    names = [text_of(x, "radar series name", 30) for x in names]
+    title = c.title or (text_of(spec["title"], "radar title") if spec.get("title") else "")
+    n = len(axes)
+    w = c.width or 400
+    turns = [-math.pi / 2 + 2 * math.pi * k / n for k in range(n)]
+
+    keys = [x.upper() for x in names]
+
+    def keys_width(labels: list[str], lf: float, s: float) -> float:
+        """Two keys, each a 16 px line and its name, 14 px apart."""
+        return 2 * 22 * s + 14 * s + sum(text_width(x, lf, "mono", MONO_LS) for x in labels)
+
+    def lay(s: float) -> dict[str, float]:
+        pad = (16 if c.phone else 20) * s
+        hf, lf = c.fs(scaled(10, s)), c.fs(scaled(9, s))
+        gap, lb = 8 * s, lf * 2.3
+        title_w = text_width(title.upper(), hf, "mono", MONO_LS) if title else 0.0
+        room = w - 2 * pad - (title_w + 24 * s if title else 0)
+        inline = paired and keys_width(keys, lf, s) <= room
+        top = pad + (hf + 14 * s if title or inline else 0)
+        under = lf + 14 * s if paired and not inline else 0.0
+        side = max(
+            (
+                text_width(max(ax["label"].upper(), ax["shown"], key=len), lf, "mono", MONO_LS)
+                for ax, t in zip(axes, turns, strict=True)
+                if abs(math.cos(t)) > 0.26
+            ),
+            default=0.0,
+        )
+        side = min(side, (0.2 if c.phone else 0.24) * w)
+        rad = max(min((w - 2 * pad - 2 * (side + gap)) / 2, 99 * s), 6 * s)
+        tops = [(rad + gap) * math.sin(t) + (math.sin(t) - 1) / 2 * lb for t in turns]
+        up, down = max(rad, -min(tops)), max(rad, max(tops) + lb)
+        return {
+            "pad": pad,
+            "hf": hf,
+            "lf": lf,
+            "gap": gap,
+            "lb": lb,
+            "inline": float(inline),
+            "top": top,
+            "rad": rad,
+            "up": up,
+            "down": down,
+            "need": top + up + down + under + pad,
+        }
+
+    s = layout_scale(w, PHONE_W if c.phone else 400, c.height, lambda k: lay(k)["need"])
+    m = lay(s)
+    h = c.height or max(m["need"], 0 if c.phone else 320 * s)
+    oy = max(0.0, (h - m["need"]) / 2)
+    pad, hf, lf, gap, rad = m["pad"], m["hf"], m["lf"], m["gap"], m["rad"]
+    inline = bool(m["inline"])
+    cx, cy = w / 2, oy + m["top"] + m["up"]
+    p = c.theme
+
+    def corners(fracs: list[float], x0: float = cx, y0: float = cy) -> list[tuple[float, float]]:
+        return [
+            (x0 + f * rad * math.cos(t), y0 + f * rad * math.sin(t))
+            for f, t in zip(fracs, turns, strict=True)
+        ]
+
+    def points(pts: list[tuple[float, float]]) -> str:
+        return " ".join(f"{num(x)},{num(y)}" for x, y in pts)
+
+    desc = "; ".join(
+        f"{ax['label']} {ax['shown']}" + (f" ({names[1]} {ax['was']})" if paired else "")
+        for ax in axes
+    )
+    art = Art(
+        w,
+        h,
+        title or "Radar chart",
+        f"Radar of {n} axes out of {fmt_value(top_value)}"
+        + (f", {names[0]} against {names[1]}" if paired else "")
+        + ": "
+        + desc,
+    )
+    frame(c, art, rx=clamp(14 * s, 6, 24))
+    if title:
+        room = w - 2 * pad - (keys_width(keys, lf, s) + 24 * s if inline else 0)
+        label = fit(title.upper(), room, hf, "mono", MONO_LS)
+        art.body.append(mono(c, label, pad, oy + pad + hf, c.pal.text, hf))
+    grid = "".join(
+        "M" + " L".join(f"{num(x)} {num(y)}" for x, y in corners([f] * n)) + "Z"
+        for f in (0.25, 0.5, 0.75, 1.0)
+    )
+    grid += "".join(f"M{num(cx)} {num(cy)}L{num(x)} {num(y)}" for x, y in corners([1.0] * n))
+    art.body.append(
+        el("path", d=grid, fill="none", stroke=p.panel_stroke, stroke_width=max(s, 0.6))
+    )
+    fill = alpha(c.pal.ink, 0.16)
+    layers: list[tuple[str, ...]] = [(), (fill,)]
+    muted = c.tone("muted")
+    if paired:
+        back = alpha(muted, 0.1)
+        layers += [(back,), (back, fill)]
+        art.body.append(
+            el(
+                "polygon",
+                points=points(corners([ax["back"] for ax in axes])),
+                fill=back,
+                stroke=muted,
+                stroke_width=scaled(1.5, s, 1),
+                stroke_dasharray=f"{num(4 * s)} {num(3 * s)}",
+                stroke_linejoin="round",
+            )
+        )
+    grounds = tuple(dict.fromkeys(g for t in layers for g in tinted(c.marks_on, t)))
+    line = tune(c.pal.ink, marks=grounds)  # 3:1 on the card and through both polygon tints
+    for ax, t in zip(axes, turns, strict=True):
+        cos, sin = math.cos(t), math.sin(t)
+        px, py = cx + (rad + gap) * cos, cy + (rad + gap) * sin
+        y1 = py + (sin - 1) / 2 * m["lb"] + 0.75 * lf
+        if cos > 0.26:
+            anchor, room = None, w - pad - px
+        elif cos < -0.26:
+            anchor, room = "end", px - pad
+        else:
+            anchor, room = "middle", min(2 * min(px - pad, w - pad - px), 1.4 * (rad + gap))
+        name = snug(ax["label"].upper(), room, lf, "mono", MONO_LS)
+        if name:
+            art.body.append(mono(c, name, px, y1, p.text, lf, text_anchor=anchor))
+        value = snug(ax["shown"], room, lf, "mono", MONO_LS)
+        if value:
+            art.body.append(mono(c, value, px, y1 + 1.3 * lf, c.pal.text, lf, text_anchor=anchor))
+    if paired:
+        if inline:  # right-aligned in the heading row
+            kx, ky = w - pad - keys_width(keys, lf, s), oy + pad + hf
+        else:  # a centered row under the chart, each name shortened to half the width
+            room = (w - 2 * pad - 14 * s) / 2 - 22 * s
+            keys = [snug(x, room, lf, "mono", MONO_LS) for x in keys]
+            kx, ky = (w - keys_width(keys, lf, s)) / 2, cy + m["down"] + 14 * s + 0.75 * lf
+        for k, (label, color) in enumerate(zip(keys, (line, muted), strict=True)):
+            ly = ky - lf * 0.35
+            art.body.append(
+                el(
+                    "line",
+                    x1=kx,
+                    y1=ly,
+                    x2=kx + 16 * s,
+                    y2=ly,
+                    stroke=color,
+                    stroke_width=scaled(2 if k == 0 else 1.5, s, 1),
+                    stroke_dasharray=None if k == 0 else f"{num(4 * s)} {num(3 * s)}",
+                )
+            )
+            if label:
+                art.body.append(mono(c, label, kx + 22 * s, ky, p.text, lf))
+            kx += 22 * s + text_width(label, lf, "mono", MONO_LS) + 14 * s
+    if c.one_shot:
+        q = c.preset
+        start = 0.1 if q.name == "short" else 0.0
+        grow, pop = q.item, round(q.item * 0.6, 3)
+        land = start + grow * 0.75
+        stagger = min(q.stagger * 0.5, max(0.0, (q.total - land - pop) / max(n - 1, 1)))
+        total = round(max(start + grow, land + stagger * (n - 1) + pop), 3)
+        clock = Clock(PRESETS["medium"].fit(total + 2.4), True) if c.loop else Clock(total, False)
+    else:
+        clock = c.cycle(c.preset.base, distance=2 * math.pi * rad)
+        start, grow = 0.04 * clock.dur, min(0.25 * clock.dur, 1.4)
+        pop = min(0.06 * clock.dur, 0.36)
+        land = start + grow * 0.75
+        stagger = min(0.07, 0.25 * clock.dur / n)
+    d = clock.dur
+    grown = move("scale", [(0, 0), (start / d, 0), ((start + grow) / d, 1)], clock, ease=True)
+    shape = el(
+        "polygon",
+        points=points(corners([ax["frac"] for ax in axes], 0.0, 0.0)),
+        fill=fill,
+        stroke=line,
+        stroke_width=scaled(2, s, 1.2),
+        stroke_linejoin="round",
+    )
+    layer = [el("g", el("g", grown, shape), transform=f"translate({num(cx)} {num(cy)})")]
+    dot = scaled(3.2, s, 2)
+    placed: list[tuple[float, float]] = []
+    for k, (x, y) in enumerate(corners([ax["frac"] for ax in axes])):
+        if any(math.dist((x, y), q) < 2 * dot + 1 for q in placed):
+            continue  # values crowded near the center: one point stands for them
+        placed.append((x, y))
+        a = (land + k * stagger) / d
+        b = (land + k * stagger + pop) / d
+        frames = [(0, 0), (a, 0), (a + (b - a) * 0.6, dot * 1.6), (b, dot)]
+        layer.append(
+            el("circle", animate("r", frames, clock, ease=True), cx=x, cy=y, r=dot, fill=line)
+        )
+    art.body.append(el("g", veil(clock), *layer))
+    return art
+
+
 # ---------------------------------------------------------------- calendar
 
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
@@ -3433,6 +3975,18 @@ KINDS: dict[str, KindSpec] = {
     "logos": KindSpec(
         kind_logos, "short", "logo wall of SVG, PNG/WebP or text pills; ambient = marquee"
     ),
+    "breakdown": KindSpec(
+        kind_breakdown,
+        "short",
+        "parts of a whole with a legend: stacked bar, --variant donut or pie",
+        phone=True,
+    ),
+    "radar": KindSpec(
+        kind_radar,
+        "short",
+        "radar of 3 to 8 axes, polygon grows from the center, optional compare",
+        phone=True,
+    ),
     "calendar": KindSpec(kind_calendar, "short", "53-week contribution heatmap (--variant accent)"),
     "ring": KindSpec(kind_ring, "short", "progress rings that draw in, static values"),
 }
@@ -3571,6 +4125,30 @@ SAMPLES: dict[str, Any] = {
             {"label": "Tidepool"},
             {"label": "Paperplane"},
         ]
+    },
+    "breakdown": {
+        "title": "Top languages",
+        "items": [
+            {"label": "Python", "value": 41.8},
+            {"label": "TypeScript", "value": 23.6},
+            {"label": "Rust", "value": 14.2},
+            {"label": "Go", "value": 9.7},
+            {"label": "Shell", "value": 6.1},
+            {"label": "Dockerfile", "value": 4.6},
+        ],
+    },
+    "radar": {
+        "title": "Project health",
+        "max": 100,
+        "series": ["This release", "Last release"],
+        "axes": [
+            {"label": "Security", "value": 76, "compare": 58},
+            {"label": "Tests", "value": 84, "compare": 66},
+            {"label": "Types", "value": 72, "compare": 70},
+            {"label": "Docs", "value": 61, "compare": 42},
+            {"label": "Speed", "value": 88, "compare": 74},
+            {"label": "Uptime", "value": 93, "compare": 90},
+        ],
     },
     "calendar": {"start": "2025-10-05", "counts": sample_counts()},
     "ring": {

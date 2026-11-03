@@ -27,6 +27,8 @@ CASES: dict[str, list[str]] = {
     "badge": ["medium", "short"],
     "timeline": ["long", "short", "medium"],
     "logos": ["short", "ambient", "medium"],
+    "breakdown": ["short", "medium", "micro"],
+    "radar": ["short", "medium", "ambient"],
     "calendar": ["short", "medium"],
     "ring": ["short", "medium"],
 }
@@ -123,6 +125,12 @@ def hostile_data(kind: str, s: str) -> object:
         "badge": {"label": s, "value": s},
         "timeline": [{"start": s, "end": s, "title": s, "subtitle": s, "current": True}],
         "logos": [{"label": s}, {"label": s, "color": "#f472b6"}],
+        "breakdown": {"title": s, "items": [{"label": s, "value": 3}, {"label": "b", "value": 1}]},
+        "radar": {
+            "title": s,
+            "series": [s, s],
+            "axes": [{"label": s, "value": v, "compare": 2} for v in (3, 1, 2)],
+        },
         "calendar": {"title": s, "start": "2026-01-01", "counts": [1, 0, 3]},
         "ring": [{"label": s, "value": 3, "max": 4}],
     }[kind]
