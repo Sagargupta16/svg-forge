@@ -10,11 +10,11 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-import pack
 import pytest
 
 import check
 import forge
+import pack
 import validate_svg
 
 ROOT = Path(__file__).resolve().parent.parent
