@@ -6844,12 +6844,16 @@ def picture(dark: str, light: str, alt: str) -> str:
     return picture_set({("dark", "desktop"): dark, ("light", "desktop"): light}, alt)
 
 
-def picture_set(paths: dict[tuple[str | None, str], str], alt: str) -> str:
+def picture_set(
+    paths: dict[tuple[str | None, str], str], alt: str, width: str | None = None
+) -> str:
     """The <picture> for a set of files keyed (theme or None, device).
 
     Desktop sources come first, each with DESKTOP_MEDIA when there is a phone file too, so
     a wide window takes them before the phone ones; dark before light. The <img> is the
     phone file (dark when there are two), which also serves viewers without <picture>.
+    width sets the <img> width attribute (never a height: images in one row that set both
+    stack, github/markup#2045); by default it is 100% for a desktop and phone set, else none.
     """
     both_devices = len({d for _, d in paths}) == 2
     lines = ["<picture>"]
@@ -6865,8 +6869,10 @@ def picture_set(paths: dict[tuple[str | None, str], str], alt: str) -> str:
                 lines.append(f'  <source media="{" and ".join(media)}" srcset="{srcset}">')
     keys = [("dark", "phone"), (None, "phone"), ("dark", "desktop"), (None, "desktop")]
     img = next(paths[k] for k in keys if k in paths)
-    width = ' width="100%"' if both_devices else ""
-    lines.append(f'  <img alt="{html.escape(alt)}" src="{html.escape(img)}"{width}>')
+    if width is None:
+        width = "100%" if both_devices else ""
+    size = f' width="{html.escape(width)}"' if width else ""
+    lines.append(f'  <img alt="{html.escape(alt)}" src="{html.escape(img)}"{size}>')
     lines.append("</picture>")
     return "\n".join(lines)
 

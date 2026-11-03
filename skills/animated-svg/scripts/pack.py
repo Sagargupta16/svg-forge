@@ -76,7 +76,6 @@ SUFFIXES = ("-dark", "-light", "-mobile")  # forge.file_name() adds these
 SCHEME = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*):")
 LINK_SCHEMES = frozenset({"http", "https", "mailto"})
 SVG_WIDTH = re.compile(r'<svg\b[^>]*?\swidth="([0-9.]+)"')
-IMG = re.compile(r'<img ([^>]*?)(?: width="[^"]*")?>')
 
 
 class PackError(Exception):
@@ -215,11 +214,10 @@ def snippet(cards: list[Card], src_dir: str, label: str) -> str:
         paths = {
             key: f"{src_dir}/{forge.file_name(Path(card.name), *key).name}" for key in card.files
         }
-        markup = forge.picture_set(paths, card.alt)
         if card.row is None:
-            blocks.append((None, [linked(markup, card.link)]))
+            blocks.append((None, [linked(forge.picture_set(paths, card.alt), card.link)]))
             continue
-        sized = IMG.sub(rf'<img \1 width="{card.width}">', markup, count=1)  # width only
+        sized = forge.picture_set(paths, card.alt, width=card.width)  # width only, never height
         item = linked(one_line(sized), card.link)
         row = next((items for key, items in blocks if key == card.row), None)
         if row is None:
