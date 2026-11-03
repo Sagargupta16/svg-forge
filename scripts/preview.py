@@ -568,8 +568,8 @@ RECIPES: list[Recipe] = [
     ),
     Recipe(
         f"{E}/skyline-year.svg",
-        ("--kind", "skyline", "--data", f"{E}/data/contributions.json"),
-        "the year as an isometric city, the busiest day lit",
+        ("--kind", "skyline", "--device", "both", "--data", f"{E}/data/contributions.json"),
+        "the year as an isometric city, the busiest day lit; the last 26 weeks on a phone",
     ),
     Recipe(
         f"{E}/skyline-accent.svg",
@@ -588,20 +588,6 @@ RECIPES: list[Recipe] = [
             f"{E}/data/activity.json",
         ),
         "accent ramp, both themes, the city rises again on each loop",
-    ),
-    Recipe(
-        f"{E}/skyline-phone.svg",
-        (
-            "--kind",
-            "skyline",
-            "--device",
-            "both",
-            "--theme",
-            "light",
-            "--data",
-            f"{E}/data/contributions.json",
-        ),
-        "desktop and a 320 px phone layout of the last 26 weeks",
     ),
     Recipe(
         f"{E}/flow-text.svg",
