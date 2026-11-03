@@ -1901,94 +1901,103 @@ def kind_flow(c: Ctx) -> Art:
 LOADER_TURN = {"micro": 0.6, "short": 0.9, "medium": 1.2, "long": 2.0, "ambient": 4.0}
 
 
-def kind_loader(c: Ctx) -> Art:
-    """Loading indicator: spinner, dots or an indeterminate bar. Loops unless --once."""
-    spec = spec_of(c, "variant") if c.data is not None else {}
-    variant = c.variant or spec.get("variant", "spinner")
-    if isinstance(variant, list):
-        variant = variant[0] if variant else "spinner"
-    if variant not in ("spinner", "dots", "bar"):
-        raise ForgeError(f"loader variant must be spinner, dots or bar, got {variant!r}")
-    turn = LOADER_TURN[c.preset.name]
-    ink = c.pal.ink
-    if variant == "spinner":
-        w = c.width or 48
-        h = c.height or w
-        r = min(w, h) / 2 - 6
-        circ = 2 * math.pi * r
-        if c.preset.name == "ambient":
-            turn = max(1.0, circ / c.speed)
-        spin, breathe = Clock(turn, c.loop), Clock(round(turn * 2, 3), c.loop)
-        art = Art(w, h, c.title or "Loading", "Animated spinner loader")
-        cx, cy = w / 2, h / 2
-        short, long_ = circ * 0.18, circ * 0.62
-        art.body += [
-            el("circle", cx=cx, cy=cy, r=r, fill="none", stroke=NEUTRAL, stroke_width=4),
+def _swell(a: float, b: float, rest: float, peak: float) -> list[tuple[float, object]]:
+    """Frames that sit at rest, reach peak halfway through [a, b] and settle back by b."""
+    return [(0, rest), (a, rest), ((a + b) / 2, peak), (b, rest), (1, rest)]
+
+
+def _hop(a: float, b: float, rest: float, apex: float) -> list[tuple[float, object]]:
+    """Frames for one parabolic hop over [a, b]: rest, up to apex halfway, back down to rest."""
+    frames: list[tuple[float, object]] = [(0, rest), (a, rest)]
+    for k in range(1, 8):
+        u = k / 8
+        frames.append((a + (b - a) * u, rest + (apex - rest) * 4 * u * (1 - u)))
+    return [*frames, (b, rest), (1, rest)]
+
+
+def _loader_spinner(c: Ctx, turn: float) -> Art:
+    w = c.width or 48
+    h = c.height or w
+    r = min(w, h) / 2 - 6
+    circ = 2 * math.pi * r
+    if c.preset.name == "ambient":
+        turn = max(1.0, circ / c.speed)
+    spin, breathe = Clock(turn, c.loop), Clock(round(turn * 2, 3), c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated spinner loader")
+    cx, cy = w / 2, h / 2
+    short, long_ = circ * 0.18, circ * 0.62
+    art.body += [
+        el("circle", cx=cx, cy=cy, r=r, fill="none", stroke=NEUTRAL, stroke_width=4),
+        el(
+            "g",
+            move("rotate", [(0, (0, cx, cy)), (1, (360, cx, cy))], spin),
             el(
-                "g",
-                move("rotate", [(0, (0, cx, cy)), (1, (360, cx, cy))], spin),
-                el(
-                    "circle",
-                    animate(
-                        "stroke-dasharray",
-                        [
-                            (0, f"{num(short)} {num(circ)}"),
-                            (0.5, f"{num(long_)} {num(circ)}"),
-                            (1, f"{num(short)} {num(circ)}"),
-                        ],
-                        breathe,
-                    ),
-                    cx=cx,
-                    cy=cy,
-                    r=r,
-                    fill="none",
-                    stroke=ink,
-                    stroke_width=4,
-                    stroke_linecap="round",
-                    stroke_dasharray=f"{num(short)} {num(circ)}",
+                "circle",
+                animate(
+                    "stroke-dasharray",
+                    [
+                        (0, f"{num(short)} {num(circ)}"),
+                        (0.5, f"{num(long_)} {num(circ)}"),
+                        (1, f"{num(short)} {num(circ)}"),
+                    ],
+                    breathe,
                 ),
+                cx=cx,
+                cy=cy,
+                r=r,
+                fill="none",
+                stroke=c.pal.ink,
+                stroke_width=4,
+                stroke_linecap="round",
+                stroke_dasharray=f"{num(short)} {num(circ)}",
             ),
-        ]
-        return art
-    if variant == "dots":
-        w = c.width or 72
-        h = c.height or 24
-        clock = Clock(turn, c.loop)
-        art = Art(w, h, c.title or "Loading", "Animated three-dot loader")
-        r = min(h / 2 - 3, w / 12)
-        for i in range(3):
-            a = i * 0.18
-            art.body.append(
-                el(
-                    "circle",
-                    animate(
-                        "opacity",
-                        [(0, 0.3), (a, 0.3), (a + 0.2, 1), (a + 0.42, 0.3), (1, 0.3)],
-                        clock,
-                    ),
-                    animate(
-                        "r",
-                        [
-                            (0, r * 0.7),
-                            (a, r * 0.7),
-                            (a + 0.2, r),
-                            (a + 0.42, r * 0.7),
-                            (1, r * 0.7),
-                        ],
-                        clock,
-                    ),
-                    cx=w / 2 + (i - 1) * w / 4,
-                    cy=h / 2,
-                    r=r * 0.7,
-                    fill=ink,
-                    opacity=0.3,
-                )
+        ),
+    ]
+    return art
+
+
+def _loader_dots(c: Ctx, turn: float) -> Art:
+    w = c.width or 72
+    h = c.height or 24
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated three-dot loader")
+    r = min(h / 2 - 3, w / 12)
+    for i in range(3):
+        a = i * 0.18
+        art.body.append(
+            el(
+                "circle",
+                animate(
+                    "opacity",
+                    [(0, 0.3), (a, 0.3), (a + 0.2, 1), (a + 0.42, 0.3), (1, 0.3)],
+                    clock,
+                ),
+                animate(
+                    "r",
+                    [
+                        (0, r * 0.7),
+                        (a, r * 0.7),
+                        (a + 0.2, r),
+                        (a + 0.42, r * 0.7),
+                        (1, r * 0.7),
+                    ],
+                    clock,
+                ),
+                cx=w / 2 + (i - 1) * w / 4,
+                cy=h / 2,
+                r=r * 0.7,
+                fill=c.pal.ink,
+                opacity=0.3,
             )
-        return art
+        )
+    return art
+
+
+def _loader_bar(c: Ctx, turn: float) -> Art:
     w = c.width or 240
     h = c.height or 8
     seg = w * 0.32
-    ink = c.mark(ink, NEUTRAL)  # the segment runs over the grey track
+    ink = c.mark(c.pal.ink, NEUTRAL)  # the segment runs over the grey track
     clock = Clock(round(turn * 1.4, 3), c.loop)
     art = Art(w, h, c.title or "Loading", "Animated indeterminate progress bar")
     art.defs.append(el("clipPath", el("rect", width=w, height=h, rx=h / 2), id=c.id("track")))
@@ -2014,6 +2023,316 @@ def kind_loader(c: Ctx) -> Art:
         ),
     ]
     return art
+
+
+def _loader_pulse(c: Ctx, turn: float) -> Art:
+    """A hub with two rings that expand and fade, one after the other."""
+    w = c.width or 48
+    h = c.height or w
+    s = min(w, h)
+    hub, near, far = s * 0.08, s * 0.12, s * 0.44
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated pulsing rings loader")
+    art.body.append(el("circle", cx=w / 2, cy=h / 2, r=hub, fill=c.pal.ink))
+    for start in (0.0, 0.5):
+        end = start + 0.48
+        art.body.append(
+            el(
+                "circle",
+                animate(
+                    "r",
+                    [(0, near), (start, near), (end, far), (end + 0.02, near)],
+                    clock,
+                    ease=True,
+                ),
+                animate("opacity", [(0, 0), (start, 0), (start + 0.06, 1), (end, 0)], clock),
+                cx=w / 2,
+                cy=h / 2,
+                r=far * 0.6,
+                fill="none",
+                stroke=c.pal.ink,
+                stroke_width=s / 16,
+                opacity=0.35,
+            )
+        )
+    return art
+
+
+def _loader_orbit(c: Ctx, turn: float) -> Art:
+    """Three dots on one track, each going round at its own speed (1, 2 and 3 laps a cycle).
+
+    The start angles are not evenly spread (100 and 140 degrees apart), so the three never
+    meet at one spot; any two cross now and then."""
+    w = c.width or 48
+    h = c.height or w
+    cx, cy = w / 2, h / 2
+    s = min(w, h)
+    r = s * 0.375
+    ink = c.mark(c.pal.ink, NEUTRAL)  # the dots ride over the grey track
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated three-dot orbit loader")
+    art.body.append(
+        el("circle", cx=cx, cy=cy, r=r, fill="none", stroke=NEUTRAL, stroke_width=s / 24)
+    )
+    for laps, start, size in ((1, -90, 0.075), (2, 10, 0.062), (3, 150, 0.05)):
+        angle = math.radians(start)
+        art.body.append(
+            el(
+                "g",
+                move("rotate", [(0, (0, cx, cy)), (1, (360 * laps, cx, cy))], clock),
+                el(
+                    "circle",
+                    cx=cx + r * math.cos(angle),
+                    cy=cy + r * math.sin(angle),
+                    r=s * size,
+                    fill=ink,
+                ),
+            )
+        )
+    return art
+
+
+def _loader_bars(c: Ctx, turn: float) -> Art:
+    """Five equalizer bars that stretch and brighten one after the other."""
+    w = c.width or 48
+    h = c.height or w
+    s = min(w, h)
+    bar, gap, count = s * 0.1, s * 0.09, 5
+    short, tall = s * 0.2, s * 0.8
+    left = (w - (count * bar + (count - 1) * gap)) / 2
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated equalizer bars loader")
+    for i in range(count):
+        a = i * 0.1
+        art.body.append(
+            el(
+                "rect",
+                animate("height", _swell(a, a + 0.5, short, tall), clock, ease=EASE_IN_OUT),
+                animate(
+                    "y",
+                    _swell(a, a + 0.5, (h - short) / 2, (h - tall) / 2),
+                    clock,
+                    ease=EASE_IN_OUT,
+                ),
+                animate("opacity", _swell(a, a + 0.5, 0.35, 1), clock, ease=EASE_IN_OUT),
+                x=left + i * (bar + gap),
+                y=(h - short) / 2,
+                width=bar,
+                height=short,
+                rx=bar / 2,
+                fill=c.pal.ink,
+                opacity=0.35,
+            )
+        )
+    return art
+
+
+def _loader_wave(c: Ctx, turn: float) -> Art:
+    """Five dots that rise and fall in a travelling wave."""
+    w = c.width or 72
+    h = c.height or 32
+    dot = min(h / 8, w / 18)
+    pitch, lift = dot * 3, dot * 2
+    left = (w - 4 * pitch) / 2
+    low, high = h / 2 + lift / 2, h / 2 - lift / 2
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated wave of dots loader")
+    for i in range(5):
+        a = i * 0.1
+        art.body.append(
+            el(
+                "circle",
+                animate("cy", _swell(a, a + 0.6, low, high), clock, ease=EASE_IN_OUT),
+                animate("opacity", _swell(a, a + 0.6, 0.4, 1), clock, ease=EASE_IN_OUT),
+                cx=left + i * pitch,
+                cy=low,
+                r=dot,
+                fill=c.pal.ink,
+                opacity=0.4,
+            )
+        )
+    return art
+
+
+def _loader_ring(c: Ctx, turn: float) -> Art:
+    """A quarter arc with round caps (90 degrees end to end) turning on a faint track."""
+    w = c.width or 48
+    h = c.height or w
+    cx, cy = w / 2, h / 2
+    s = min(w, h)
+    r, thick = s * 0.375, s / 12
+    circ = 2 * math.pi * r
+    ink = c.mark(c.pal.ink, NEUTRAL)  # the arc runs over the grey track
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated spinning ring loader")
+    art.body += [
+        el("circle", cx=cx, cy=cy, r=r, fill="none", stroke=NEUTRAL, stroke_width=thick),
+        el(
+            "g",
+            move("rotate", [(0, (0, cx, cy)), (1, (360, cx, cy))], clock),
+            el(
+                "circle",
+                cx=cx,
+                cy=cy,
+                r=r,
+                fill="none",
+                stroke=ink,
+                stroke_width=thick,
+                stroke_linecap="round",
+                stroke_dasharray=f"{num(circ / 4 - thick)} {num(circ)}",
+            ),
+        ),
+    ]
+    return art
+
+
+def _loader_blocks(c: Ctx, turn: float) -> Art:
+    """A 2 by 2 grid of squares that light up clockwise."""
+    w = c.width or 48
+    h = c.height or w
+    s = min(w, h)
+    side, gap = s * 0.3125, s * 0.125
+    left, top = (w - 2 * side - gap) / 2, (h - 2 * side - gap) / 2
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated four-block loader")
+    for i, (col, row) in enumerate(((0, 0), (1, 0), (1, 1), (0, 1))):
+        a = i * 0.2
+        art.body.append(
+            el(
+                "rect",
+                animate(
+                    "opacity",
+                    [
+                        (0, 0.25),
+                        (a, 0.25),
+                        (a + 0.08, 1),
+                        (a + 0.24, 1),
+                        (a + 0.4, 0.25),
+                        (1, 0.25),
+                    ],
+                    clock,
+                ),
+                x=left + col * (side + gap),
+                y=top + row * (side + gap),
+                width=side,
+                height=side,
+                rx=side * 0.2,
+                fill=c.pal.ink,
+                opacity=0.25,
+            )
+        )
+    return art
+
+
+def _loader_clock(c: Ctx, turn: float) -> Art:
+    """A clock face whose short hand turns once a cycle and long hand four times."""
+    w = c.width or 48
+    h = c.height or w
+    cx, cy = w / 2, h / 2
+    s = min(w, h)
+    face = s * 0.4
+    near, far = face * 0.78, face * 0.9
+    ticks = "".join(
+        f"M{num(cx + dx * near)} {num(cy + dy * near)}L{num(cx + dx * far)} {num(cy + dy * far)}"
+        for dx, dy in ((0, -1), (1, 0), (0, 1), (-1, 0))
+    )
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated clock loader")
+    art.body += [
+        el("circle", cx=cx, cy=cy, r=face, fill="none", stroke=NEUTRAL, stroke_width=s / 24),
+        el(
+            "path",
+            d=ticks,
+            fill="none",
+            stroke=NEUTRAL,
+            stroke_width=s / 24,
+            stroke_linecap="round",
+        ),
+    ]
+    for reach, thick, laps in ((0.5, s / 16, 1), (0.78, s / 24, 4)):
+        art.body.append(
+            el(
+                "line",
+                move("rotate", [(0, (0, cx, cy)), (1, (360 * laps, cx, cy))], clock),
+                x1=cx,
+                y1=cy,
+                x2=cx,
+                y2=cy - face * reach,
+                stroke=c.pal.ink,
+                stroke_width=thick,
+                stroke_linecap="round",
+            )
+        )
+    art.body.append(el("circle", cx=cx, cy=cy, r=s / 16, fill=c.pal.ink))
+    return art
+
+
+def _loader_bounce(c: Ctx, turn: float) -> Art:
+    """Three dots that hop one after the other, each with a shadow that shrinks as it rises."""
+    w = c.width or 56
+    h = c.height or 40
+    dot = min(h / 10, w / 14)
+    pitch, floor = dot * 3.5, h * 0.8
+    rest, apex = floor - dot, floor - dot - h * 0.4
+    wide, narrow = dot * 1.2, dot * 0.6
+    ink = c.mark(c.pal.ink, NEUTRAL)  # a resting dot touches its shadow
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated three-dot bounce loader")
+    for i in range(3):
+        a = i * 0.16
+        art.body.append(
+            el(
+                "ellipse",
+                animate("rx", _hop(a, a + 0.6, wide, narrow), clock),
+                cx=w / 2 + (i - 1) * pitch,
+                cy=floor + dot * 0.4,
+                rx=wide,
+                ry=dot * 0.3,
+                fill=NEUTRAL,
+            )
+        )
+    for i in range(3):
+        a = i * 0.16
+        art.body.append(
+            el(
+                "circle",
+                animate("cy", _hop(a, a + 0.6, rest, apex), clock),
+                cx=w / 2 + (i - 1) * pitch,
+                cy=rest,
+                r=dot,
+                fill=ink,
+            )
+        )
+    return art
+
+
+LOADER_VARIANTS: dict[str, Callable[[Ctx, float], Art]] = {
+    "spinner": _loader_spinner,
+    "dots": _loader_dots,
+    "bar": _loader_bar,
+    "pulse": _loader_pulse,
+    "orbit": _loader_orbit,
+    "bars": _loader_bars,
+    "wave": _loader_wave,
+    "ring": _loader_ring,
+    "blocks": _loader_blocks,
+    "clock": _loader_clock,
+    "bounce": _loader_bounce,
+}
+
+
+def kind_loader(c: Ctx) -> Art:
+    """Loading indicator, one of LOADER_VARIANTS on a LOADER_TURN clock. Loops unless --once."""
+    spec = spec_of(c, "variant") if c.data is not None else {}
+    variant = c.variant or spec.get("variant", "spinner")
+    if isinstance(variant, list):
+        variant = variant[0] if variant else "spinner"
+    if not isinstance(variant, str) or variant not in LOADER_VARIANTS:
+        names = list(LOADER_VARIANTS)
+        raise ForgeError(
+            f"loader variant must be {', '.join(names[:-1])} or {names[-1]}, got {variant!r}"
+        )
+    return LOADER_VARIANTS[variant](c, LOADER_TURN[c.preset.name])
 
 
 def kind_typing(c: Ctx) -> Art:
@@ -3976,8 +4295,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ap.add_argument(
         "--variant",
-        help="loader: spinner, dots or bar; timeline: horizontal or vertical; "
-        "calendar: green or accent",
+        help="loader: spinner, dots, bar, pulse, orbit, bars, wave, ring, blocks, clock or "
+        "bounce; timeline: horizontal or vertical; calendar: green or accent",
     )
     ap.add_argument(
         "--device",

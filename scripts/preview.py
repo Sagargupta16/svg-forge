@@ -220,6 +220,46 @@ RECIPES: list[Recipe] = [
         "slow drift from --speed",
     ),
     Recipe(
+        f"{E}/loader-pulse.svg",
+        ("--kind", "loader", "--variant", "pulse", "--accent", "#0ea5e9"),
+        "two rings expanding and fading in turn",
+    ),
+    Recipe(
+        f"{E}/loader-orbit.svg",
+        ("--kind", "loader", "--variant", "orbit", "--accent", "#8b5cf6"),
+        "three dots circling one track at three speeds",
+    ),
+    Recipe(
+        f"{E}/loader-bars.svg",
+        ("--kind", "loader", "--variant", "bars", "--accent", "#d97706"),
+        "five bars stretching in sequence",
+    ),
+    Recipe(
+        f"{E}/loader-wave.svg",
+        ("--kind", "loader", "--variant", "wave", "--accent", "#0d9488"),
+        "five dots rising in a wave",
+    ),
+    Recipe(
+        f"{E}/loader-ring.svg",
+        ("--kind", "loader", "--variant", "ring", "--accent", "#3b82f6"),
+        "a 90 degree arc turning on a faint track",
+    ),
+    Recipe(
+        f"{E}/loader-blocks.svg",
+        ("--kind", "loader", "--variant", "blocks", "--accent", "#ea580c"),
+        "a 2 by 2 grid of squares lighting in turn",
+    ),
+    Recipe(
+        f"{E}/loader-clock.svg",
+        ("--kind", "loader", "--variant", "clock", "--accent", "#ec4899"),
+        "two hands turning at different rates",
+    ),
+    Recipe(
+        f"{E}/loader-bounce.svg",
+        ("--kind", "loader", "--variant", "bounce", "--accent", "#65a30d"),
+        "three dots bouncing over shadows",
+    ),
+    Recipe(
         f"{E}/typing-medium.svg",
         (
             "--kind",
