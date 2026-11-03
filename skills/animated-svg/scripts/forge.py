@@ -907,24 +907,52 @@ def kind_tiles(c: Ctx) -> Art:
                 "tone": raw.get("tone"),
             }
         )
+    desc = "; ".join(f"{t['value']} {t['label']}" for t in items)
     n = len(items)
     cols = int(number_of(spec.get("cols", min(n, 4)), "tiles cols"))
     if not 1 <= cols <= 8:
         raise ForgeError("tiles cols must be between 1 and 8")
-    rows = math.ceil(n / cols)
     title = c.title or (text_of(spec["title"], "tiles title") if spec.get("title") else "")
     w = c.width or 840
     pad, gap = 16, 12
+    more = 0  # tiles left off a phone layout, counted on a "+N more" line
+    label_lines: list[list[str]] = []
+    if c.phone:
+        # Two columns, values in full at 18 px bold or more: one column when a value needs
+        # more room than half the card. Past 8 tiles the rest goes to the "+N more" line.
+        pad, gap = 14, 10
+        more, items = max(0, n - 8), items[:8]
+        n = len(items)
+        cols = min(cols, 2, n)
+        half = (w - 2 * pad - gap) / 2 - 32
+        if cols == 2 and any(text_width(t["value"], 18, "bold") > half for t in items):
+            cols = 1
+    rows = math.ceil(n / cols)
     top = pad + (28 if title else 0)
-    th = 80.0 if c.height is None else max(48.0, (c.height - top - pad - (rows - 1) * gap) / rows)
-    h = c.height or top + rows * th + (rows - 1) * gap + pad
     tw = (w - 2 * pad - (cols - 1) * gap) / cols
-    art = Art(w, h, title or "Stat tiles", "; ".join(f"{t['value']} {t['label']}" for t in items))
+    if c.phone:
+        label_lines = [
+            wrap(t["label"].upper(), tw - 32, c.fs(8.5), "mono", MONO_LS, lines=2) or [""]
+            for t in items
+        ]
+        natural = 80.0 + 13 * (max(len(lines) for lines in label_lines) - 1)
+        more_h = 22 if more else 0
+        need = top + rows * natural + (rows - 1) * gap + more_h + pad
+        th = natural + max(0.0, (c.height or 0) - need) / rows
+        h = max(c.height or 0, need)
+    else:
+        th = (
+            80.0
+            if c.height is None
+            else max(48.0, (c.height - top - pad - (rows - 1) * gap) / rows)
+        )
+        h = c.height or top + rows * th + (rows - 1) * gap + pad
+    art = Art(w, h, title or "Stat tiles", desc)
     frame(c, art)
     if title:
         heading(c, art, title, x=pad + 4, y=pad + 14)
     if c.one_shot:
-        clock, begins, item = c.entrance(n)
+        clock, begins, item = c.entrance(n + (1 if more else 0))
     else:
         clock, begins, item = c.cycle(c.preset.base, distance=w), [], 0.0
     layer = []
@@ -932,11 +960,45 @@ def kind_tiles(c: Ctx) -> Art:
         x = pad + (i % cols) * (tw + gap)
         y = top + (i // cols) * (th + gap)
         color = c.tone(t["tone"])
-        value, size = shrink(t["value"], tw - 32, min(26.0, th * 0.34), "bold", 13)
-        label = fit(t["label"].upper(), tw - 32, 8.5, "mono", MONO_LS)
         lit = () if c.one_shot else (alpha(color, 0.06),)  # the spotlight passes over the text
         value_ink = c.legible(c.theme.ink, c.theme.card, *lit)
         label_ink = c.legible(c.theme.dim, c.theme.card, *lit)
+        if c.phone:
+            lines = label_lines[i]
+            off = y + (th - 80.0 - 13 * (len(lines) - 1)) / 2  # the block centered in the tile
+            value, size = shrink(t["value"], tw - 32, 26.0, "bold", 18)
+            marks = [
+                el("rect", x=x, y=off + 17.6, width=3, height=27.2, rx=1.5, fill=color),
+                el(
+                    "text",
+                    esc(value),
+                    class_=c.cls("b"),
+                    x=x + 18,
+                    y=off + 42.4,
+                    fill=value_ink,
+                    font_size=size,
+                ),
+                *(
+                    mono(c, line, x + 18, off + 64 + 13 * k, label_ink, c.fs(8.5))
+                    for k, line in enumerate(lines)
+                ),
+            ]
+        else:
+            value, size = shrink(t["value"], tw - 32, min(26.0, th * 0.34), "bold", 13)
+            label = fit(t["label"].upper(), tw - 32, 8.5, "mono", MONO_LS)
+            marks = [
+                el("rect", x=x, y=y + th * 0.22, width=3, height=th * 0.34, rx=1.5, fill=color),
+                el(
+                    "text",
+                    esc(value),
+                    class_=c.cls("b"),
+                    x=x + 18,
+                    y=y + th * 0.53,
+                    fill=value_ink,
+                    font_size=size,
+                ),
+                mono(c, label, x + 18, y + th * 0.8, label_ink, 8.5),
+            ]
         inner = [
             el(
                 "rect",
@@ -948,17 +1010,7 @@ def kind_tiles(c: Ctx) -> Art:
                 fill=c.theme.card,
                 stroke=c.theme.border,
             ),
-            el("rect", x=x, y=y + th * 0.22, width=3, height=th * 0.34, rx=1.5, fill=color),
-            el(
-                "text",
-                esc(value),
-                class_=c.cls("b"),
-                x=x + 18,
-                y=y + th * 0.53,
-                fill=value_ink,
-                font_size=size,
-            ),
-            mono(c, label, x + 18, y + th * 0.8, label_ink, 8.5),
+            *marks,
         ]
         if c.one_shot:
             layer.append(el("g", rise(clock, begins[i], item), *inner))
@@ -981,6 +1033,10 @@ def kind_tiles(c: Ctx) -> Art:
                 opacity=0,
             )
         )
+    if more:
+        y = top + rows * th + (rows - 1) * gap + 17
+        line = mono(c, f"+{more} MORE", pad + 4, y, c.legible(c.theme.dim), c.fs(8.5))
+        layer.append(el("g", rise(clock, begins[-1], item), line) if c.one_shot else line)
     art.body.append(el("g", veil(clock) if c.one_shot else "", *layer))
     return art
 
@@ -1019,8 +1075,46 @@ def kind_hero(c: Ctx) -> Art:
     nodes = [text_of(t, "hero node", 8) for t in spec.get("nodes", [])][:8]
     w = c.width or 840
     h = c.height or 250
-    show_nodes = len(nodes) >= 2 and w >= 560
+    show_nodes = len(nodes) >= 2 and w >= 560 and not c.phone
     left = w * 0.6 if show_nodes else w - 80
+    if c.phone:
+        # One column: kicker, the title (shrunk, then wrapped), taglines wrapped to two lines,
+        # the status pill and the meta line on rows of their own. No constellation: its node
+        # labels would be texture at this width. spots holds baselines (pill: its top).
+        x0, room = 24, w - 48
+        if text_width(title, 22, "bold") <= room:
+            name, size_title = shrink(title, room, 40.0, "bold", 22)
+            title_lines = [name]
+        else:  # the largest size that holds it whole on two lines, else three at 22 px
+            size_title, title_lines = 22.0, wrap(title, room, 22, "bold", lines=3)
+            for size in range(40, 21, -1):
+                lines = wrap(title, room, size, "bold", lines=2)
+                if " ".join(lines) == title:
+                    size_title, title_lines = float(size), lines
+                    break
+        tag_lines = [wrap(t, room, 15, "sans", lines=2) or [""] for t in taglines]
+        meta_lines = wrap(meta.upper(), room, c.fs(10), "mono", MONO_LS, lines=2)
+        spots: dict[str, list[float]] = {}
+        y = 26.0  # ink bottom of the blocks placed so far
+        if kicker:
+            spots["kicker"] = [y + 8]
+            y += 24
+        spots["title"] = [y + size_title * (0.72 + 1.1 * k) for k in range(len(title_lines))]
+        y = spots["title"][-1] + size_title * 0.2
+        if tag_lines:  # played once, only the first tagline is shown
+            rows = len(tag_lines[0]) if c.one_shot else max(map(len, tag_lines))
+            spots["tag"] = [y + 23 + 20 * k for k in range(rows)]
+            y = spots["tag"][-1] + 4
+        if status:
+            spots["pill"] = [y + 16]
+            y += 44
+        if meta_lines:
+            spots["meta"] = [y + 22 + 15 * k for k in range(len(meta_lines))]
+            y = spots["meta"][-1] + 2
+        need = math.ceil(y + 24)
+        h = max(c.height or 0, need)
+        lift = (h - need) / 2  # a taller --height centers the stack
+        spots = {k: [v + lift for v in vs] for k, vs in spots.items()}
     desc = ". ".join(x for x in (kicker, title, *taglines, status, meta) if x)
     art = Art(w, h, title, desc)
     p = c.theme
@@ -1063,46 +1157,86 @@ def kind_hero(c: Ctx) -> Art:
         )
     art.body.append(el("g", *backdrop, clip_path=c.url("card")))
 
-    s = h / 250
-    x0 = 44
-    size_title = min(58.0, h * 0.23)
-    name, size_title = shrink(title, left - x0 - 12, size_title, "bold", 22)
     parts: list[list[str]] = []
-    if kicker:
+    if c.phone:
+        if kicker:
+            label = fit(kicker.upper(), room, c.fs(11), "mono", 2)
+            parts.append([mono(c, label, x0, spots["kicker"][0], c.pal.text, c.fs(11))])
         parts.append(
-            [mono(c, fit(kicker.upper(), left - x0, 11, "mono", 2), x0, 62 * s, c.pal.text, 11)]
+            [
+                el(
+                    "text",
+                    esc(line),
+                    class_=c.cls("b"),
+                    x=x0 - 2,
+                    y=y,
+                    fill=p.ink,
+                    font_size=size_title,
+                    letter_spacing=-1,
+                )
+                for line, y in zip(title_lines, spots["title"], strict=True)
+            ]
         )
-    parts.append(
-        [
-            el(
-                "text",
-                esc(name),
-                class_=c.cls("b"),
-                x=x0 - 4,
-                y=118 * s,
-                fill=p.ink,
-                font_size=size_title,
-                letter_spacing=-1,
+        if tag_lines:
+            tag_attrs = {"class_": c.cls("s"), "x": x0, "fill": p.text, "font_size": 15}
+            tags = []
+            for k, y in enumerate(spots["tag"]):
+                # each row takes turns on the shared clock, so a tagline's two lines move
+                # together; a one-line tagline leaves its second row empty
+                row = [lines[k] if k < len(lines) else "" for lines in tag_lines]
+                if one:
+                    tags.append(el("text", esc(row[0]), **tag_attrs, y=y))
+                else:
+                    tags += rotating(c, row, clock, **tag_attrs, y=y)
+            parts.append(tags)
+    else:
+        s = h / 250
+        x0 = 44
+        size_title = min(58.0, h * 0.23)
+        name, size_title = shrink(title, left - x0 - 12, size_title, "bold", 22)
+        if kicker:
+            parts.append(
+                [mono(c, fit(kicker.upper(), left - x0, 11, "mono", 2), x0, 62 * s, c.pal.text, 11)]
             )
-        ]
-    )
-    tag_attrs = {"class_": c.cls("s"), "x": x0, "y": 152 * s, "fill": p.text, "font_size": 18}
-    fitted = [fit(t, left - x0 - 8, 18, "sans") for t in taglines]
-    if fitted:
-        if one:
-            parts.append([el("text", esc(fitted[0]), **tag_attrs)])
-        else:
-            parts.append(rotating(c, fitted, clock, **tag_attrs))
+        parts.append(
+            [
+                el(
+                    "text",
+                    esc(name),
+                    class_=c.cls("b"),
+                    x=x0 - 4,
+                    y=118 * s,
+                    fill=p.ink,
+                    font_size=size_title,
+                    letter_spacing=-1,
+                )
+            ]
+        )
+        tag_attrs = {"class_": c.cls("s"), "x": x0, "y": 152 * s, "fill": p.text, "font_size": 18}
+        fitted = [fit(t, left - x0 - 8, 18, "sans") for t in taglines]
+        if fitted:
+            if one:
+                parts.append([el("text", esc(fitted[0]), **tag_attrs)])
+            else:
+                parts.append(rotating(c, fitted, clock, **tag_attrs))
     if status:
-        pill_w = text_width(status.upper(), 10, "mono", 1.0) + 46
+        size = c.fs(10)
+        if c.phone:
+            pill_y = spots["pill"][0]
+            dot_y = pill_y + 14
+            label = fit(status.upper(), room - 46, size, "mono", MONO_LS)
+            pill_w = text_width(label, size, "mono", MONO_LS) + 46
+        else:
+            pill_y, dot_y, label = 176 * s, 190 * s, status.upper()
+            pill_w = text_width(label, 10, "mono", 1.0) + 46
         pulse = not one
-        dot = el("circle", cx=x0 + 18, cy=190 * s, r=4, fill=p.ok)
+        dot = el("circle", cx=x0 + 18, cy=dot_y, r=4, fill=p.ok)
         if pulse:
             dot = el(
                 "circle",
                 animate("opacity", [(0, 1), (0.5, 0.35), (1, 1)], clock.sub(1.8)),
                 cx=x0 + 18,
-                cy=190 * s,
+                cy=dot_y,
                 r=4,
                 fill=p.ok,
             )
@@ -1110,7 +1244,7 @@ def kind_hero(c: Ctx) -> Art:
             el(
                 "rect",
                 x=x0,
-                y=176 * s,
+                y=pill_y,
                 width=pill_w,
                 height=28,
                 rx=14,
@@ -1120,21 +1254,28 @@ def kind_hero(c: Ctx) -> Art:
             dot,
             mono(
                 c,
-                status.upper(),
+                label,
                 x0 + 30,
-                176 * s + 18,
+                pill_y + 18,
                 c.legible(p.ok, alpha(p.ok, 0.08)),
-                10,
+                size,
                 letter_spacing=1,
             ),
         ]
-        if meta:
+        if meta and not c.phone:
             meta_x = x0 + pill_w + 16
             room = left - meta_x
             pill.append(
-                mono(c, fit(meta.upper(), room, 10, "mono", 1.0), meta_x, 176 * s + 18, p.dim, 10)
+                mono(c, fit(meta.upper(), room, 10, "mono", 1.0), meta_x, pill_y + 18, p.dim, 10)
             )
         parts.append(pill)
+    if meta and c.phone:
+        parts.append(
+            [
+                mono(c, line, x0, y, p.dim, c.fs(10))
+                for line, y in zip(meta_lines, spots["meta"], strict=True)
+            ]
+        )
     if show_nodes:
         parts.append(constellation(c, nodes, left, w, h, clock, one))
 
@@ -1230,7 +1371,8 @@ def kind_marquee(c: Ctx) -> Art:
         for r in need_list(rows_raw, "marquee rows", 3)
     ]
     w = c.width or 840
-    chip_h, row_gap, pad, gap, size = 28, 12, 14, 10, 11
+    # a phone layout keeps the same chips: at 320 px they show near 1:1, above PHONE_TEXT
+    chip_h, row_gap, pad, gap, size = 28, 12, 14, 10, c.fs(11)
     h = c.height or pad * 2 + len(rows) * chip_h + (len(rows) - 1) * row_gap
     flat = [t for r in rows for t in r]
     art = Art(w, h, c.title or "Marquee", "Scrolling list: " + ", ".join(flat))
@@ -1322,11 +1464,17 @@ def kind_chart(c: Ctx) -> Art:
     peak_word = text_of(spec.get("peak", "PEAK"), "chart peak", 12)
     unit = text_of(spec.get("unit", ""), "chart unit", 6)
     w = c.width or 600
-    h = c.height or 240
-    x0, x1 = 24, w - 58
-    y0, y1 = (58 if title else 30), h - (34 if labels else 22)
+    h = c.height or (220 if c.phone else 240)
     lo, hi = min(values), max(values)
     span = hi - lo or 1.0
+    axis = c.fs(8)  # axis label size
+    if c.phone:  # the y axis gutter fits its two labels (low and high) at PHONE_TEXT
+        ticks = [fmt_value(lo + span * frac) + unit for frac in (0, 1)]
+        x0, x1 = 16, w - 20 - max(text_width(t, axis, "mono", MONO_LS) for t in ticks)
+        y0, y1 = (56 if title else 30), h - (34 if labels else 22)
+    else:
+        x0, x1 = 24, w - 58
+        y0, y1 = (58 if title else 30), h - (34 if labels else 22)
     n = len(values)
     pts = [
         (x0 + (x1 - x0) * i / (n - 1), y1 - (y1 - y0) * (v - lo) / span)
@@ -1344,7 +1492,7 @@ def kind_chart(c: Ctx) -> Art:
     p = c.theme
     frame(c, art)
     if title:
-        heading(c, art, title, x=24, y=32)
+        heading(c, art, title, x=x0, y=y0 - 26)
     art.defs.append(
         el(
             "linearGradient",
@@ -1361,10 +1509,21 @@ def kind_chart(c: Ctx) -> Art:
     for frac in (0, 0.5, 1):
         y = y1 - (y1 - y0) * frac
         art.body.append(el("line", x1=x0, y1=y, x2=x1, y2=y, stroke=p.grid if frac else p.border))
-        art.body.append(mono(c, fmt_value(lo + span * frac) + unit, x1 + 8, y + 3, p.dim, 8))
+        if c.phone and frac == 0.5:  # fewer ticks on a phone: the middle line goes unlabelled
+            continue
+        tick = fmt_value(lo + span * frac) + unit
+        art.body.append(mono(c, tick, x1 + 8, y + axis * 0.375, p.dim, axis))
     if labels:
-        art.body.append(mono(c, labels[0], x0, h - 14, p.dim, 8))
-        art.body.append(mono(c, labels[-1], x1, h - 14, p.dim, 8, text_anchor="end"))
+        ends = labels[0], labels[-1]
+        if c.phone:  # the two end labels share the axis, the shorter one first
+            room = x1 - x0 - 16
+            wa, wb = (text_width(t, axis, "mono", MONO_LS) for t in ends)
+            ends = (
+                fit(ends[0], max(room / 2, room - wb), axis, "mono", MONO_LS),
+                fit(ends[1], max(room / 2, room - wa), axis, "mono", MONO_LS),
+            )
+        art.body.append(mono(c, ends[0], x0, h - 14, p.dim, axis))
+        art.body.append(mono(c, ends[1], x1, h - 14, p.dim, axis, text_anchor="end"))
     if c.one_shot:
         start = 0.1 if c.preset.name == "short" else 0.0
         draw = 1.1 if c.preset.name == "short" else 0.24
@@ -1376,11 +1535,11 @@ def kind_chart(c: Ctx) -> Art:
     d = clock.dur
     a, b = start / d, (start + draw) / d
     label = f"{peak_word} {fmt_value(hi)}{unit}"
-    tx, anchor = (
-        (px - 8, "end")
-        if px - 8 - text_width(label, 9, "mono", MONO_LS) >= 12
-        else (px + 8, "start")
-    )
+    peak_size = c.fs(9)
+    lw = text_width(label, peak_size, "mono", MONO_LS)
+    tx, anchor = (px - 8, "end") if px - 8 - lw >= 12 else (px + 8, "start")
+    if c.phone and anchor == "start" and tx + lw > w - 12:  # no room either side: stay inside
+        tx = max(12, w - 12 - lw)
     show = [(0, 0), (b, 0), (min(b + 0.25 / d, 1), 1)]
     ring_cls = None
     if clock.loop:
@@ -1430,7 +1589,7 @@ def kind_chart(c: Ctx) -> Art:
                 stroke_width=1.5,
             ),
             el("circle", cx=lx, cy=ly, r=3.5, fill=line_ink),
-            mono(c, label, tx, py - 10, c.pal.text, 9, text_anchor=anchor),
+            mono(c, label, tx, py - 10, c.pal.text, peak_size, text_anchor=anchor),
         ),
     ]
     art.body.append(el("g", veil(clock), *built))
@@ -1461,25 +1620,50 @@ def kind_bars(c: Ctx) -> Art:
             }
         )
     title = c.title or (text_of(spec["title"], "bars title") if spec.get("title") else "")
+    desc = "; ".join(f"{t['label']} {t['shown']}" for t in items)
     n = len(items)
     w = c.width or 600
     top_y = 50 if title else 22
-    row = 36.0
-    if c.height is not None:  # a fixed canvas packs the rows instead of drawing past its edge
-        room = (c.height - top_y - 4) / n
-        if room < BAR_ROW_MIN:
-            fits = int((c.height - top_y - 4) // BAR_ROW_MIN)
-            raise ForgeError(
-                f"bars at --height {num(c.height)} fit at most {fits} item(s), got {n}; "
-                "raise the height or drop items"
-            )
-        row = clamp(room, BAR_ROW_MIN, 36.0)
-    h = c.height or top_y + n * row + 4
-    pad = 24
-    tw = w - 2 * pad
-    art = Art(
-        w, h, title or "Progress bars", "; ".join(f"{t['label']} {t['shown']}" for t in items)
-    )
+    size = c.fs(9)  # labels and values
+    more = 0  # bars left off a phone layout, counted on a "+N more" line
+    rows: list[tuple[float, list[str], float]] = []  # (label baseline, label lines, track y)
+    if c.phone:
+        # Labels wrap to two lines beside the right-aligned value; past 8 bars the rest goes
+        # to the "+N more" line. A taller --height spreads the rows.
+        pad = 16
+        tw = w - 2 * pad
+        more, items = max(0, n - 8), items[:8]
+        n = len(items)
+        labels = []
+        for t in items:
+            room = tw - text_width(t["shown"], size, "mono", MONO_LS) - 12
+            labels.append(wrap(t["label"].upper(), room, size, "mono", MONO_LS, lines=2) or [""])
+        steps = [38.0 + 14 * (len(lines) - 1) for lines in labels]
+        need = top_y + sum(steps) + 4 + (24 if more else 0)
+        spread = max(0.0, (c.height or 0) - need) / n
+        y = top_y + 13
+        for lines, step in zip(labels, steps, strict=True):
+            rows.append((y, lines, y + 14 * (len(lines) - 1) + 8))
+            y += step + spread
+        h = max(c.height or 0, need)
+    else:
+        row = 36.0
+        if c.height is not None:  # a fixed canvas packs the rows instead of drawing past its edge
+            room = (c.height - top_y - 4) / n
+            if room < BAR_ROW_MIN:
+                fits = int((c.height - top_y - 4) // BAR_ROW_MIN)
+                raise ForgeError(
+                    f"bars at --height {num(c.height)} fit at most {fits} item(s), got {n}; "
+                    "raise the height or drop items"
+                )
+            row = clamp(room, BAR_ROW_MIN, 36.0)
+        h = c.height or top_y + n * row + 4
+        pad = 24
+        tw = w - 2 * pad
+        for i, t in enumerate(items):
+            y = top_y + i * row + 12
+            rows.append((y, [fit(t["label"].upper(), tw * 0.7, 9, "mono", MONO_LS)], y + 7))
+    art = Art(w, h, title or "Progress bars", desc)
     p = c.theme
     frame(c, art)
     if title:
@@ -1493,15 +1677,13 @@ def kind_bars(c: Ctx) -> Art:
         item = 0.3 * clock.dur
     fills = []
     track = fade(p.panel_stroke, 0.5)
-    for i, t in enumerate(items):
-        y = top_y + i * row + 12
+    for i, (t, (y, lines, bar_y)) in enumerate(zip(items, rows, strict=True)):
         color = c.mark(c.tone(t["tone"]), track)
+        for k, line in enumerate(lines):
+            art.body.append(mono(c, line, pad, y + 14 * k, p.dim, size))
+        art.body.append(mono(c, t["shown"], pad + tw, y, p.text, size, text_anchor="end"))
         art.body.append(
-            mono(c, fit(t["label"].upper(), tw * 0.7, 9, "mono", MONO_LS), pad, y, p.dim, 9)
-        )
-        art.body.append(mono(c, t["shown"], pad + tw, y, p.text, 9, text_anchor="end"))
-        art.body.append(
-            el("rect", x=pad, y=y + 7, width=tw, height=6, rx=3, fill=p.panel_stroke, opacity=0.5)
+            el("rect", x=pad, y=bar_y, width=tw, height=6, rx=3, fill=p.panel_stroke, opacity=0.5)
         )
         if t["frac"] <= 0:
             continue
@@ -1518,9 +1700,11 @@ def kind_bars(c: Ctx) -> Art:
                     rx=3,
                     fill=color,
                 ),
-                transform=f"translate({num(pad)} {num(y + 7)})",
+                transform=f"translate({num(pad)} {num(bar_y)})",
             )
         )
+    if more:
+        art.body.append(mono(c, f"+{more} MORE", pad, h - 15, c.legible(p.dim), size))
     art.body.append(el("g", veil(clock), *fills))
     return art
 
@@ -2033,20 +2217,34 @@ def kind_typing(c: Ctx) -> Art:
     w = c.width or 640
     fs = 13.0
     cw = fs * EM["mono"]
-    pad, line_h = 20, 21
+    pad, line_h = (16 if c.phone else 20), 21
     cmd_x = pad + (len(prompt) + 1) * cw
-    rows = []  # (y, cmd, outs, tone)
+
+    def screen_lines(text: str, room: float) -> list[str]:
+        """The text's screen lines: one, cut to fit, on desktop; on a phone, wrapped at
+        spaces. A word longer than a line breaks mid-word, from where the line has room."""
+        if not c.phone:
+            return [fit(text, room, fs, "mono")]
+        per = max(int(room // cw), 4)
+        out = [""]
+        for word in text.split(" "):
+            trial = f"{out[-1]} {word}" if out[-1] else word
+            if out[-1] and len(trial) > per and (len(word) <= per or len(out[-1]) > per - 4):
+                out.append("")
+                trial = word
+            while len(trial) > per:
+                out[-1], trial = trial[:per], trial[per:]
+                out.append("")
+            out[-1] = trial
+        return out
+
+    rows = []  # (y, typed lines, lines of each output, tone)
     y = 62.0
     for cmd, outs, tone in cmds:
-        rows.append(
-            (
-                y,
-                fit(cmd, w - cmd_x - pad, fs, "mono"),
-                [fit(o, w - 2 * pad - 16, fs, "mono") for o in outs],
-                tone,
-            )
-        )
-        y += line_h * (1 + len(outs)) + 8
+        typed = screen_lines(cmd, w - cmd_x - pad)
+        pieces = [screen_lines(o, w - 2 * pad - 16) for o in outs]
+        rows.append((y, typed, pieces, tone))
+        y += line_h * (len(typed) + sum(map(len, pieces))) + 8
     h = c.height or y + 4
     art = Art(w, h, window_title, "Terminal: " + "; ".join(f"{prompt} {cmd}" for cmd, _, _ in cmds))
     p = c.theme
@@ -2078,11 +2276,11 @@ def kind_typing(c: Ctx) -> Art:
     art.body.append(
         mono(
             c,
-            fit(window_title, w - 160, 10, "mono", MONO_LS),
+            fit(window_title, w - 160, c.fs(10), "mono", MONO_LS),
             w / 2,
             21,
             p.dim,
-            10,
+            c.fs(10),
             text_anchor="middle",
         )
     )
@@ -2091,9 +2289,9 @@ def kind_typing(c: Ctx) -> Art:
     cps = c.speed / cw if c.preset.name == "ambient" else 38.0
     t = 0.3
     plan = []  # (prompt_at, type_start, type_end, out_times)
-    for _, cmd, outs, _ in rows:
+    for _, typed, outs, _ in rows:
         start = t + 0.12
-        end = start + len(cmd) / cps
+        end = start + sum(map(len, typed)) / cps
         out_times = [end + 0.15 + j * 0.1 for j in range(len(outs))]
         plan.append((t, start, end, out_times))
         t = (out_times[-1] if out_times else end) + 0.35
@@ -2108,7 +2306,7 @@ def kind_typing(c: Ctx) -> Art:
         )
     else:
         hold = {"medium": 1.6, "long": 2.4}.get(c.preset.name, 4.0)
-        clock = c.cycle(total + hold, distance=sum(len(r[1]) for r in rows) * cw)
+        clock = c.cycle(total + hold, distance=sum(len(s) for r in rows for s in r[1]) * cw)
         scale = min(1.0, (clock.dur - hold) / total)
     d = clock.dur
 
@@ -2118,7 +2316,7 @@ def kind_typing(c: Ctx) -> Art:
     shown = []
     cur_x: list[tuple[float, object]] = [(0, cmd_x)]
     cur_y: list[tuple[float, object]] = [(0, rows[0][0] - 12)]
-    for i, ((y, cmd, outs, tone), (at, start, end, out_times)) in enumerate(
+    for i, ((y, typed, outs, tone), (at, start, end, out_times)) in enumerate(
         zip(rows, plan, strict=True)
     ):
         shown.append(
@@ -2132,44 +2330,58 @@ def kind_typing(c: Ctx) -> Art:
                 fill=c.legible(p.ok),
             )
         )
-        widths: list[tuple[float, object]] = [(0, 0), (f(start), 0)]
-        per = (end - start) / max(len(cmd), 1)
-        for k in range(1, len(cmd) + 1):
-            widths.append((f(start + k * per), k * cw))
-            cur_x.append((f(start + k * per), cmd_x + k * cw))
-        widths[-1] = (widths[-1][0], w - cmd_x)
+        per = (end - start) / max(sum(map(len, typed)), 1)
         cur_y.append((f(at), y - 12))
-        cur_x.insert(len(cur_x) - len(cmd), (f(at), cmd_x))
-        art.defs.append(
-            el(
-                "clipPath",
+        mark = len(cur_x)
+        done = 0  # characters typed on the lines above
+        for j, cmd in enumerate(typed):  # a wrapped command types on, line by line
+            ly = y + line_h * j
+            widths: list[tuple[float, object]] = [(0, 0), (f(start + done * per), 0)]
+            for k in range(1, len(cmd) + 1):
+                widths.append((f(start + (done + k) * per), k * cw))
+                cur_x.append((f(start + (done + k) * per), cmd_x + k * cw))
+            widths[-1] = (widths[-1][0], w - cmd_x)
+            if j:  # the cursor drops to this line with its first character
+                cur_y.append((f(start + (done + 1) * per), ly - 12))
+            clip = f"c{i}" if j == 0 else f"c{i}-{j}"
+            art.defs.append(
                 el(
-                    "rect",
-                    animate("width", widths, clock, discrete=True),
-                    x=cmd_x,
-                    y=y - 15,
-                    width=w - cmd_x,
-                    height=20,
-                ),
-                id=c.id(f"c{i}"),
+                    "clipPath",
+                    el(
+                        "rect",
+                        animate("width", widths, clock, discrete=True),
+                        x=cmd_x,
+                        y=ly - 15,
+                        width=w - cmd_x,
+                        height=20,
+                    ),
+                    id=c.id(clip),
+                )
             )
-        )
-        shown.append(
-            el("text", esc(cmd), class_=tcls, x=cmd_x, y=y, fill=p.ink, clip_path=c.url(f"c{i}"))
-        )
-        color = c.legible(c.tone(tone) if tone else p.text)
-        for j, (out, ot) in enumerate(zip(outs, out_times, strict=True)):
             shown.append(
+                el("text", esc(cmd), class_=tcls, x=cmd_x, y=ly, fill=p.ink, clip_path=c.url(clip))
+            )
+            done += len(cmd)
+        cur_x.insert(mark, (f(at), cmd_x))
+        color = c.legible(c.tone(tone) if tone else p.text)
+        line = len(typed)
+        for lines, ot in zip(outs, out_times, strict=True):
+            show = animate("opacity", [(0, 0), (f(ot), 1)], clock, discrete=True)
+            texts = [
                 el(
                     "text",
                     esc(out),
-                    animate("opacity", [(0, 0), (f(ot), 1)], clock, discrete=True),
+                    show if len(lines) == 1 else "",
                     class_=tcls,
                     x=pad + 16,
-                    y=y + line_h * (j + 1),
+                    y=y + line_h * (line + k),
                     fill=color,
                 )
-            )
+                for k, out in enumerate(lines)
+            ]
+            line += len(lines)
+            # a wrapped output line shows all at once, on one animation
+            shown += texts if len(lines) == 1 else [el("g", show, *texts)]
     blink = c.cls("cur")
     count = "infinite" if clock.loop else "4"
     art.css.append(
@@ -3411,20 +3623,26 @@ class KindSpec:
 
 
 KINDS: dict[str, KindSpec] = {
-    "tiles": KindSpec(kind_tiles, "short", "stat tiles grid", (3, 2)),
+    "tiles": KindSpec(kind_tiles, "short", "stat tiles grid", (3, 2), phone=True),
     "hero": KindSpec(
-        kind_hero, "long", "title, rotating taglines, status pill, node constellation", (2, 2.5)
+        kind_hero,
+        "long",
+        "title, rotating taglines, status pill, node constellation",
+        (2, 2.5),
+        phone=True,
     ),
     "marquee": KindSpec(
-        kind_marquee, "ambient", "seamless strip of text chips at constant px/s", (3, 1)
+        kind_marquee, "ambient", "seamless strip of text chips at constant px/s", (3, 1), phone=True
     ),
-    "chart": KindSpec(kind_chart, "short", "line chart that draws in, peak marker", (3, 3)),
-    "bars": KindSpec(kind_bars, "short", "progress bars that grow", (3, 1)),
+    "chart": KindSpec(
+        kind_chart, "short", "line chart that draws in, peak marker", (3, 3), phone=True
+    ),
+    "bars": KindSpec(kind_bars, "short", "progress bars that grow", (3, 1), phone=True),
     "flow": KindSpec(
         kind_flow, "medium", "nodes and edges with packets; JSON or text like 'a -> b, c'", (3, 3)
     ),
     "loader": KindSpec(kind_loader, "medium", "spinner, dots or bar loader (--variant)", (1, 1)),
-    "typing": KindSpec(kind_typing, "long", "terminal typing lines", (3, 1)),
+    "typing": KindSpec(kind_typing, "long", "terminal typing lines", (3, 1), phone=True),
     "divider": KindSpec(kind_divider, "medium", "hairline divider with a pulse", (3, 1)),
     "badge": KindSpec(kind_badge, "medium", "label and value pill with a shine sweep", (1, 1)),
     "timeline": KindSpec(
