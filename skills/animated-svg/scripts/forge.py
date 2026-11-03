@@ -2395,6 +2395,657 @@ def kind_badge(c: Ctx) -> Art:
     return art
 
 
+# ---------------------------------------------------------------- banner and heading
+
+# Text region insets per variant, in layout px: (from the edge the shape hugs, from the far
+# edge). The shape hugs the top of a header and the bottom of a footer.
+BANNER_INSETS = {
+    "wave": (56, 14),
+    "waving": (16, 50),
+    "slice": (16, 16),
+    "rounded": (16, 26),
+    "cylinder": (26, 26),
+    "speech": (24, 40),
+}
+
+
+def titled_spec(c: Ctx, list_key: str | None = None) -> dict[str, Any]:
+    """The data of a kind whose bare string is its title: a dict, {"title": s} for a string,
+    {list_key: list} for a list. With no --data, --title alone replaces the sample."""
+    if c.data is None:
+        return {"title": c.title} if c.title else SAMPLES[c.kind]
+    if isinstance(c.data, str):
+        return {"title": c.data}
+    if isinstance(c.data, list) and list_key:
+        return {list_key: c.data}
+    if isinstance(c.data, dict):
+        return c.data
+    raise ForgeError(f"--data for {c.kind} must be a JSON object or a title string")
+
+
+def rows_of(
+    text: str, room: float, size: float, face: str, lines: int, floor: float
+) -> tuple[list[str], float]:
+    """text wrapped into at most `lines` rows of room px at the largest size from size down
+    to floor that keeps every word; a row not even one character fits in is dropped."""
+    spacing = MONO_LS if face == "mono" else 0.0
+    whole = " ".join(text.split())
+    rows = wrap(text, room, size, face, spacing, lines)
+    while size > floor and " ".join(rows) != whole:
+        size = max(floor, size - 1)
+        rows = wrap(text, room, size, face, spacing, lines)
+    return [r for r in rows if text_width(r, size, face, spacing) <= room + 0.01], size
+
+
+def one_size(
+    texts: list[str], room: float, size: float, face: str, floor: float
+) -> tuple[list[str], float]:
+    """Texts that take turns in one place share a size: the largest from size down to floor
+    at which the widest fits room; each is then cut to room ("" when nothing fits)."""
+    spacing = MONO_LS if face == "mono" else 0.0
+    while size > floor and max(text_width(t, size, face, spacing) for t in texts) > room:
+        size = max(floor, size - 1)
+    return [snug(t, room, size, face, spacing) for t in texts], size
+
+
+def layered(c: Ctx, color: str, tints: tuple[str, ...], text: bool = True) -> str:
+    """color tuned to read on the plain grounds and under every combination of the tint
+    layers (4.5:1 as text, 3:1 as a mark), so it holds wherever a drifting layer passes."""
+    base = c.text_on if text else c.marks_on
+    combos = (combo for k in range(len(tints) + 1) for combo in itertools.combinations(tints, k))
+    grounds = tuple(dict.fromkeys(g for combo in combos for g in tinted(base, combo)))
+    return tune(color, grounds) if text else tune(color, marks=grounds)
+
+
+def kind_heading(c: Ctx) -> Art:
+    """Numbered section header: a number eyebrow, the title and an accent rule that draws in
+    under it, on the theme bg as a full canvas with no frame border. Made to ship as a
+    --theme both pair, one per README section.
+
+    Data: {"number": "01", "title": "Projects", "subtitle": "What ships next"}, or a bare
+    title string. An integer number is zero-padded to two digits; the eyebrow reads
+    "01 / WHAT SHIPS NEXT". Default 840 by 64. The phone layout (320 wide) wraps the
+    eyebrow and the title onto two lines each.
+    """
+    spec = titled_spec(c)
+    raw = spec.get("number", "")
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        raw = f"{raw:02d}"
+    number = text_of(raw, "heading number", 8)
+    title = c.title or text_of(spec.get("title", ""), "heading title", 80)
+    subtitle = text_of(spec.get("subtitle", ""), "heading subtitle", 80)
+    if not title:
+        raise ForgeError("heading needs a title")
+    eyebrow = " / ".join(x for x in (number, subtitle.upper()) if x)
+    base_w = PHONE_W if c.phone else 840
+    w = c.width or base_w
+
+    def lay(s: float, rows: int) -> dict[str, Any]:
+        x0 = 18 * s
+        room = w - x0 - 12 * s
+        ef, tf = c.fs(scaled(11, s)), c.fs(scaled(24, s, 12))
+        brow, ef = rows_of(eyebrow, room, ef, "mono", rows, c.fs(scaled(9, s)))
+        head, tf = rows_of(title, room, tf, "bold", rows, c.fs(scaled(16, s, 10)))
+        y = 14 * s
+        brow_y = [y + 0.75 * ef + i * 1.5 * ef for i in range(len(brow))]
+        if brow:
+            y = brow_y[-1] + 0.25 * ef + 3 * s
+        head_y = [y + 0.75 * tf + i * 1.2 * tf for i in range(len(head))]
+        if head:
+            y = head_y[-1] + 0.25 * tf
+        rule = y + 8 * s
+        return {
+            "x0": x0,
+            "ef": ef,
+            "tf": tf,
+            "brow": list(zip(brow, brow_y, strict=True)),
+            "head": list(zip(head, head_y, strict=True)),
+            "bar": (12 * s, (head_y[-1] - 4 * s) if head else rule - 8 * s),
+            "rule": rule,
+            "need": rule + 4 * s,
+        }
+
+    rows = 2 if c.phone else 1
+    s = layout_scale(w, base_w, c.height, lambda k: lay(k, rows)["need"])
+    if c.height is not None and not c.phone:  # a tall canvas: let the title wrap
+        rows = max((r for r in (1, 2, 3) if lay(s, r)["need"] <= c.height), default=1)
+    m = lay(s, rows)
+    h = c.height or m["need"]
+    oy = max(0.0, (h - m["need"]) / 2)
+    desc = f"Section heading: {' '.join(x for x in (number, title) if x)}"
+    art = Art(w, h, title, desc + (f". {subtitle}" if subtitle else ""))
+    p = c.theme
+    if not p.transparent:
+        art.body.append(el("rect", width=w, height=h, fill=p.bg))
+    top, low = m["bar"]
+    if low > top:
+        art.body.append(
+            el(
+                "rect",
+                x=0,
+                y=oy + top,
+                width=max(4 * s, 2),
+                height=low - top,
+                rx=max(2 * s, 1),
+                fill=c.mark(c.pal.deep),
+            )
+        )
+    ry = oy + m["rule"]
+    stroke = max(2 * s, 1.5)
+    art.body.append(
+        el("line", x1=0, y1=ry, x2=w, y2=ry, stroke=p.panel_stroke, stroke_width=max(s, 1))
+    )
+    widest = max((text_width(t, m["tf"], "bold") for t, _ in m["head"]), default=0.0)
+    end = round(min(w - 8 * s, m["x0"] + widest + 28 * s), 2)
+    brow = [mono(c, t, m["x0"], oy + y, c.pal.text, m["ef"]) for t, y in m["brow"]]
+    head = [sans(c, t, m["x0"], oy + y, p.ink, m["tf"], "b") for t, y in m["head"]]
+    groups = [g for g in (brow, head) if g]
+    if c.one_shot:
+        clock, begins, item = c.entrance(len(groups) + 1)
+        start, draw = begins[-1], item
+        layer = [el("g", rise(clock, begins[i], item, dy=6 * s), *g) for i, g in enumerate(groups)]
+    else:
+        clock = c.cycle(c.preset.base, distance=w)
+        start, draw = 0.04 * clock.dur, min(0.3 * clock.dur, 1.2)
+        art.body += [t for g in groups for t in g]
+        layer = []
+    a, b = start / clock.dur, (start + draw) / clock.dur
+    r = max(2.6 * s, 1.5)
+    layer += [
+        el(
+            "line",
+            animate(
+                "stroke-dashoffset", [(0, num(end)), (a, num(end)), (b, 0)], clock, ease=EASE_IN_OUT
+            ),
+            x1=0,
+            y1=ry,
+            x2=end,
+            y2=ry,
+            stroke=c.pal.ink,
+            stroke_width=stroke,
+            stroke_dasharray=num(end),
+            stroke_dashoffset=0,
+        ),
+        el(
+            "circle",
+            animate("cx", [(0, 0), (a, 0), (b, end)], clock, ease=EASE_IN_OUT),
+            animate("r", [(0, 0), (a, 0), (min(a + 0.05, b), r)], clock),
+            cx=end,
+            cy=ry,
+            r=r,
+            fill=c.pal.ink,
+        ),
+    ]
+    art.body.append(el("g", veil(clock), *layer))
+    return art
+
+
+@dataclass(frozen=True)
+class Band:
+    """Where a banner shape is drawn: the canvas, the layout scale, the edge the shape hugs
+    and the clock its layers drift on (they hold still on a one-shot entrance)."""
+
+    w: float
+    h: float
+    s: float
+    footer: bool
+    clock: Clock
+    drift: bool
+    enter: tuple[float, float] = (0.0, 1.0)  # one-shot: cycle fractions the shape builds in
+
+    def y(self, v: float) -> float:
+        """A height measured from the edge the shape hugs: the top of a header, the bottom
+        of a footer."""
+        return round(self.h - v if self.footer else v, 2)
+
+
+def wave_curve(
+    x0: float, x1: float, y: float, amp: float, period: float
+) -> tuple[tuple[float, float], list[tuple[tuple[float, float], ...]]]:
+    """A sine-like wave around y from x0 to x1, snapped out to whole half periods with the
+    phase pinned to x = 0 (crest first): its start and one cubic per half period."""
+    half = period / 2
+    k0, k1 = math.floor(x0 / half), math.ceil(x1 / half)
+    lift = amp / 0.75  # a cubic with both handles at lift peaks at 0.75 of it
+    out = []
+    for k in range(k0, k1):
+        x = k * half
+        up = -lift if k % 2 == 0 else lift
+        out.append(((x + half / 3, y + up), (x + 2 * half / 3, y + up), (x + half, y)))
+    return (k0 * half, y), out
+
+
+def cubic_length(p0: tuple[float, float], seg: tuple[tuple[float, float], ...]) -> float:
+    pts = [p0, *seg]
+    prev, total = p0, 0.0
+    for i in range(1, 25):
+        t = i / 24
+        q = tuple(
+            (1 - t) ** 3 * pts[0][j]
+            + 3 * (1 - t) ** 2 * t * pts[1][j]
+            + 3 * (1 - t) * t**2 * pts[2][j]
+            + t**3 * pts[3][j]
+            for j in (0, 1)
+        )
+        total += math.dist(prev, q)
+        prev = q
+    return total
+
+
+def curve_d(
+    start: tuple[float, float],
+    segs: list[tuple[tuple[float, float], ...]],
+    dx: float = 0.0,
+    dy: float = 0.0,
+    move: bool = True,
+) -> str:
+    """Path data for wave_curve() output, shifted by (dx, dy); without move, no leading M."""
+    head = f"M{num(start[0] + dx)} {num(start[1] + dy)}" if move else ""
+    return head + "".join(
+        "C" + " ".join(f"{num(x + dx)} {num(y + dy)}" for x, y in seg) for seg in segs
+    )
+
+
+def drifting(band: Band, frames: list[tuple[float, object]], *parts: str) -> str:
+    """A layer group that follows translate frames on the band's clock while it loops."""
+    motion = move("translate", frames, band.clock, ease=EASE_IN_OUT) if band.drift else ""
+    return el("g", motion, *parts)
+
+
+def banner_wave(c: Ctx, band: Band) -> tuple[list[str], tuple[str, ...]]:
+    """The readme-kit footer: a faint wave with an accent stretch and a dot riding along it,
+    off one edge and on at the other; played once, the accent draws the wave in."""
+    s, w = band.s, band.w
+    y = band.y(34 * s)
+    period = max(w / 2, 160 * s)
+    seg = 110 * s
+    reach = seg + 16 * s  # past both edges, so the dot and the stretch wrap unseen
+    start, segs = wave_curve(-reach, w + reach, y, 12 * s, period)
+    d = curve_d(start, segs)
+    parts = [el("path", d=d, fill="none", stroke=c.theme.panel_stroke, stroke_width=1.2 * s)]
+    lengths = [cubic_length((segs[i - 1][2] if i else start), sg) for i, sg in enumerate(segs)]
+    total = sum(lengths)
+    ink, width, r = c.pal.ink, max(2 * s, 1.5), max(3.5 * s, 2)
+    # the dot rests on the half-period node nearest the middle: what a static frame shows
+    mid = min(range(len(segs) + 1), key=lambda i: abs(start[0] + i * period / 2 - w / 2))
+    mx, my = start[0] + mid * period / 2, y
+    if not band.drift:  # one-shot: the accent draws the wave in, the dot lands at the end
+        a, b = band.enter
+        draw = [(0, num(total)), (a, num(total)), (b, 0)]
+        parts += [
+            el(
+                "path",
+                animate("stroke-dashoffset", draw, band.clock, ease=EASE_IN_OUT),
+                d=d,
+                fill="none",
+                stroke=ink,
+                stroke_width=width,
+                stroke_dasharray=num(total),
+                stroke_dashoffset=0,
+            ),
+            el(
+                "circle",
+                animate("r", [(0, 0), (b - 0.1 * (b - a), 0), (b, r)], band.clock),
+                cx=mx,
+                cy=my,
+                r=r,
+                fill=ink,
+            ),
+        ]
+        return parts, ()
+    clock = band.clock.sub(4.0)
+    at = sum(lengths[:mid])
+    parts += [
+        el(
+            "path",
+            animate("stroke-dashoffset", [(0, num(seg)), (1, num(-total))], clock),
+            d=d,
+            fill="none",
+            stroke=ink,
+            stroke_width=width,
+            stroke_linecap="round",
+            stroke_dasharray=f"{num(seg)} {num(total + seg)}",
+            stroke_dashoffset=num(seg - at),
+        ),
+        el(
+            "circle",
+            el("animateMotion", path=curve_d(start, segs, -mx, -my), **clock.timing()),
+            cx=mx,
+            cy=my,
+            r=r,
+            fill=ink,
+        ),
+    ]
+    return parts, ()
+
+
+def banner_waving(c: Ctx, band: Band) -> tuple[list[str], tuple[str, ...]]:
+    """Three filled wave layers from the hugged edge to just short of the far one, each
+    drifting one wavelength per loop (the middle one the other way), with an accent line on
+    the front edge; the text sits on the filled part, clear of the edges."""
+    s, w, h = band.s, band.w, band.h
+    dur = band.clock.dur
+    parts, tints = [], []
+    # (gap to the far edge, amplitude, opacity, drift px/s, direction), back to front
+    layers = ((18, 9, 0.1, 18, -1), (28, 8, 0.14, 26, 1), (38, 7, 0.2, 34, -1))
+    for i, (gap, amp, opacity, speed, way) in enumerate(layers):
+        period = clamp(speed * s * dur, 120 * s, 520 * s)
+        start, segs = wave_curve(0, w + period, band.y(h - gap * s), amp * s, period)
+        end = segs[-1][2][0]
+        edge = band.y(-1)
+        area = f"M0 {num(edge)}L{num(start[0])} {num(start[1])}" + curve_d(start, segs, move=False)
+        area += f"L{num(end)} {num(edge)}Z"
+        tint = alpha(c.pal.ink, opacity)
+        tints.append(tint)
+        shapes = [el("path", d=area, fill=tint)]
+        if i == len(layers) - 1:
+            line = layered(c, c.pal.ink, tuple(tints), text=False)  # it runs on its own layer
+            shapes.append(
+                el(
+                    "path",
+                    d=curve_d(start, segs),
+                    fill="none",
+                    stroke=line,
+                    stroke_width=max(1.5 * s, 1),
+                )
+            )
+        frames: list[tuple[float, object]] = [(0, (0, 0)), (1, (-period, 0))]
+        if way > 0:
+            frames = [(0, (-period, 0)), (1, (0, 0))]
+        motion = move("translate", frames, band.clock) if band.drift else ""
+        parts.append(el("g", motion, *shapes))
+    return parts, tuple(tints)
+
+
+def banner_slice(c: Ctx, band: Band) -> tuple[list[str], tuple[str, ...]]:
+    """Two diagonal slices from the hugged edge, deep on the left and shallow on the right,
+    that sway against each other."""
+    s, w, h = band.s, band.w, band.h
+    reach = 12 * s
+    back, front = alpha(c.pal.ink, 0.1), alpha(c.pal.ink, 0.16)
+    out = []
+    for tint, (left, right), sway, clock in (
+        (back, (1.02, 0.36), 6 * s, band.clock),
+        (front, (0.74, 0.06), -7 * s, band.clock.sub(band.clock.dur / 2)),
+    ):
+        far, near = band.y(-reach), (band.y(left * h), band.y(right * h))
+        pts = [(-reach, far), (w + reach, far), (w + reach, near[1]), (-reach, near[0])]
+        shape = el("polygon", points=" ".join(f"{num(x)},{num(y)}" for x, y in pts), fill=tint)
+        frames: list[tuple[float, object]] = [(0, (0, 0)), (0.5, (0, sway)), (1, (0, 0))]
+        motion = move("translate", frames, clock, ease=EASE_IN_OUT) if band.drift else ""
+        out.append(el("g", motion, shape))
+    return out, (back, front)
+
+
+def banner_rounded(c: Ctx, band: Band) -> tuple[list[str], tuple[str, ...]]:
+    """A panel that hangs from the hugged edge with round far corners, two soft orbs drifting
+    inside it."""
+    s, w, h = band.s, band.w, band.h
+    rx = min(22 * s, (h - 12 * s) / 2)
+    y0 = -rx if not band.footer else 12 * s
+    panel = {"x": 14 * s, "y": y0, "width": w - 28 * s, "height": h - 12 * s + rx, "rx": rx}
+    tint, orb_a, orb_b = (alpha(c.pal.ink, a) for a in (0.08, 0.05, 0.045))
+    clip = c.id("panel")
+    orbs = [
+        drifting(
+            band,
+            [(0, (0, 0)), (0.5, (0.12 * w, band.y(0.1 * h) - band.y(0))), (1, (0, 0))],
+            el("circle", cx=0.14 * w, cy=band.y(0.1 * h), r=0.8 * h, fill=orb_a),
+        ),
+        drifting(
+            band,
+            [(0, (0, 0)), (0.5, (-0.14 * w, band.y(0) - band.y(0.1 * h))), (1, (0, 0))],
+            el("circle", cx=0.9 * w, cy=band.y(1.05 * h), r=0.62 * h, fill=orb_b),
+        ),
+    ]
+    return [
+        el("clipPath", el("rect", **panel), id=clip),
+        el("rect", **panel, fill=tint, stroke=alpha(c.pal.ink, 0.35)),
+        el("g", *orbs, clip_path=c.url("panel")),
+    ], (tint, orb_a, orb_b)
+
+
+def banner_cylinder(c: Ctx, band: Band) -> tuple[list[str], tuple[str, ...]]:
+    """A capsule with an end face, and a sheen that rolls along it from the hugged side."""
+    s, w, h = band.s, band.w, band.h
+    ch = h - 24 * s
+    body = {"x": 14 * s, "y": 12 * s, "width": w - 28 * s, "height": ch, "rx": ch / 2}
+    tint, sheen = alpha(c.pal.ink, 0.1), alpha(c.pal.ink, 0.14)
+    clip, glow = c.id("tube"), c.id("sheen")
+    bw = max(0.22 * w, 80 * s)
+    sweep: list[tuple[float, object]] = [(0, (0, 0)), (1, (w + bw, 0))]
+    if band.footer:
+        sweep = [(0, (w + bw, 0)), (1, (0, 0))]
+    roll = band.clock.sub(5.0)
+    motion = move("translate", sweep, roll) if band.drift else ""
+    face = w - 14 * s - ch / 2
+    ink = c.pal.ink
+    fade = el(
+        "linearGradient",
+        el("stop", offset=0, stop_color=ink, stop_opacity=0),
+        el("stop", offset=0.5, stop_color=ink, stop_opacity=0.14),
+        el("stop", offset=1, stop_color=ink, stop_opacity=0),
+        id=glow,
+        x1=0,
+        x2=1,
+    )
+    return [
+        el("defs", el("clipPath", el("rect", **body), id=clip), fade),
+        el("rect", **body, fill=tint, stroke=alpha(c.pal.ink, 0.35)),
+        el(
+            "ellipse",
+            cx=face,
+            cy=h / 2,
+            rx=ch * 0.22,
+            ry=ch / 2,
+            fill="none",
+            stroke=alpha(c.pal.ink, 0.35),
+        ),
+        el(
+            "g",
+            el("rect", motion, x=-bw, y=12 * s, width=bw, height=ch, fill=c.url("sheen")),
+            clip_path=c.url("tube"),
+        ),
+    ], (tint, sheen)
+
+
+def banner_speech(c: Ctx, band: Band) -> tuple[list[str], tuple[str, ...]]:
+    """A speech bubble with its tail toward the far edge (the content), over a fainter copy
+    that sways behind it."""
+    s, w, h = band.s, band.w, band.h
+    tail = 16 * s
+    x0, x1 = 14 * s, w - 14 * s
+    t0, t1 = 10 * s, h - 10 * s - tail  # from the hugged edge
+    r = min(18 * s, (t1 - t0) / 2)
+    tx = x0 + max(0.12 * w, r + 4 * s)
+
+    def p(x: float, t: float) -> str:
+        return f"{num(x)} {num(band.y(t))}"
+
+    d = (
+        f"M{p(x0 + r, t0)}H{num(x1 - r)}Q{p(x1, t0)} {p(x1, t0 + r)}V{num(band.y(t1 - r))}"
+        f"Q{p(x1, t1)} {p(x1 - r, t1)}H{num(tx + 26 * s)}L{p(tx + 4 * s, t1 + tail)}"
+        f"L{p(tx, t1)}H{num(x0 + r)}Q{p(x0, t1)} {p(x0, t1 - r)}V{num(band.y(t0 + r))}"
+        f"Q{p(x0, t0)} {p(x0 + r, t0)}Z"
+    )
+    back, front = alpha(c.pal.ink, 0.06), alpha(c.pal.ink, 0.1)
+    rest = (8 * s, band.y(7 * s) - band.y(0))
+    swing = (-6 * s, band.y(10 * s) - band.y(0))
+    motion = ""
+    if band.drift:
+        motion = move("translate", [(0, rest), (0.5, swing), (1, rest)], band.clock, ease=True)
+    shadow = el(
+        "path", motion, d=d, fill=back, transform=f"translate({num(rest[0])} {num(rest[1])})"
+    )
+    edge = layered(c, c.pal.ink, (back,), text=False)
+    return [
+        shadow,
+        el("path", d=d, fill=front, stroke=edge, stroke_width=max(1.5 * s, 1)),
+    ], (back, front)
+
+
+BANNER_SHAPES: dict[str, Callable[[Ctx, Band], tuple[list[str], tuple[str, ...]]]] = {
+    "wave": banner_wave,
+    "waving": banner_waving,
+    "slice": banner_slice,
+    "rounded": banner_rounded,
+    "cylinder": banner_cylinder,
+    "speech": banner_speech,
+}
+
+
+def kind_banner(c: Ctx) -> Art:
+    """Header or footer banner: a kicker, a title and lines that take turns under it, over a
+    shape from --variant. wave (default) is a faint wave with a dot riding it; waving,
+    slice, rounded, cylinder and speech are tinted shape layers that drift on a seamless
+    loop. The shape hugs the top of a header and the bottom of a footer, and every text
+    color reaches 4.5:1 under any mix of its layers.
+
+    Data: {"kicker": "Open source", "title": "Northwind", "subtitle": "Inventory for small
+    shops", "lines": ["Works offline", "MIT licensed"], "section": "header"}; a bare string
+    is the title, a bare list the lines. The subtitle leads the lines; with no title the
+    lines take the title's place (the footer look). Default 840 by 160 for a header and 840
+    by 150 for a footer; the phone layout (320 wide) wraps the title and the subtitle onto
+    two lines each.
+    """
+    spec = titled_spec(c, "lines")
+    kicker = text_of(spec.get("kicker", ""), "banner kicker", 40)
+    title = c.title or text_of(spec.get("title", ""), "banner title", 60)
+    subtitle = text_of(spec.get("subtitle", ""), "banner subtitle", 90)
+    lines = [
+        text_of(t, "banner line", 90)
+        for t in need_list(spec.get("lines", []), "banner lines", 6, 0)
+    ]
+    lines = [t for t in lines if t]
+    section = spec.get("section", "header")
+    if section not in ("header", "footer"):
+        raise ForgeError(f"banner section must be header or footer, got {section!r}")
+    variant = c.variant or "wave"
+    if variant not in BANNER_SHAPES:
+        raise ForgeError(
+            f"banner variant must be one of {', '.join(BANNER_SHAPES)}, got {variant!r}"
+        )
+    if title:
+        head, tail = [title], [t for t in (subtitle, *lines) if t]
+    else:
+        head, tail = lines or [subtitle], [subtitle] if lines and subtitle else []
+    head = [t for t in head if t]
+    if not head:
+        raise ForgeError("banner needs a title, a subtitle or lines")
+    footer = section == "footer"
+    base_w = PHONE_W if c.phone else 840
+    base_h = 150 if footer else 160
+    w = c.width or base_w
+    edge_in, far_in = BANNER_INSETS[variant]
+    side = {"cylinder": 14 + 0.3 * base_h, "rounded": 34, "speech": 34}.get(variant, 28)
+    big = (24 if footer else 26) if c.phone else (30 if footer else 34)
+
+    def lay(s: float, rows: int) -> dict[str, Any]:
+        room = w - 2 * side * s
+        kf, hf, tf = c.fs(scaled(10, s)), c.fs(scaled(big, s, 14)), c.fs(scaled(16, s))
+        low = c.fs(scaled(11 if c.phone else 12, s))  # the tail shrinks to this first
+        kick = [snug(kicker.upper(), room, kf, "mono", MONO_LS)] if kicker else []
+        kick = [k for k in kick if k]
+        if len(head) > 1:
+            heads, hf = one_size(head, room, hf, "bold", c.fs(scaled(18, s, 10)))
+            heads = [[t] for t in heads if t]
+        else:
+            got, hf = rows_of(head[0], room, hf, "bold", rows, c.fs(scaled(18, s, 10)))
+            heads = [got] if got else []
+        if len(tail) > 1:
+            tails, tf = one_size(tail, room, tf, "sans", low)
+            tails = [[t] for t in tails if t]
+        elif tail:
+            got, tf = rows_of(tail[0], room, tf, "sans", rows, low)
+            tails = [got] if got else []
+        else:
+            tails = []
+        y, ys = 0.0, {}
+        if kick:
+            ys["kick"] = [0.75 * kf]
+            y = kf + 10 * s
+        if heads:
+            ys["head"] = [y + 0.75 * hf + i * 1.12 * hf for i in range(len(heads[0]))]
+            y = ys["head"][-1] + 0.25 * hf
+        if tails:
+            y += 9 * s
+            ys["tail"] = [y + 0.75 * tf + i * 1.4 * tf for i in range(len(tails[0]))]
+            y = ys["tail"][-1] + 0.25 * tf
+        return {
+            "kf": kf,
+            "hf": hf,
+            "tf": tf,
+            "kick": kick,
+            "heads": heads,
+            "tails": tails,
+            "ys": ys,
+            "block": y,
+            "need": (edge_in + far_in) * s + y,
+        }
+
+    rows = 2 if c.phone else 1
+    s = layout_scale(w, base_w, c.height, lambda k: lay(k, rows)["need"])
+    if c.height is not None and not c.phone:
+        rows = 2 if lay(s, 2)["need"] <= c.height else 1
+    m = lay(s, rows)
+    h = c.height or max(round(base_h * s, 2), m["need"])
+    top = (far_in if footer else edge_in) * s
+    oy = top + max(0.0, (h - m["need"]) / 2)
+    texts = [kicker, *head, *tail]
+    art = Art(
+        w, h, title or head[0], "Banner: " + ". ".join(t.rstrip(".") for t in texts if t) + "."
+    )
+    p = c.theme
+    if not p.transparent:
+        art.body.append(el("rect", width=w, height=h, fill=p.bg))
+
+    slots = [k for k in ("kick", "head", "tail") if k in m["ys"]]
+    if c.one_shot:
+        clock, begins, item = c.entrance(1 + len(slots))
+        enter = (begins[0] / clock.dur, (begins[-1] + item) / clock.dur)
+    else:
+        turns = max(len(m["heads"]), len(m["tails"]), 1)
+        clock, begins, item, enter = c.cycle(turns * 3.0, distance=w), [], 0.0, (0.0, 1.0)
+    band = Band(w, h, s, footer, clock, drift=not c.one_shot, enter=enter)
+    shapes, tints = BANNER_SHAPES[variant](c, band)
+    inks = {
+        "kick": layered(c, c.pal.text, tints),
+        "head": layered(c, p.ink, tints),
+        "tail": layered(c, composite(p.text, p.bg), tints),
+    }
+    turn = {"kick": [m["kick"]], "head": m["heads"], "tail": m["tails"]}
+    size = {"kick": m["kf"], "head": m["hf"], "tail": m["tf"]}
+    face = {"kick": "m", "head": "b", "tail": "s"}
+    groups = []
+    for key in slots:
+        ys = [oy + y for y in m["ys"][key]]
+        attrs = {
+            "class_": c.cls(face[key]),
+            "x": w / 2,
+            "fill": inks[key],
+            "font_size": size[key],
+            "text_anchor": "middle",
+        }
+        texts = turn[key]
+        if len(texts) > 1 and not c.one_shot:  # one line at a time, on the shared clock
+            groups.append(rotating(c, [t[0] for t in texts], clock, **attrs, y=ys[0]))
+        else:
+            groups.append(
+                [el("text", esc(t), **attrs, y=y) for t, y in zip(texts[0], ys, strict=True)]
+            )
+    if c.one_shot:
+        a, b = enter[0], begins[0] / clock.dur + item / clock.dur
+        layer = [el("g", animate("opacity", [(0, 0), (a, 0), (b, 1)], clock, ease=True), *shapes)]
+        layer += [
+            el("g", rise(clock, begins[i + 1], item, dy=6 * s), *g) for i, g in enumerate(groups)
+        ]
+        art.body.append(el("g", veil(clock), *layer))
+    else:
+        art.body += shapes
+        art.body += [t for g in groups for t in g]
+    return art
+
+
 # ---------------------------------------------------------------- timeline
 
 
@@ -3427,6 +4078,19 @@ KINDS: dict[str, KindSpec] = {
     "typing": KindSpec(kind_typing, "long", "terminal typing lines", (3, 1)),
     "divider": KindSpec(kind_divider, "medium", "hairline divider with a pulse", (3, 1)),
     "badge": KindSpec(kind_badge, "medium", "label and value pill with a shine sweep", (1, 1)),
+    "banner": KindSpec(
+        kind_banner,
+        "long",
+        "header or footer banner: kicker, title, lines taking turns over a drifting shape "
+        "(--variant wave, waving, slice, rounded, cylinder, speech)",
+        phone=True,
+    ),
+    "heading": KindSpec(
+        kind_heading,
+        "medium",
+        "numbered section header with an accent rule that draws in; ship as --theme both",
+        phone=True,
+    ),
     "timeline": KindSpec(
         kind_timeline, "long", "career or history rail, current item pulses (--variant vertical)"
     ),
@@ -3544,6 +4208,17 @@ SAMPLES: dict[str, Any] = {
     },
     "divider": None,
     "badge": {"label": "build", "value": "passing", "tone": "ok"},
+    "banner": {
+        "kicker": "Open source inventory",
+        "title": "Northwind",
+        "lines": [
+            "Realtime stock for small shops",
+            "Works offline, syncs when back",
+            "MIT licensed, self-host in minutes",
+        ],
+        "section": "header",
+    },
+    "heading": {"number": "01", "title": "Featured projects", "subtitle": "Built in the open"},
     "timeline": {
         "items": [
             {"start": "2016", "end": "2018", "title": "Support engineer", "subtitle": "Help desk"},
