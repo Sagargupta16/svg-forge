@@ -1659,6 +1659,91 @@ def parse_flow_text(text: str) -> dict[str, Any]:
     }
 
 
+def flow_rows(
+    c: Ctx, nodes: list[Node], ranks: int, w: float, top: float, nh: float, back: bool
+) -> tuple[float, float, dict[str, float], list[tuple[float, float]]]:
+    """The top to bottom phone layout of kind_flow: place the nodes one rank per row, a rank
+    too wide for the card wrapped onto more rows, and return the card height, the x the
+    return arcs bend toward, each node's width and the (top, bottom) of each gap between
+    rows. Fixed positions swap axes: x runs down the rows, y across them."""
+    pad, gap, lf = 16, 10, c.fs(9)
+    avail = w - 2 * pad - (24 if back else 0)  # return arcs keep a lane on the right
+
+    def need(node: Node) -> float:
+        return text_width(node.label.upper(), lf, "mono", MONO_LS) + 16
+
+    pref = min(max(max(need(n) for n in nodes) + 14, 88), avail - gap)  # the desktop width
+    lines: list[list[Node]] = []
+    for r in range(ranks):
+        rank = [n for n in nodes if n.rank == r]
+        most = max(1, int(avail // (min(max(need(n) for n in rank), avail - gap) + gap)))
+        per = math.ceil(len(rank) / math.ceil(len(rank) / most))
+        lines += [rank[i : i + per] for i in range(0, len(rank), per)]
+    pitch, least = nh + 32, nh + 24  # row to row; the gap holds an edge label
+    h = c.height or top + (len(lines) - 1) * pitch + nh + 20
+    if c.height is not None and len(lines) > 1:
+        pitch = (c.height - top - nh - 20) / (len(lines) - 1)
+        if pitch < least:
+            more = math.ceil(top + (len(lines) - 1) * least + nh + 20)
+            raise ForgeError(
+                f"flow on a phone stacks {len(lines)} rows and needs a height of at least "
+                f"{more}, got {num(c.height)}; drop --height or put more steps in a row"
+            )
+    widths: dict[str, float] = {}
+    for i, line in enumerate(lines):
+        step = avail / len(line)
+        for j, node in enumerate(line):
+            widths[node.id] = min(pref, step - gap)
+            node.x, node.y = pad + step * (j + 0.5), top + nh / 2 + i * pitch
+    for node in nodes:
+        if node.fx is not None:
+            node.y = top + nh / 2 + clamp(node.fx, 0.0, 1.0) * (len(lines) - 1) * pitch
+        if node.fy is not None:
+            nw = widths[node.id]
+            node.x = pad + nw / 2 + clamp(node.fy, 0.0, 1.0) * (avail - nw)
+    gaps = [(top + nh + i * pitch, top + (i + 1) * pitch) for i in range(len(lines) - 1)]
+    return h, w - 10, widths, gaps
+
+
+def flow_label_spot(
+    nodes: list[Node],
+    widths: dict[str, float],
+    v: Node,
+    end: tuple[float, float],
+    pts: list[tuple[float, float]],
+    is_back: bool,
+    gaps: list[tuple[float, float]],
+    w: float,
+    size: float,
+    text_w: float,
+) -> tuple[float, float, str, float]:
+    """Where an edge label goes in the top to bottom flow: x, baseline, anchor and the width
+    it may take. A forward label sits beside the arrow head, on the side the edge does not
+    come from. A return label sits left of its arc in a row gap: the one nearest the middle
+    of the arc whose rows leave the label clear of their nodes."""
+    pad = 16
+    if is_back:
+        lo, hi = min(p[1] for p in pts), max(p[1] for p in pts)
+        mid = (lo + hi) / 2
+        inside = [g for g in gaps if lo < g[0] and g[1] < hi] or gaps or [(mid, mid)]
+        spots = []
+        for g0, g1 in sorted(inside, key=lambda g: abs((g[0] + g[1]) / 2 - mid)):
+            gy = (g0 + g1) / 2
+            x = min(pts, key=lambda p: abs(p[1] - gy))[0] - 6
+            near = [n for n in nodes if g0 - 30 < n.y < g1 + 30]
+            clear = all(n.x + widths[n.id] / 2 < x - text_w - 4 for n in near)
+            spots.append((not clear, x, gy + size * 0.35))
+        _, x, y = min(spots, key=lambda s: s[0])
+        return x, y, "end", x - pad
+    row = [n.x for n in nodes if n is not v and abs(n.y - v.y) < 1]
+    y = end[1] - 5
+    if pts[0][0] > end[0] + 0.5:  # the edge comes in from the right: label on the left
+        x = end[0] - 7
+        return x, y, "end", x - max([pad, *(nx + 6 for nx in row if nx < v.x)])
+    x = end[0] + 7
+    return x, y, "start", min([w - pad, *(nx - 6 for nx in row if nx > v.x)]) - x
+
+
 def kind_flow(c: Ctx) -> Art:
     """Nodes joined by paths with packets riding them: pipeline or architecture diagram.
 
@@ -1667,6 +1752,11 @@ def kind_flow(c: Ctx) -> Art:
     the diagram plays as a storyboard: one beat per column, packets travel into each column,
     its nodes light up, return arcs run last, then everything fades and the loop restarts.
     Text data (a string) is a spec for parse_flow_text().
+
+    On a phone the columns stay when every label fits them at the phone text size; when they
+    do not, the diagram turns top to bottom: one rank per row (a crowded rank wraps onto
+    more rows), labels beside the arrow heads, return arcs down the right side, and fixed
+    x and y positions swap axes. The storyboard plays the same either way.
     """
     spec = parse_flow_text(c.data) if isinstance(c.data, str) else spec_of(c, "nodes")
     nodes, edges = flow_graph(spec)
@@ -1681,29 +1771,45 @@ def kind_flow(c: Ctx) -> Art:
     ranks = max(n.rank for n in nodes) + 1
     title = c.title or (text_of(spec["title"], "flow title") if spec.get("title") else "")
     w = c.width or 840
-    h = c.height or 260
-    pad, nh = 24, 30
+    pad, nh = (16 if c.phone else 24), 30
+    lf, ef = c.fs(9), c.fs(8)  # node and edge label sizes
     top = 52 if title else 24
-    bottom = h - (54 if back else 22)
     lanes = (w - 2 * pad) / ranks
-    if lanes - 22 < FLOW_MIN_NODE:
-        least = math.ceil(2 * pad + ranks * (FLOW_MIN_NODE + 22))
-        raise ForgeError(
-            f"flow with {ranks} columns needs a width of at least {least}, got {num(w)}; "
-            "widen the canvas or put fewer steps in a row"
-        )
-    longest = max(text_width(n.label.upper(), 9, "mono", MONO_LS) for n in nodes)
+    longest = max(text_width(n.label.upper(), lf, "mono", MONO_LS) for n in nodes)
     nw = min(max(longest + 30, 88), 176, lanes - 22)
-    for r in range(ranks):
-        col = [n for n in nodes if n.rank == r]
-        for k, node in enumerate(col):
-            node.x = pad + lanes * (r + 0.5)
-            node.y = top + (bottom - top) * (k + 0.5) / len(col)
-    for node in nodes:
-        if node.fx is not None:
-            node.x = pad + nw / 2 + min(max(node.fx, 0.0), 1.0) * (w - 2 * pad - nw)
-        if node.fy is not None:
-            node.y = top + nh / 2 + min(max(node.fy, 0.0), 1.0) * (bottom - top - nh)
+    down = c.phone and (
+        lanes - 22 < FLOW_MIN_NODE
+        or longest > nw - 16
+        or any(
+            text_width(lab.upper(), ef, "mono", MONO_LS) > lanes - nw - 6 for _, _, lab in forward
+        )
+    )
+    if down:
+        h, arc_x, widths, gaps = flow_rows(c, nodes, ranks, w, top, nh, bool(back))
+    else:
+        if c.phone:  # as tall as the fullest column needs
+            most = max(sum(n.rank == r for n in nodes) for r in range(ranks))
+            h = c.height or top + most * (nh + 26) + (54 if back else 22)
+        else:
+            h = c.height or 260
+        bottom = h - (54 if back else 22)
+        if lanes - 22 < FLOW_MIN_NODE:
+            least = math.ceil(2 * pad + ranks * (FLOW_MIN_NODE + 22))
+            raise ForgeError(
+                f"flow with {ranks} columns needs a width of at least {least}, got {num(w)}; "
+                "widen the canvas or put fewer steps in a row"
+            )
+        for r in range(ranks):
+            col = [n for n in nodes if n.rank == r]
+            for k, node in enumerate(col):
+                node.x = pad + lanes * (r + 0.5)
+                node.y = top + (bottom - top) * (k + 0.5) / len(col)
+        for node in nodes:
+            if node.fx is not None:
+                node.x = pad + nw / 2 + min(max(node.fx, 0.0), 1.0) * (w - 2 * pad - nw)
+            if node.fy is not None:
+                node.y = top + nh / 2 + min(max(node.fy, 0.0), 1.0) * (bottom - top - nh)
+        widths, arc_x, gaps = {n.id: nw for n in nodes}, 0.0, []
     desc = "Flow: " + "; ".join(f"{a} to {b}" + (f" ({lab})" if lab else "") for a, b, lab in edges)
     art = Art(
         w,
@@ -1738,17 +1844,29 @@ def kind_flow(c: Ctx) -> Art:
         )
     )
     routes = []  # (edge, d, length, mid, is_back)
+    edge_labels = []
     arc_y = h - 16
     for a, b, label in edges:
         u, v = by_id[a], by_id[b]
-        if (a, b, label) in back:
+        is_back = (a, b, label) in back
+        if down and is_back:  # out of the right side, down the side lane, into the right side
+            q0, q3 = (u.x + widths[a] / 2, u.y), (v.x + widths[b] / 2 + 3, v.y)
+            q1, q2 = (arc_x, u.y), (arc_x, v.y)
+        elif down:
+            q0, q3 = (u.x, u.y + nh / 2), (v.x, v.y - nh / 2 - 2)
+            my = (q0[1] + q3[1]) / 2
+            q1, q2 = (q0[0], my), (q3[0], my)
+        elif is_back:
             q0, q3 = (u.x, u.y + nh / 2), (v.x, v.y + nh / 2 + 3)
             q1, q2 = (u.x, arc_y), (v.x, arc_y)
         else:
-            q0, q3 = (u.x + nw / 2, u.y), (v.x - nw / 2 - 2, v.y)
+            q0, q3 = (u.x + widths[a] / 2, u.y), (v.x - widths[b] / 2 - 2, v.y)
             mx = (q0[0] + q3[0]) / 2
             q1, q2 = (mx, q0[1]), (mx, q3[1])
-        if abs(q0[1] - q3[1]) < 0.5 and (a, b, label) not in back:
+        if down and not is_back and abs(q0[0] - q3[0]) < 0.5:
+            d = f"M{num(q0[0])} {num(q0[1])} V{num(q3[1])}"
+            pts = [q0, q3]
+        elif not down and abs(q0[1] - q3[1]) < 0.5 and not is_back:
             d = f"M{num(q0[0])} {num(q0[1])} H{num(q3[0])}"
             pts = [q0, q3]
         else:
@@ -1756,10 +1874,25 @@ def kind_flow(c: Ctx) -> Art:
             pts = cubic(q0, q1, q2, q3)
         length = sum(math.dist(s, t) for s, t in itertools.pairwise(pts)) * 1.02 + 2
         if len(pts) == 2:
-            mid = ((q0[0] + q3[0]) / 2, q0[1])
+            mid = (q0[0], (q0[1] + q3[1]) / 2) if down else ((q0[0] + q3[0]) / 2, q0[1])
         else:
             mid = pts[len(pts) // 2]
-        routes.append(((a, b, label), d, length, mid, (a, b, label) in back))
+        routes.append(((a, b, label), d, length, mid, is_back))
+        if not label:
+            continue
+        text = label.upper()
+        if down:
+            full = text_width(text, ef, "mono", MONO_LS)
+            spot = flow_label_spot(nodes, widths, v, q3, pts, is_back, gaps, w, ef, full)
+            x, y, anchor, room = spot
+            text = snug(text, room, ef, "mono", MONO_LS)
+            if text:
+                edge_labels.append(mono(c, text, x, y, p.dim, ef, text_anchor=anchor))
+            continue
+        if c.phone:  # centered on the edge: keep it inside the card
+            text = snug(text, 2 * min(mid[0] - pad, w - pad - mid[0]), ef, "mono", MONO_LS)
+        if text:
+            edge_labels.append(mono(c, text, mid[0], mid[1] - 7, p.dim, ef, text_anchor="middle"))
 
     one = c.one_shot
     beats = ranks + (1 if back else 0) + 1
@@ -1787,9 +1920,9 @@ def kind_flow(c: Ctx) -> Art:
             return (ranks + 0.05) * bl, (ranks + 0.85) * bl
         return (u.rank + 1.05) * bl, (v.rank + 0.85) * bl
 
-    base_edges, traces, packets, edge_labels = [], [], [], []
+    base_edges, traces, packets = [], [], []
     ramp = min(0.1 * bl, 0.25 / d_s)
-    for edge, d, length, mid, is_back in routes:
+    for edge, d, length, _, is_back in routes:
         a, b = travel(edge, is_back)
         stroke = {"fill": "none", "stroke_width": 1.3}
         if is_back:
@@ -1842,13 +1975,10 @@ def kind_flow(c: Ctx) -> Art:
                     opacity=0,
                 )
             )
-        if edge[2]:
-            edge_labels.append(
-                mono(c, edge[2].upper(), mid[0], mid[1] - 7, p.dim, 8, text_anchor="middle")
-            )
 
     node_base, overlays, node_labels = [], [], []
     for node in nodes:
+        nw = widths[node.id]
         x, y = node.x - nw / 2, node.y - nh / 2
         color = c.tone(node.tone)
         strong = node.tone not in (None, "", "muted")
@@ -1864,10 +1994,10 @@ def kind_flow(c: Ctx) -> Art:
             stroke=alpha(color, 0.8) if strong else p.panel_stroke,
             stroke_width=1.2,
         )
-        label = fit(node.label.upper(), nw - 16, 9, "mono", MONO_LS)
+        label = fit(node.label.upper(), nw - 16, lf, "mono", MONO_LS)
         lit = () if one else (alpha(color, 0.16),)  # the node lights up under its label
         ink = c.legible(color if strong else p.text, fill, *lit)
-        text = mono(c, label, node.x, node.y + 3.5, ink, 9, text_anchor="middle")
+        text = mono(c, label, node.x, node.y + 3.5 * lf / 9, ink, lf, text_anchor="middle")
         if one:
             r0 = begins[node.rank]
             node_base.append(el("g", rise(clock, r0, item, dy=6), rect, text))
@@ -2457,6 +2587,29 @@ def timeline_rail(
     r = scaled(6, s, 3)
     nodes: list[tuple[float, float, float]] = []
     labels: list[list[str]] = []
+    if c.phone:  # the rail down the left, each item's date over its wrapped title and subtitle
+        pad, df, tf, sf, r = 16.0, c.fs(9), c.fs(13), c.fs(11), 6.0
+        rx, tx = pad + 10, pad + 28
+        room = w - pad - tx
+        y = oy + pad + (c.fs(10) + 20 if title else 2)
+        ys = []
+        for it in items:
+            ys.append(y + max(df * 0.5, r))
+            day = snug(it["when"].upper(), room, df, "mono", MONO_LS)
+            out = [mono(c, day, tx, ys[-1] + df * 0.35, c.pal.text, df)] if day else []
+            y = ys[-1] + df * 0.35
+            for k, line in enumerate(wrap(it["title"], room, tf, lines=2)):
+                y += tf * (1.4 if k == 0 else 1.25)
+                out.append(sans(c, line, tx, y, p.ink, tf))
+            for k, line in enumerate(wrap(it["subtitle"], room, sf, lines=2) if subs else []):
+                y += sf * (1.45 if k == 0 else 1.35)
+                out.append(sans(c, line, tx, y, p.dim, sf, "r"))
+            labels.append(out)
+            y += 0.3 * tf + 14
+        y0, y1 = ys[0] - 2 * r, ys[-1] + 2 * r
+        nodes = [(rx, yc, (yc - y0) / (y1 - y0)) for yc in ys]
+        path = f"M{num(rx)} {num(y0)} V{num(y1)}"
+        return Rail(max(y - 14, y1) + pad - oy, path, y1 - y0, nodes, labels)
     if vertical:
         widest = max(text_width(it["when"].upper(), df, "mono", MONO_LS) for it in items)
         date_w = min(widest, w * 0.3)
@@ -2516,7 +2669,9 @@ def kind_timeline(c: Ctx) -> Art:
 
     Horizontal by default, labels alternating above and below when the rail is dense.
     --variant vertical (the default under 400 px wide or on a canvas taller than wide) runs
-    the rail down the left with the text beside each node.
+    the rail down the left with the text beside each node. A phone layout is always
+    vertical: each date sits over its title and subtitle, which wrap onto a second line
+    instead of being cut.
     """
     spec = spec_of(c, "items")
     items = timeline_items(spec)
@@ -2526,7 +2681,7 @@ def kind_timeline(c: Ctx) -> Art:
     variant = c.variant or ("vertical" if wide < 400 or tall else "horizontal")
     if variant not in ("horizontal", "vertical"):
         raise ForgeError(f"timeline variant must be horizontal or vertical, got {variant!r}")
-    vertical = variant == "vertical"
+    vertical = variant == "vertical" or c.phone
     base_w = 560 if vertical else 840
     w = c.width or base_w
     subs = any(it["subtitle"] for it in items)
@@ -2534,10 +2689,20 @@ def kind_timeline(c: Ctx) -> Art:
     def need(k: float) -> float:
         return timeline_rail(c, items, title, w, k, subs, vertical).height
 
-    s = layout_scale(w, base_w, c.height, need)
-    if c.height is not None and subs and need(s) > c.height:
-        subs = False  # no room for second lines: drop them before shrinking further
+    if c.phone:  # text keeps its phone size, so a short --height drops subtitles, then fails
+        s = 1.0
+        if c.height is not None and subs and need(s) > c.height:
+            subs = False
+        if c.height is not None and need(s) > c.height:
+            raise ForgeError(
+                f"timeline on a phone needs a height of at least {math.ceil(need(s))}, "
+                f"got {num(c.height)}; drop --height or list fewer items"
+            )
+    else:
         s = layout_scale(w, base_w, c.height, need)
+        if c.height is not None and subs and need(s) > c.height:
+            subs = False  # no room for second lines: drop them before shrinking further
+            s = layout_scale(w, base_w, c.height, need)
     lay = timeline_rail(c, items, title, w, s, subs, vertical)
     h = c.height or lay.height
     oy = max(0.0, (h - lay.height) / 2)
@@ -2555,7 +2720,8 @@ def kind_timeline(c: Ctx) -> Art:
     regular(c, art)
     if title:
         hf = scaled(10, s)
-        heading(c, art, title, x=24 * s, y=oy + 24 * s + hf, size=hf)
+        pad = 16 if c.phone else 24 * s
+        heading(c, art, title, x=pad, y=oy + pad + c.fs(hf) + (4 if c.phone else 0), size=hf)
     n = len(items)
     if c.one_shot:
         q = c.preset
@@ -2911,12 +3077,53 @@ def logo_pill(
     return out
 
 
+LOGO_PHONE_ROWS = 6  # a longer phone wall ends with a "+N more" pill
+Logo = tuple[str, str | None, str | None]  # label, symbol id, color
+
+
+def logo_rows(
+    entries: list[Logo], cols: int, half: float, ph: float, size: float, limit: int
+) -> list[tuple[bool, list[Logo]]]:
+    """The phone rows of a logo wall as (full width, entries): up to cols (1 or 2) half pills
+    a row, and a pill whose label does not fit half the row on a full row of its own. A half
+    pill that would sit alone pairs with the next one that fits, so the order moves by at
+    most one slot. Past limit rows the wall keeps what fits and ends with a "+N more" pill."""
+
+    def fits(entry: Logo) -> bool:
+        room = half - 2 * ph * 0.32 - (ph * 0.72 if entry[1] else 0)
+        return cols == 2 and text_width(entry[0].upper(), size, "mono", MONO_LS) <= room
+
+    def pack(shown: list[Logo]) -> list[tuple[bool, list[Logo]]]:
+        rows: list[tuple[bool, list[Logo]]] = []
+        open_row: list[Logo] | None = None
+        for entry in shown:
+            if not fits(entry):
+                rows.append((True, [entry]))
+            elif open_row is None:
+                open_row = [entry]
+                rows.append((False, open_row))
+            else:
+                open_row.append(entry)
+                open_row = None
+        return rows
+
+    keep = len(entries)
+    rows = pack(entries)
+    while len(rows) > limit and keep > 1:
+        keep -= 1
+        rows = pack([*entries[:keep], (f"+{len(entries) - keep} more", None, None)])
+    return rows
+
+
 def kind_logos(c: Ctx) -> Art:
     """Logo wall: SVG logos inlined as prefixed <symbol>s, PNG or WebP as data: URIs, and text
     pills for entries without a file.
 
     A balanced grid with a staggered entrance; --timing ambient scrolls one row as a seamless
-    marquee at --speed px/s instead. File paths resolve from the current directory.
+    marquee at --speed px/s instead. File paths resolve from the current directory. A phone
+    layout draws two columns of pills (a label too long for half the row takes all of it)
+    in at most LOGO_PHONE_ROWS rows, the last slot saying how many more there are; its
+    marquee keeps the desktop pill size.
     """
     spec = spec_of(c, "items")
     entries: list[tuple[str, str | None, str | None]] = []
@@ -2953,16 +3160,26 @@ def kind_logos(c: Ctx) -> Art:
 
     def lay(s: float) -> tuple[float, float, float, float, int, int, float]:
         pad, gap = (14 if marquee else 16) * s, 12 * s
-        size = scaled(10, s)
+        size = c.fs(scaled(10, s))
         ph = max(44 * s, size * 2.8)
         top = pad + (scaled(10, s) + 18 * s if title else 0)
         if marquee:
             return pad, gap, size, ph, 1, n, top + ph + pad
+        if c.phone:
+            pad, gap, ph = 14.0, 10.0, 40.0
+            top = pad + (scaled(10, s) + 18 * s if title else 0)
+            half = (w - 2 * pad - gap) / 2
+            rows = len(logo_rows(entries, min(cols or 2, 2), half, ph, size, limit))
+            return pad, gap, size, ph, rows, 2, top + rows * (ph + gap) - gap + pad
         most = cols or max(1, int((w - 2 * pad + gap) // (150 * s + gap)))
         rows = math.ceil(n / most)
         return pad, gap, size, ph, rows, math.ceil(n / rows), top + rows * (ph + gap) - gap + pad
 
-    s = layout_scale(w, 840, c.height, lambda k: lay(k)[-1])
+    limit = LOGO_PHONE_ROWS
+    if c.phone and c.height is not None:  # a short canvas holds fewer rows
+        free = c.height - 28 - (28 if title else 0)
+        limit = max(1, min(limit, int((free + 10) // 50)))
+    s = 1.0 if c.phone else layout_scale(w, 840, c.height, lambda k: lay(k)[-1])
     pad, gap, size, ph, rows, per_row, need = lay(s)
     h = c.height or need
     oy = max(0.0, (h - need) / 2)
@@ -2979,18 +3196,31 @@ def kind_logos(c: Ctx) -> Art:
     if not marquee:
         art.desc = "Logo wall: " + names
         cw = (w - 2 * pad - (per_row - 1) * gap) / per_row
-        clock, begins, item = paced(c, n, distance=w)
+        spots: list[tuple[float, float, float, Logo]] = []  # x, y, width, entry
+        if c.phone:
+            for row, (full, line) in enumerate(
+                logo_rows(entries, min(cols or 2, 2), cw, ph, size, limit)
+            ):
+                y = top + row * (ph + gap)
+                if full:
+                    spots.append((pad, y, w - 2 * pad, line[0]))
+                else:
+                    x = pad + (2 - len(line)) * (cw + gap) / 2
+                    spots += [(x + k * (cw + gap), y, cw, e) for k, e in enumerate(line)]
+        else:
+            for k, entry in enumerate(entries):
+                row, col = divmod(k, per_row)
+                x = pad + (per_row - min(per_row, n - row * per_row)) * (cw + gap) / 2
+                x += col * (cw + gap)
+                spots.append((x, top + row * (ph + gap), cw, entry))
+        clock, begins, item = paced(c, len(spots), distance=w)
         pills = []
-        for k, entry in enumerate(entries):
-            row, col = divmod(k, per_row)
-            x = pad + (per_row - min(per_row, n - row * per_row)) * (cw + gap) / 2
-            x += col * (cw + gap)
-            y = top + row * (ph + gap)
+        for k, (x, y, pw, entry) in enumerate(spots):
             pills.append(
                 el(
                     "g",
                     rise(clock, begins[k], item, dy=6 * s),
-                    *logo_pill(c, x, y, cw, ph, size, entry),
+                    *logo_pill(c, x, y, pw, ph, size, entry),
                 )
             )
         art.body.append(el("g", veil(clock), *pills))
@@ -3088,19 +3318,22 @@ def kind_calendar(c: Ctx) -> Art:
 
     Levels are quartiles of the active days, so one huge day does not wash out the rest. The
     ramp runs from the card color to the theme's ok green, or to the accent with --variant
-    accent.
+    accent. A phone layout shows the last 26 weeks (levels, totals and the summary count
+    those weeks only), the date span under the heading and the summary wrapped beside the
+    legend.
     """
     spec = spec_of(c, "days")
     days = calendar_days(spec)
     variant = c.variant or "green"
     if variant not in ("green", "accent"):
         raise ForgeError(f"calendar variant must be green or accent, got {variant!r}")
+    weeks = 26 if c.phone else 53
     last = max(days)
     try:
-        first = last - timedelta(days=(last.weekday() + 1) % 7 + 52 * 7)
+        first = last - timedelta(days=(last.weekday() + 1) % 7 + (weeks - 1) * 7)
     except OverflowError as exc:
         raise ForgeError(
-            f"calendar needs 53 weeks before its last day; {last.isoformat()} is too early"
+            f"calendar needs {weeks} weeks before its last day; {last.isoformat()} is too early"
         ) from exc
     counts = [days.get(first + timedelta(days=k), 0.0) for k in range((last - first).days + 1)]
     active = sorted(v for v in counts if v > 0)
@@ -3115,26 +3348,43 @@ def kind_calendar(c: Ctx) -> Art:
     total, best = sum(counts), max(counts)
     best_day = first + timedelta(days=counts.index(best))
     title = c.title or (text_of(spec["title"], "calendar title") if spec.get("title") else "")
+    summary = f"{len(active)} active days"
+    if active:
+        summary += f", best {fmt_count(best)} on {MONTHS[best_day.month - 1]} {best_day.day}"
     w = c.width or 756
 
-    def lay(s: float) -> tuple[float, float, float, float, float, float, float]:
-        pad = 20 * s
-        hf, mf = scaled(10, s), scaled(8.5, s)
-        label_w = max(30 * s, text_width("WED", mf, "mono", MONO_LS) + 6 * s)
-        step = min((w - 2 * pad - label_w + 3 * s) / 53, 13 * s)
-        gy = pad + hf + 12 * s + mf + 6 * s
-        grid_h = 7 * step - step * 3 / 13
-        return pad, hf, mf, label_w, step, gy, gy + grid_h + 12 * s + max(step, mf) + pad
+    def across(s: float, pad: float, label_w: float, step: float, mf: float) -> list[float]:
+        """Grid x, its left and right edges, the legend x and the summary's room before it."""
+        gap = step * 3 / 13
+        gx = pad + label_w + max(0.0, (w - 2 * pad - label_w) - (weeks * step - gap)) / 2
+        right = gx + weeks * step - gap
+        more_x = right - text_width("MORE", mf, "mono", MONO_LS) - 6 * s
+        legend_x = more_x - (5 * step - gap)
+        less_x = legend_x - 6 * s
+        room = less_x - text_width("LESS", mf, "mono", MONO_LS) - 12 * s - (gx - label_w)
+        return [gx, gx - label_w, right, legend_x, room]
 
-    s = layout_scale(w, 756, c.height, lambda k: lay(k)[-1])
+    def lay(s: float) -> tuple[float, float, float, float, float, float, float]:
+        pad = 16 if c.phone else 20 * s
+        hf, mf = c.fs(scaled(10, s)), c.fs(scaled(8.5, s))
+        label_w = max(30 * s, text_width("WED", mf, "mono", MONO_LS) + 6 * s)
+        step = min((w - 2 * pad - label_w + 3 * s) / weeks, 13 * s)
+        under = mf * 1.6 if c.phone else 0.0  # a phone puts the date span under the heading
+        gy = pad + hf + under + 12 * s + mf + 6 * s
+        grid_h = 7 * step - step * 3 / 13
+        extra = 0.0
+        if c.phone:  # the summary wraps beside the legend
+            room = across(s, pad, label_w, step, mf)[-1]
+            extra = (len(wrap(summary.upper(), room, mf, "mono", MONO_LS, 2)) - 1) * mf * 1.45
+        return pad, hf, mf, label_w, step, gy, gy + grid_h + 12 * s + max(step, mf) + pad + extra
+
+    s = 1.0 if c.phone else layout_scale(w, 756, c.height, lambda k: lay(k)[-1])
     pad, hf, mf, label_w, step, gy, need = lay(s)
     h = c.height or need
     oy = max(0.0, (h - need) / 2)
     gap = step * 3 / 13
     cell = step - gap
-    gx = pad + label_w + max(0.0, (w - 2 * pad - label_w) - (53 * step - gap)) / 2
-    right = gx + 53 * step - gap
-    left = gx - label_w
+    gx, left, right, legend_x, room = across(s, pad, label_w, step, mf)
     gy += oy
     desc = (
         f"Contribution calendar from {first.isoformat()} to {last.isoformat()}: "
@@ -3147,7 +3397,7 @@ def kind_calendar(c: Ctx) -> Art:
     hy = oy + pad + hf
     head = snug(
         (title or f"{fmt_count(total)} contributions").upper(),
-        (right - left) * 0.62,
+        (right - left) * (1 if c.phone else 0.62),
         hf,
         "mono",
         MONO_LS,
@@ -3155,13 +3405,18 @@ def kind_calendar(c: Ctx) -> Art:
     if head:
         art.body.append(mono(c, head, left, hy, c.pal.text, hf))
     span = f"{MONTHS[first.month - 1]} {first.year} - {MONTHS[last.month - 1]} {last.year}"
-    room = right - left - text_width(head, hf, "mono", MONO_LS) - 16 * s
-    span = snug(span.upper(), room, mf, "mono", MONO_LS)
-    if span:
-        art.body.append(mono(c, span, right, hy, p.dim, mf, text_anchor="end"))
+    if c.phone:
+        span = snug(span.upper(), right - left, mf, "mono", MONO_LS)
+        if span:
+            art.body.append(mono(c, span, left, hy + mf * 1.6, p.dim, mf))
+    else:
+        width = right - left - text_width(head, hf, "mono", MONO_LS) - 16 * s
+        span = snug(span.upper(), width, mf, "mono", MONO_LS)
+        if span:
+            art.body.append(mono(c, span, right, hy, p.dim, mf, text_anchor="end"))
     placed: list[tuple[float, float, int, str]] = []
     month = 0
-    for col in range(53):
+    for col in range(weeks):
         m = (first + timedelta(weeks=col)).month
         if m == month:
             continue
@@ -3185,7 +3440,7 @@ def kind_calendar(c: Ctx) -> Art:
     for k, v in enumerate(counts):
         col, row = divmod(k, 7)
         level = 0 if v <= 0 else 1 + sum(v > cut for cut in cuts)
-        bands[(col + row) * CAL_BANDS // 59].append(
+        bands[(col + row) * CAL_BANDS // (weeks + 6)].append(
             el(
                 "rect",
                 x=gx + col * step,
@@ -3208,8 +3463,6 @@ def kind_calendar(c: Ctx) -> Art:
     art.body.append(el("g", veil(clock), *layer))
     ly = gy + 7 * step - gap + 12 * s + max(step, mf) / 2
     base = ly + mf * 0.35
-    more_x = right - text_width("MORE", mf, "mono", MONO_LS) - 6 * s
-    legend_x = more_x - (5 * step - gap)
     less_x = legend_x - 6 * s
     art.body.append(mono(c, "LESS", less_x, base, p.dim, mf, text_anchor="end"))
     for i, (color, opacity) in enumerate(ramp):
@@ -3226,13 +3479,13 @@ def kind_calendar(c: Ctx) -> Art:
             )
         )
     art.body.append(mono(c, "MORE", right, base, p.dim, mf, text_anchor="end"))
-    summary = f"{len(active)} active days"
-    if active:
-        summary += f", best {fmt_count(best)} on {MONTHS[best_day.month - 1]} {best_day.day}"
-    room = less_x - text_width("LESS", mf, "mono", MONO_LS) - 12 * s - left
-    summary = snug(summary.upper(), room, mf, "mono", MONO_LS)
-    if summary:
-        art.body.append(mono(c, summary, left, base, p.dim, mf))
+    if c.phone:
+        lines = wrap(summary.upper(), room, mf, "mono", MONO_LS, 2)
+    else:
+        lines = [snug(summary.upper(), room, mf, "mono", MONO_LS)]
+    for k, line in enumerate(lines):
+        if line:
+            art.body.append(mono(c, line, left, base + k * mf * 1.45, p.dim, mf))
     return art
 
 
@@ -3261,12 +3514,35 @@ def ring_items(spec: dict[str, Any]) -> list[dict[str, Any]]:
     return items
 
 
+def ring_list(c: Ctx, items: list[dict[str, Any]], title: str, w: float) -> dict[str, float]:
+    """kind_ring's phone list: one ring per row, its label (up to two lines) and value beside
+    it. A fixed --height shrinks the rings, never the text."""
+    pad, gap, dia = 16.0, 12.0, 56.0
+    hf, lf, sf = c.fs(10), c.fs(9), c.fs(8.5)
+    top = pad + (hf + 16 if title else 0)
+    room = w - 2 * pad - dia - 14
+    block = max(
+        len(wrap(it["label"].upper(), room, lf, "mono", MONO_LS, 2)) * lf * 1.35
+        + (sf * 1.5 if it["sub"] else 0)
+        for it in items
+    )
+    n = len(items)
+    if c.height is not None:
+        dia = clamp((c.height - top - pad - (n - 1) * gap) / n, 24.0, dia)
+    row = max(dia, block)
+    need = top + n * row + (n - 1) * gap + pad
+    keys = ("pad", "gap", "hf", "lf", "sf", "top", "cols", "cell_w", "dia", "row", "need")
+    return dict(zip(keys, (pad, gap, hf, lf, sf, top, 1, w - 2 * pad, dia, row, need), strict=True))
+
+
 def kind_ring(c: Ctx) -> Art:
     """Progress rings that draw in, each value written once as static text (no count-up).
 
     The arc is plain dash math on a circle (dasharray "arc circumference", dashoffset from
     arc to 0), so it needs neither pathLength nor non-scaling-stroke. With a fixed --height
-    the rings wrap into as many rows as gives them the largest size.
+    the rings wrap into as many rows as gives them the largest size. A phone layout puts
+    three or two rings in a row when every label fits under its ring at the phone text
+    size, and otherwise one ring per row with its label and value beside it.
     """
     spec = spec_of(c, "items")
     items = ring_items(spec)
@@ -3277,8 +3553,8 @@ def kind_ring(c: Ctx) -> Art:
     w = c.width or base_w
 
     def lay(s: float, rows: int, fixed: bool) -> dict[str, float]:
-        pad, row_gap = 22 * s, 14 * s
-        hf, lf, sf = scaled(10, s), scaled(9, s), scaled(8.5, s)
+        pad, row_gap = (16 if c.phone else 22 * s), 14 * s
+        hf, lf, sf = c.fs(scaled(10, s)), c.fs(scaled(9, s)), c.fs(scaled(8.5, s))
         top = pad + (hf + 16 * s if title else 0)
         below = 10 * s + lf * 1.3 + (sf * 1.6 if subs else 0)
         cols = math.ceil(n / rows)
@@ -3303,11 +3579,32 @@ def kind_ring(c: Ctx) -> Art:
             "need": need,
         }
 
-    s = layout_scale(w, base_w, c.height, lambda k: lay(k, 1, False)["need"])
-    rows = 1
-    if c.height is not None:
-        rows = max(range(1, n + 1), key=lambda r: (round(lay(s, r, True)["dia"], 3), -r))
-    m = lay(s, rows, True)
+    def fits(m: dict[str, float]) -> bool:
+        room = m["cell_w"] - 8
+        return all(
+            text_width(it["label"].upper(), m["lf"], "mono", MONO_LS) <= room
+            and text_width(it["sub"].upper(), m["sf"], "mono", MONO_LS) <= room
+            for it in items
+        )
+
+    listed = False  # one ring per row, text beside it (phone only)
+    if c.phone:
+        s = 1.0
+        grids = [lay(s, math.ceil(n / k), True) for k in sorted({min(n, 3), min(n, 2)})[::-1]]
+        m = next((g for g in grids if fits(g)), {})
+        listed = not m
+        m = m or ring_list(c, items, title, w)
+    else:
+        s = layout_scale(w, base_w, c.height, lambda k: lay(k, 1, False)["need"])
+        rows = 1
+        if c.height is not None:
+            rows = max(range(1, n + 1), key=lambda r: (round(lay(s, r, True)["dia"], 3), -r))
+        m = lay(s, rows, True)
+    if c.phone and c.height is not None and m["need"] > c.height + 0.01:
+        raise ForgeError(
+            f"ring on a phone needs a height of at least {math.ceil(m['need'])}, "
+            f"got {num(c.height)}; drop --height or list fewer items"
+        )
     h = c.height or m["need"]
     oy = max(0.0, (h - m["need"]) / 2)
     dia, cols, cell_w = m["dia"], int(m["cols"]), m["cell_w"]
@@ -3332,10 +3629,13 @@ def kind_ring(c: Ctx) -> Art:
     )
     arcs = []
     for k, it in enumerate(items):
-        row, col = divmod(k, cols)
-        shift = (cols - min(cols, n - row * cols)) * cell_w / 2
-        cx = m["pad"] + shift + cell_w * (col + 0.5)
-        cy = oy + m["top"] + row * (dia + m["below"] + m["gap"]) + dia / 2
+        if listed:
+            cx, cy = m["pad"] + dia / 2, oy + m["top"] + k * (m["row"] + m["gap"]) + m["row"] / 2
+        else:
+            row, col = divmod(k, cols)
+            shift = (cols - min(cols, n - row * cols)) * cell_w / 2
+            cx = m["pad"] + shift + cell_w * (col + 0.5)
+            cy = oy + m["top"] + row * (dia + m["below"] + m["gap"]) + dia / 2
         color = c.tone(it["tone"])
         art.body.append(
             el(
@@ -3349,22 +3649,33 @@ def kind_ring(c: Ctx) -> Art:
                 opacity=0.6,
             )
         )
-        value, size = shrink(
-            f"{it['pct']}%", 2 * r - sw - 6, max(dia * 0.22, FONT_FLOOR), "bold", FONT_FLOOR
-        )
+        floor = c.fs(FONT_FLOOR)
+        value, size = shrink(f"{it['pct']}%", 2 * r - sw - 6, max(dia * 0.22, floor), "bold", floor)
         art.body.append(
             sans(c, value, cx, cy + size * 0.35, p.ink, size, "b", text_anchor="middle")
         )
-        room = cell_w - 8 * s
-        label = snug(it["label"].upper(), room, m["lf"], "mono", MONO_LS)
-        ly = cy + dia / 2 + 10 * s + m["lf"]
-        if label:
-            art.body.append(mono(c, label, cx, ly, p.text, m["lf"], text_anchor="middle"))
-        sub = snug(it["sub"].upper(), room, m["sf"], "mono", MONO_LS)
-        if sub:
-            art.body.append(
-                mono(c, sub, cx, ly + m["sf"] * 1.6, p.dim, m["sf"], text_anchor="middle")
-            )
+        if listed:  # label lines, then value / max, centered on the ring
+            tx = m["pad"] + dia + 14
+            lines = wrap(it["label"].upper(), w - m["pad"] - tx, m["lf"], "mono", MONO_LS, 2)
+            sub = snug(it["sub"].upper(), w - m["pad"] - tx, m["sf"], "mono", MONO_LS)
+            block = len(lines) * m["lf"] * 1.35 + (m["sf"] * 1.5 if sub else 0)
+            y = cy - block / 2 - m["lf"] * 0.35
+            for line in lines:
+                y += m["lf"] * 1.35
+                art.body.append(mono(c, line, tx, y, p.text, m["lf"]))
+            if sub:
+                art.body.append(mono(c, sub, tx, y + m["sf"] * 1.5, p.dim, m["sf"]))
+        else:
+            room = cell_w - 8 * s
+            label = snug(it["label"].upper(), room, m["lf"], "mono", MONO_LS)
+            ly = cy + dia / 2 + 10 * s + m["lf"]
+            if label:
+                art.body.append(mono(c, label, cx, ly, p.text, m["lf"], text_anchor="middle"))
+            sub = snug(it["sub"].upper(), room, m["sf"], "mono", MONO_LS)
+            if sub:
+                art.body.append(
+                    mono(c, sub, cx, ly + m["sf"] * 1.6, p.dim, m["sf"], text_anchor="middle")
+                )
         if it["frac"] <= 0:
             continue
         arc = num(circ * it["frac"])
@@ -3421,20 +3732,32 @@ KINDS: dict[str, KindSpec] = {
     "chart": KindSpec(kind_chart, "short", "line chart that draws in, peak marker", (3, 3)),
     "bars": KindSpec(kind_bars, "short", "progress bars that grow", (3, 1)),
     "flow": KindSpec(
-        kind_flow, "medium", "nodes and edges with packets; JSON or text like 'a -> b, c'", (3, 3)
+        kind_flow,
+        "medium",
+        "nodes and edges with packets; JSON or text like 'a -> b, c'",
+        (3, 3),
+        phone=True,
     ),
     "loader": KindSpec(kind_loader, "medium", "spinner, dots or bar loader (--variant)", (1, 1)),
     "typing": KindSpec(kind_typing, "long", "terminal typing lines", (3, 1)),
     "divider": KindSpec(kind_divider, "medium", "hairline divider with a pulse", (3, 1)),
     "badge": KindSpec(kind_badge, "medium", "label and value pill with a shine sweep", (1, 1)),
     "timeline": KindSpec(
-        kind_timeline, "long", "career or history rail, current item pulses (--variant vertical)"
+        kind_timeline,
+        "long",
+        "career or history rail, current item pulses (--variant vertical)",
+        phone=True,
     ),
     "logos": KindSpec(
-        kind_logos, "short", "logo wall of SVG, PNG/WebP or text pills; ambient = marquee"
+        kind_logos,
+        "short",
+        "logo wall of SVG, PNG/WebP or text pills; ambient = marquee",
+        phone=True,
     ),
-    "calendar": KindSpec(kind_calendar, "short", "53-week contribution heatmap (--variant accent)"),
-    "ring": KindSpec(kind_ring, "short", "progress rings that draw in, static values"),
+    "calendar": KindSpec(
+        kind_calendar, "short", "53-week contribution heatmap (--variant accent)", phone=True
+    ),
+    "ring": KindSpec(kind_ring, "short", "progress rings that draw in, static values", phone=True),
 }
 # Kinds with no card of their own keep a transparent margin when scaled into a canvas.
 UNFRAMED = frozenset({"loader", "divider", "badge"})
