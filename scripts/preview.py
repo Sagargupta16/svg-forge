@@ -112,8 +112,19 @@ RECIPES: list[Recipe] = [
     ),
     Recipe(
         "docs/hero.svg",
-        ("--kind", "hero", "--theme", "both", "--accent", "#38bdf8", "--data", "docs/hero.json"),
-        "the README header",
+        (
+            "--kind",
+            "hero",
+            "--theme",
+            "both",
+            "--device",
+            "both",
+            "--accent",
+            "#38bdf8",
+            "--data",
+            "docs/hero.json",
+        ),
+        "the README header: dark and light, desktop and phone",
     ),
     Recipe(
         f"{E}/hero-violet.svg",
@@ -122,18 +133,22 @@ RECIPES: list[Recipe] = [
             "hero",
             "--theme",
             "both",
+            "--device",
+            "both",
             "--accent",
             "#a78bfa",
             "--data",
             f"{E}/data/hero.json",
         ),
-        "both themes, custom accent",
+        "dark and light, desktop and phone: four files, custom accent",
     ),
     Recipe(
         f"{E}/tiles-once.svg",
         (
             "--kind",
             "tiles",
+            "--device",
+            "both",
             "--timing",
             "short",
             "--accent",
@@ -141,7 +156,7 @@ RECIPES: list[Recipe] = [
             "--data",
             f"{E}/data/tiles.json",
         ),
-        "staggered entrance that holds",
+        "staggered entrance that holds; two columns on a phone",
     ),
     Recipe(
         f"{E}/tiles-spotlight.svg",
@@ -153,6 +168,8 @@ RECIPES: list[Recipe] = [
         (
             "--kind",
             "flow",
+            "--device",
+            "both",
             "--timing",
             "long",
             "--accent",
@@ -160,7 +177,7 @@ RECIPES: list[Recipe] = [
             "--data",
             f"{E}/data/pipeline.json",
         ),
-        "8-beat storyboard with a return arc",
+        "8-beat storyboard with a return arc; re-flowed top to bottom on a phone",
     ),
     Recipe(
         f"{E}/flow-architecture.svg",
@@ -357,8 +374,8 @@ RECIPES: list[Recipe] = [
     ),
     Recipe(
         f"{E}/timeline-career.svg",
-        ("--kind", "timeline", "--data", f"{E}/data/career.json"),
-        "rail draws in, the current role pulses",
+        ("--kind", "timeline", "--device", "both", "--data", f"{E}/data/career.json"),
+        "rail draws in, the current role pulses; vertical on a phone",
     ),
     Recipe(
         f"{E}/timeline-vertical.svg",
@@ -463,8 +480,8 @@ RECIPES: list[Recipe] = [
     ),
     Recipe(
         f"{E}/calendar-green.svg",
-        ("--kind", "calendar", "--data", f"{E}/data/contributions.json"),
-        "quartile levels: one 140-count day does not flatten the rest",
+        ("--kind", "calendar", "--device", "both", "--data", f"{E}/data/contributions.json"),
+        "quartile levels: one 140-count day does not flatten the rest; 26 weeks on a phone",
     ),
     Recipe(
         f"{E}/calendar-accent.svg",
