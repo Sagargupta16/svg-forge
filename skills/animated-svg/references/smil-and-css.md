@@ -2,7 +2,7 @@
 
 Proven techniques for standalone SVG files, each with a minimal snippet that renders inside `<img>`. Numbers come from cards that shipped on GitHub READMEs. Pick the mechanism first ([timing.md](timing.md) for durations, [design.md](design.md) for colors), then copy the closest recipe.
 
-Both SMIL and CSS animate inside a README image. SMIL is Baseline widely available since 2022-07-15 (https://api.webstatus.dev/v1/features/smil-svg-animations).
+Both SMIL and CSS animate inside a README image. SMIL is Baseline widely available since 2022-07-15 (https://api.webstatus.dev/v1/features/smil-svg-animations), and it is still being invested in: Safari 27.0 (2026-09-17) shipped an end-to-end review of WebKit's SMIL engine among 66 SVG fixes (https://webkit.org/blog/18325/webkit-features-for-safari-27-0/). The same post fixes two details of the CSS `d` property in Safari without saying it now animates, so path morphs stay SMIL.
 
 ## 0. SMIL or CSS?
 
@@ -309,3 +309,37 @@ Several identical loops started together pulse in unison. Start each at a differ
 - Arc loader: a circle with `r="40"` (circumference 251.3) and `stroke-dasharray="60 191.3"` (dash plus gap equals the circumference, so exactly one arc shows) rotating, optionally with the dash length breathing on the same clock.
 - Grid drift: animate a `<pattern>` by exactly one tile, `<animateTransform attributeName="patternTransform" type="translate" from="0 0" to="24 24" dur="30s" repeatCount="indefinite"/>`, for a seamless ambient background.
 - Float: `@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }` at 4 s with per-item delays.
+
+## 14. Springs and overshoot
+
+A choice landing (a check popping, a card standing up) reads as physical when it overshoots and settles. CSS `linear()` takes the curve as a list of points, so a sampled spring becomes an easing function. It is Baseline widely available since 2026-06-11 (Chrome 113, Firefox 112, Safari 17.2: https://api.webstatus.dev/v1/features/linear-easing). The stops below are an underdamped spring (damping ratio 0.54) sampled at 17 even steps: it overshoots to 1.135 and settles within 0.2% by the end.
+
+```xml
+<style>
+  .pop { animation: pop 0.9s both; transform-box: fill-box; transform-origin: center;
+    animation-timing-function: linear(0, 0.202, 0.58, 0.902, 1.082, 1.135, 1.111, 1.06,
+      1.016, 0.99, 0.982, 0.985, 0.991, 0.997, 1.001, 1, 1); }
+  @keyframes pop { from { transform: scale(0.9); opacity: 0; } }
+</style>
+```
+
+SMIL has no spring, but the same curve fits in keyframes: put the overshoot and the dip in as values at their times (here 0.317 and 0.634 of the run) and ease each segment out.
+
+```xml
+<animateTransform attributeName="transform" type="scale" additive="sum"
+  values="0.9;1.0135;0.9982;1" keyTimes="0;0.317;0.634;1" dur="0.9s" fill="freeze"
+  calcMode="spline" keySplines="0.22 1 0.36 1;0.45 0 0.25 1;0.45 0 0.25 1"/>
+```
+
+Keep overshoot for things that land, never for loops that run all the time, and never start from `scale(0)` (start at 0.9 to 0.97).
+
+## 15. Text that reads over anything: `paint-order`
+
+Labels that cross a packet path, a chart line or a busy backdrop can carry a halo in the card color: `paint-order="stroke"` paints the stroke under the fill, so a wide stroke in the background color clears a gap around each glyph without thinning it. It is Baseline widely available since 2026-09-22 (Chrome 123, Firefox 66, Safari 12: https://api.webstatus.dev/v1/features/paint-order).
+
+```xml
+<text x="40" y="60" fill="#e6edf3" stroke="#0b1012" stroke-width="3"
+  stroke-linejoin="round" paint-order="stroke">PEAK 251</text>
+```
+
+The halo color is the surface under the text, so the contrast check still measures the text against that surface; use it to keep a line from cutting through a label, not to rescue a color that fails.

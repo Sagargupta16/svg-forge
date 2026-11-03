@@ -44,12 +44,36 @@ Ship two files and let GitHub pick by its own theme setting:
 - Single-file alternative: draw an opaque background (a card) so the file looks the same on both themes. Most cards do this; only transparent pieces (headers, dividers, footers) need a light variant.
 - Transparent pieces must hold 3:1 against both `#ffffff` and `#0d1117`; see [design.md](design.md) section 3 for colors that do.
 
+## 3b. Desktop and phone: a phone file in the `<img>`, the desktop file from 1012 px
+
+A README card is drawn for the 840 px desktop column. On a phone that column is about 308 px wide, so an 840 px card shows at about 0.37x and its 9 px labels draw at about 3 px: texture, not text. Scaling does not fix it; a second layout does.
+
+- **The phone file is drawn 320 px wide with no text under 10.5 px.** It shows at about 0.96x on a phone, so the text holds its size. It is a re-layout, not a shrink: fewer columns, stacked panels, wrapped lines, long lists capped with a "+N more" line. `forge.py --device phone` draws it; `--device both --out assets/NAME.svg` writes `NAME.svg` and `NAME-mobile.svg`.
+- **The `<img>` is the phone file, and a `(min-width: 1012px)` source swaps in the desktop file.** 1012 px is GitHub's large breakpoint (Primer's `breakpoint.large`, https://github.com/primer/primitives/blob/main/src/tokens/functional/size/breakpoints.json5). Below it a profile page puts the README beside a sidebar, so the column was measured at 383 to 626 px from a 768 px to a 1011 px window: a desktop card there still shrinks to 0.46 to 0.75x, so the phone card is the better fit. The phone file in the `<img>` also serves clients without `<picture>`.
+- With dark and light as well, that is four files and four sources, desktop pair first, then the phone pair, and the dark phone file as the `<img>`. `forge.py --theme both --device both` writes the four and prints this snippet:
+
+```html
+<picture>
+  <source media="(prefers-color-scheme: dark) and (min-width: 1012px)" srcset="assets/card-dark.svg">
+  <source media="(prefers-color-scheme: light) and (min-width: 1012px)" srcset="assets/card-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/card-dark-mobile.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/card-light-mobile.svg">
+  <img alt="..." src="assets/card-dark-mobile.svg" width="100%">
+</picture>
+```
+
+- Order matters: a browser takes the first source whose media matches, and a wide window in dark mode matches both dark sources, so the desktop pair must come first.
+- Pieces with no text (dividers, loaders) need no phone file: they scale down and still read.
+- Check the phone layout on GitHub itself, at a 390 px viewport, before shipping it.
+
 ## 4. Markup quirks that break layouts
 
 - **`<img>` directly inside `<a>` stacks vertically.** GitHub adds the class `js-gh-image-fallback` (with `display:block`) to any `<img>` that is a direct child of `<a>`, which defeats `<p align="center">` and `&nbsp;` spacing. Wrap the image in `<picture>`: `<a href="..."><picture><img src="..." alt="..."></picture></a>`. The wrapper looks redundant; it is load-bearing.
 - **A bare `<img>` gets linked to itself.** GitHub wraps it in a link to the raw file. `<picture>` (or your own `<a>`) avoids that.
 - **`<details>` always shows its triangle and focus box; tables draw grid lines.** For rows of cards use `<p align="center">` with images separated by spaces.
 - **Side by side on desktop, stacked on phones.** Two 410 px wide cards with no `width` attribute sit side by side in an 840 px column and wrap onto separate lines on a phone, each scaled to the screen width. A `width="49%"` attribute keeps them side by side on phones too, at half the size. Check on a phone either way.
+- **Images in a row: set `width` or `height`, never both.** Since about April 2026, `<img>` tags in one `<p>` that each carry both a `width` and a `height` attribute no longer share a line; each sits on its own. Setting only one of the two keeps them inline. The report was closed by a stale bot, not fixed: https://github.com/github/markup/issues/2045 . `forge.py` snippets set only `width`.
+- **Links go around the image.** A link inside an SVG shown through `<img>` is not clickable; wrap the `<picture>` in `<a>`.
 - Verify markup the way GitHub renders it:
 
 ```bash
@@ -80,6 +104,6 @@ grep -c js-gh-image-fallback rendered.html   # want 0
 
 1. Open the file directly in Chrome, Firefox and Safari (or WebKit through Playwright). Watch at least two loop cycles for a seam.
 2. For README work, push to a branch and open the README on GitHub for that branch. Switch GitHub's theme (Settings, Appearance) to check both `<picture>` sources.
-3. Check the phone layout: open the branch README at 375 px wide (browser device mode) and on a real phone if possible.
+3. Check the phone layout: open the branch README at 390 px wide (browser device mode) and on a real phone if possible; with a phone file, also check a 900 px window, where the phone file is still shown (section 3b).
 4. Run `gh api markdown` (section 4) whenever cards sit inside links or share a row.
 5. To inspect a SMIL frame exactly, pause and seek: `svg.pauseAnimations(); svg.setCurrentTime(2.4)` on an inline copy of the file. Playwright's `animations: "disabled"` freezes CSS and WAAPI only, not SMIL. Source: https://developer.mozilla.org/en-US/docs/Web/API/SVGSVGElement/setCurrentTime
