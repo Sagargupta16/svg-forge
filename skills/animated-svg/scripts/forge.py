@@ -2644,6 +2644,418 @@ def kind_timeline(c: Ctx) -> Art:
     return art
 
 
+# ---------------------------------------------------------------- stats and streak
+
+CARD_W, CARD_H = 495, 195  # two cards side by side fill an 880 px README row
+STREAK_SPAN = 3660  # days; ten years of contributions
+STREAK_LABELS = ("Total contributions", "Current streak", "Longest streak")
+
+
+def glyph_at(name: str, x: float, y: float, size: float, color: str) -> str:
+    """glyph() at any size through one matrix(): below 16 px its scale(0.x) reads as
+    scale(0) to the poster check in tests/poster.py."""
+    k = num(size / 16, 4)
+    return el("g", glyph(name, 0, 0, 16, color), transform=f"matrix({k} 0 0 {k} {num(x)} {num(y)})")
+
+
+def stats_rows(spec: dict[str, Any]) -> list[dict[str, str]]:
+    rows = []
+    for i, raw in enumerate(need_list(spec.get("rows"), "stats rows", 6)):
+        if not isinstance(raw, dict):
+            raise ForgeError(f"stats row {i} must be an object with label and value")
+        name = raw.get("glyph")
+        if name not in (None, "") and (not isinstance(name, str) or name not in GLYPHS):
+            raise ForgeError(f"stats row {i} glyph must be one of {', '.join(GLYPHS)}")
+        label = text_of(raw.get("label", ""), f"stats row {i} label", 40)
+        value = text_of(raw.get("value", ""), f"stats row {i} value", 16)
+        if not label or not value:
+            raise ForgeError(f"stats row {i} needs a label and a value")
+        rows.append({"label": label, "value": value, "glyph": name or ""})
+    return rows
+
+
+def stats_grade(spec: dict[str, Any]) -> tuple[str, float] | None:
+    raw = spec.get("grade")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ForgeError("stats grade must be an object with label and value")
+    label = text_of(raw.get("label", ""), "stats grade label", 6)
+    value = number_of(raw.get("value", 0), "stats grade value")
+    if not label:
+        raise ForgeError("stats grade needs a label like A+")
+    if not 0 <= value <= 1:
+        raise ForgeError(f"stats grade value must be between 0 and 1, got {value:g}")
+    return label, value
+
+
+def kind_stats(c: Ctx) -> Art:
+    """Summary card: a title, up to six rows of glyph, label and value, and a grade ring on
+    the right. The rows enter staggered while the ring draws in to the grade value; values
+    are static text shown as given (no count-up).
+
+    Data: {"title": "Open source", "rows": [{"label": "Stars", "value": "1.2k", "glyph":
+    "star"}, ...], "grade": {"label": "A+", "value": 0.86}}. A bare list is the rows. glyph
+    is one of GLYPHS and optional; without a grade the rows take the full width.
+    """
+    spec = spec_of(c, "rows")
+    rows = stats_rows(spec)
+    grade = stats_grade(spec)
+    title = c.title or (text_of(spec["title"], "stats title") if spec.get("title") else "")
+    n = len(rows)
+    glyphs = any(r["glyph"] for r in rows)
+    w = c.width or CARD_W
+
+    def lay(s: float) -> dict[str, float]:
+        pad = 22 * s
+        hf = c.fs(scaled(10, s))
+        lf = c.fs(scaled(12.5, s))
+        vf = max(c.fs(scaled(13.5, s)), lf * 1.08)
+        top = pad + (hf + 16 * s if title else 0)
+        step = vf * 1.85
+        if not c.phone:  # six rows tighten to keep the card CARD_H tall
+            step = clamp((CARD_H * s - top - pad) / n, vf * 1.5, step)
+        dia = (max(92 * s, 72) if c.phone else 92 * s) if grade else 0.0
+        body = max(n * step, dia)
+        return dict(
+            pad=pad,
+            hf=hf,
+            lf=lf,
+            vf=vf,
+            top=top,
+            step=step,
+            dia=dia,
+            body=body,
+            need=top + body + pad,
+        )
+
+    s = layout_scale(w, CARD_W, c.height, lambda k: lay(k)["need"])
+    m = lay(s)
+    h = c.height or max(CARD_H * s, m["need"])
+    bw = min(w, CARD_W * s)
+    ox, oy = (w - bw) / 2, max(0.0, (h - m["need"]) / 2)
+    pad, lf, vf, step, dia = m["pad"], m["lf"], m["vf"], m["step"], m["dia"]
+    left, right = ox + pad, ox + bw - pad
+    desc = "; ".join(f"{r['label']} {r['value']}" for r in rows)
+    if grade:
+        desc += f"; grade {grade[0]} ({math.floor(round(grade[1] * 100, 6))}%)"
+    art = Art(w, h, title or "Stats", "Stats: " + desc)
+    p = c.theme
+    frame(c, art, rx=clamp(14 * s, 6, 24))
+    if title:
+        heading(c, art, title, x=left, y=oy + pad + m["hf"], size=m["hf"])
+    clock, begins, item = paced(c, n + 1, distance=w)
+    d = clock.dur
+    layer = []
+    cy = oy + m["top"] + m["body"] / 2
+    ends = right
+    if grade:
+        sw = max(dia * 0.085, 2.0)
+        r = dia / 2 - sw / 2
+        cx = right - dia / 2 - 8 * s
+        ends = cx - dia / 2 - 22 * s
+        circ = 2 * math.pi * r
+        art.body.append(
+            el(
+                "circle",
+                cx=cx,
+                cy=cy,
+                r=r,
+                fill="none",
+                stroke=p.panel_stroke,
+                stroke_width=sw,
+                opacity=0.6,
+            )
+        )
+        if grade[1] > 0:
+            arc = num(circ * grade[1])
+            a, b = begins[0] / d, (begins[n] + item) / d
+            layer.append(
+                el(
+                    "circle",
+                    animate(
+                        "stroke-dashoffset", [(0, arc), (a, arc), (b, 0)], clock, ease=EASE_IN_OUT
+                    ),
+                    cx=cx,
+                    cy=cy,
+                    r=r,
+                    fill="none",
+                    stroke=c.pal.ink,
+                    stroke_width=sw,
+                    stroke_linecap="round",
+                    stroke_dasharray=f"{arc} {num(circ)}",
+                    stroke_dashoffset=0,
+                    transform=f"rotate(-90 {num(cx)} {num(cy)})",
+                )
+            )
+        size = c.fs(scaled(26, s))
+        mark, size = shrink(grade[0], 2 * r - sw - 8 * s, size, "bold", c.fs(FONT_FLOOR))
+        if mark:
+            label = sans(c, mark, cx, cy + size * 0.35, p.ink, size, "b", text_anchor="middle")
+            layer.append(el("g", rise(clock, begins[n], item, dy=4 * s), label))
+    gsz = lf * 1.12
+    tx = left + (gsz + 9 * s if glyphs else 0)
+    y0 = cy - n * step / 2
+    for k, row in enumerate(rows):
+        mid = y0 + step * (k + 0.5)
+        parts = []
+        if row["glyph"]:
+            parts.append(glyph_at(row["glyph"], left, mid - gsz / 2, gsz, c.pal.ink))
+        value = snug(row["value"], ends - tx, vf, "bold")
+        if value:
+            parts.append(sans(c, value, ends, mid + vf * 0.35, p.ink, vf, "b", text_anchor="end"))
+        room = ends - tx - text_width(value, vf, "bold") - 12 * s
+        name = snug(row["label"], room, lf)
+        if name:
+            parts.append(sans(c, name, tx, mid + lf * 0.35, p.text, lf))
+        if parts:
+            layer.append(el("g", rise(clock, begins[k], item, dy=6 * s), *parts))
+    art.body.append(el("g", veil(clock), *layer))
+    return art
+
+
+def streaks(counts: list[float]) -> tuple[int, int, int, int]:
+    """Current and longest run of days with a contribution, each with the index it ends on
+    (-1 for no run).
+
+    The rule is streaks() from the same author's github-stats-card-action (MIT), so the
+    two tools agree: the last day is today, which may still be empty; only an empty
+    yesterday breaks the current streak. Of runs that tie for longest, the latest wins.
+    """
+    longest = run = 0
+    longest_end = -1
+    for i, count in enumerate(counts):
+        run = run + 1 if count else 0
+        if run and run >= longest:
+            longest, longest_end = run, i
+    end = len(counts) - 2 if counts and counts[-1] == 0 else len(counts) - 1
+    current = 0
+    for count in reversed(counts[: end + 1]):
+        if not count:
+            break
+        current += 1
+    return current, end if current else -1, longest, longest_end
+
+
+def day_text(day: date, year: bool = True) -> str:
+    return f"{MONTHS[day.month - 1]} {day.day}" + (f", {day.year}" if year else "")
+
+
+def span_texts(a: date, b: date) -> list[str]:
+    """The date range a to b, longest wording first; the card shows the first that fits."""
+    if a == b:
+        return [day_text(a), day_text(a, False)]
+    start, end = day_text(a, False), day_text(b)
+    if a.year == b.year:
+        return [f"{start} - {end}", f"{start} - {day_text(b, False)}"]
+    month = f"{MONTHS[a.month - 1]} {a.year} - {MONTHS[b.month - 1]} {b.year}"
+    short = [f"{start} - {end}"] if (b - a).days < 300 else []  # the year is plain from b
+    return [f"{day_text(a)} - {end}", *short, month]
+
+
+def first_fit(options: list[str], room: float, size: float, face: str = "sans") -> str:
+    """The first option that fits room at size, else the last one cut to fit."""
+    for text in options:
+        if text_width(text, size, face) <= room:
+            return text
+    return snug(options[-1], room, size, face) if options else ""
+
+
+def streak_panels(spec: dict[str, Any]) -> list[tuple[str, list[str]]]:
+    """(number, range wordings) for total, current and longest, from given numbers or from
+    a contributions data set read through calendar_days()."""
+    if "days" in spec or "counts" in spec:
+        days = calendar_days(spec)
+        first, last = min(days), max(days)
+        span = (last - first).days + 1
+        if span > STREAK_SPAN:
+            raise ForgeError(f"streak data spans {span} days; the most is {STREAK_SPAN}")
+        counts = [days.get(first + timedelta(days=k), 0.0) for k in range(span)]
+        current, current_end, longest, longest_end = streaks(counts)
+
+        def run(length: int, end: int) -> list[str]:
+            b = first + timedelta(days=end)
+            return span_texts(b - timedelta(days=length - 1), b) if length else []
+
+        return [
+            (fmt_count(sum(counts)), span_texts(first, last)),
+            (fmt_count(current), run(current, current_end) or span_texts(last, last)),
+            (fmt_count(longest), run(longest, longest_end)),
+        ]
+    if not any(key in spec for key in ("total", "current", "longest")):
+        raise ForgeError(
+            "streak data needs total, current and longest, or contributions as days: "
+            "[{date, count}, ...] or start and counts"
+        )
+    out = []
+    for key in ("total", "current", "longest"):
+        if key not in spec:
+            raise ForgeError(f"streak data needs {key} next to the other two numbers")
+        value = count_of(spec[key], f"streak {key}")
+        if key != "total" and not value.is_integer():
+            raise ForgeError(f"streak {key} must be a whole number of days, got {value:g}")
+        span = spec.get(f"{key}_range")
+        span = "" if span in (None, "") else text_of(span, f"streak {key}_range", 40)
+        out.append((fmt_count(value), [span] if span else []))
+    return out
+
+
+def kind_streak(c: Ctx) -> Art:
+    """Streak card in three panels: total contributions with its date range, the current
+    streak as a big number in a ring under a flame (the one highlight), and the longest
+    streak with its range. The panels rise in turn, the ring draws in and the flame lands
+    in its gap. Under 400 px wide, and on a phone, the current streak sits on top with
+    total and longest side by side under it.
+
+    Data: given numbers {"total": 1284, "total_range": "Oct 5, 2025 - Present", "current":
+    12, "current_range": "Sep 29 - Oct 10", "longest": 41, "longest_range": "Mar 2 - Apr
+    11"} (the ranges are optional text), or contributions in the calendar format ({"days":
+    [{"date", "count"}, ...]} or {"start", "counts"}): the streaks then follow streaks(),
+    with the last day as today, and the ranges come from the dates.
+    """
+    spec = spec_of(c, "days")
+    panels = streak_panels(spec)
+    title = c.title or (text_of(spec["title"], "streak title") if spec.get("title") else "")
+    w = c.width or CARD_W
+    stacked = c.phone or w < 400
+    base_w = PHONE_W if stacked else CARD_W
+
+    def lay(s: float) -> dict[str, float]:
+        pad = 20 * s
+        hf = c.fs(scaled(10, s))
+        nf, lf, rf = c.fs(scaled(26, s)), c.fs(scaled(12, s)), c.fs(scaled(10.5, s))
+        dia, flame = 88 * s, 20 * s
+        sw = max(dia * 0.075, 2.0)
+        top = pad + (hf + 14 * s if title else 0)
+        cy = top + flame / 2 + dia / 2 - sw / 2
+        label = cy + dia / 2 + 8 * s + lf
+        low = label + rf * 1.55 + rf * 0.35  # the bottom of the current streak's range
+        rule = low + 14 * s
+        num_y = rule + 14 * s + nf * 0.75 if stacked else cy + nf * 0.35
+        side = num_y + 8 * s + lf
+        bottom = max(low, side + rf * 1.55 + rf * 0.35)
+        return dict(
+            pad=pad,
+            hf=hf,
+            nf=nf,
+            lf=lf,
+            rf=rf,
+            dia=dia,
+            flame=flame,
+            sw=sw,
+            top=top,
+            cy=cy,
+            label=label,
+            low=low,
+            rule=rule,
+            num=num_y,
+            side=side,
+            need=bottom + pad,
+        )
+
+    s = layout_scale(w, base_w, c.height, lambda k: lay(k)["need"])
+    m = lay(s)
+    h = c.height or max(0 if stacked else CARD_H * s, m["need"])
+    bw = min(w, base_w * s)
+    ox, oy = (w - bw) / 2, max(0.0, (h - m["need"]) / 2)
+    pad, nf, lf, rf, sw = m["pad"], m["nf"], m["lf"], m["rf"], m["sw"]
+    left, right = ox + pad, ox + bw - pad
+    cy = oy + m["cy"]
+    p = c.theme
+    (total, total_span), (current, current_span), (longest, longest_span) = panels
+
+    def days(v: str) -> str:
+        return f"{v} day" + ("" if v == "1" else "s")
+
+    def told(span: list[str]) -> str:
+        return f" ({span[0]})" if span else ""
+
+    desc = (
+        f"Streak: {total} contributions{told(total_span)}; current streak {days(current)}"
+        f"{told(current_span)}; longest streak {days(longest)}{told(longest_span)}."
+    )
+    art = Art(w, h, title or "Contribution streak", desc)
+    frame(c, art, rx=clamp(14 * s, 6, 24))
+    regular(c, art)
+    if title:
+        heading(c, art, title, x=left, y=oy + pad + m["hf"], size=m["hf"])
+    if stacked:  # hairlines between the panels
+        col = (right - left) / 2
+        xs = [left + col / 2, (left + right) / 2, left + col * 1.5]
+        rooms = [col - 8 * s, right - left, col - 8 * s]
+        y, end = oy + m["rule"], oy + m["need"] - pad
+        rules = [
+            f"M{num(left)} {num(y)} H{num(right)}",
+            f"M{num(xs[1])} {num(y + 10 * s)} V{num(end)}",
+        ]
+    else:
+        col = (right - left) / 3
+        xs = [left + col * (k + 0.5) for k in range(3)]
+        rooms = [col - 8 * s] * 3
+        y, end = oy + m["top"] + 4 * s, oy + m["low"]
+        rules = [f"M{num(left + col * k)} {num(y)} V{num(end)}" for k in (1, 2)]
+    for path in rules:
+        art.body.append(el("path", d=path, fill="none", stroke=p.border))
+    # the ring leaves a gap at the top for the flame: arc and track start just past it
+    dia, flame = m["dia"], m["flame"]
+    r = dia / 2 - sw / 2
+    circ = 2 * math.pi * r
+    gap = flame + 5 * s
+    arc = num(circ - gap)
+    turn = f"rotate({num(-90 + gap / circ * 180, 3)} {num(xs[1])} {num(cy)})"
+    ring = {"cx": xs[1], "cy": cy, "r": r, "fill": "none", "stroke_width": sw, "transform": turn}
+    art.body.append(
+        el(
+            "circle",
+            **ring,
+            stroke=p.panel_stroke,
+            stroke_dasharray=f"{arc} {num(circ)}",
+            opacity=0.6,
+        )
+    )
+    clock, begins, item = paced(c, 4, distance=w)
+    d = clock.dur
+    order = (1, 0, 2) if stacked else (0, 1, 2)  # panel by entrance slot: the top one first
+    at = {panel: begins[k] for k, panel in enumerate(order)}
+    a, b = at[1] / d, (begins[3] + item) / d
+    layer = [
+        el(
+            "circle",
+            animate("stroke-dashoffset", [(0, arc), (a, arc), (b, 0)], clock, ease=EASE_IN_OUT),
+            **ring,
+            stroke=c.pal.ink,
+            stroke_linecap="round",
+            stroke_dasharray=f"{arc} {num(circ)}",
+            stroke_dashoffset=0,
+        )
+    ]
+    for k, (value, span) in enumerate(panels):
+        x, room = xs[k], rooms[k]
+        parts = []
+        if k == 1:
+            inner = 2 * r - sw - 10 * s
+            text, size = shrink(value, inner, c.fs(scaled(30, s)), "bold", c.fs(FONT_FLOOR))
+            num_y, label_y, ink = cy + size * 0.35, oy + m["label"], c.pal.text
+        else:
+            text, size = shrink(value, room, nf, "bold", c.fs(FONT_FLOOR))
+            num_y, label_y, ink = oy + m["num"], oy + m["side"], p.text
+        if text:
+            parts.append(sans(c, text, x, num_y, p.ink, size, "b", text_anchor="middle"))
+        label = snug(STREAK_LABELS[k], room, lf)
+        if label:
+            parts.append(sans(c, label, x, label_y, ink, lf, text_anchor="middle"))
+        when = first_fit(span, room, rf)
+        if when:
+            y = label_y + rf * 1.55
+            parts.append(sans(c, when, x, y, p.dim, rf, "r", text_anchor="middle"))
+        if parts:
+            layer.append(el("g", rise(clock, at[k], item, dy=6 * s), *parts))
+    spark = glyph_at("flame", xs[1] - flame / 2, cy - r - flame / 2, flame, c.pal.ink)
+    layer.append(el("g", rise(clock, begins[3], item, dy=4 * s), spark))
+    art.body.append(el("g", veil(clock), *layer))
+    return art
+
+
 # ---------------------------------------------------------------- logos
 
 LOGO_BYTES = 64 * 1024  # per logo: the cap validate_svg.py (SV020) puts on a data: URI
@@ -3430,6 +3842,12 @@ KINDS: dict[str, KindSpec] = {
     "timeline": KindSpec(
         kind_timeline, "long", "career or history rail, current item pulses (--variant vertical)"
     ),
+    "stats": KindSpec(
+        kind_stats, "short", "summary card: glyph rows and a grade ring that draws in", phone=True
+    ),
+    "streak": KindSpec(
+        kind_streak, "short", "total, current and longest streak; reads calendar data", phone=True
+    ),
     "logos": KindSpec(
         kind_logos, "short", "logo wall of SVG, PNG/WebP or text pills; ambient = marquee"
     ),
@@ -3561,6 +3979,25 @@ SAMPLES: dict[str, Any] = {
                 "current": True,
             },
         ]
+    },
+    "stats": {
+        "title": "Open source stats",
+        "rows": [
+            {"label": "Stars earned", "value": "1.2k", "glyph": "star"},
+            {"label": "Commits this year", "value": "864", "glyph": "commit"},
+            {"label": "Pull requests", "value": "96", "glyph": "pull"},
+            {"label": "Issues opened", "value": "41", "glyph": "issue"},
+            {"label": "Contributed to", "value": "18", "glyph": "repo"},
+        ],
+        "grade": {"label": "A+", "value": 0.86},
+    },
+    "streak": {
+        "total": 1284,
+        "total_range": "Oct 5, 2025 - Present",
+        "current": 12,
+        "current_range": "Sep 29 - Oct 10",
+        "longest": 41,
+        "longest_range": "Mar 2 - Apr 11",
     },
     "logos": {
         "items": [
