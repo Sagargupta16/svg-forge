@@ -58,10 +58,11 @@ A README card is drawn for the 840 px desktop column. On a phone that column is 
   <source media="(prefers-color-scheme: light) and (min-width: 1012px)" srcset="assets/card-light.svg">
   <source media="(prefers-color-scheme: dark)" srcset="assets/card-dark-mobile.svg">
   <source media="(prefers-color-scheme: light)" srcset="assets/card-light-mobile.svg">
-  <img alt="..." src="assets/card-dark-mobile.svg" width="100%">
+  <img alt="..." src="assets/card-dark-mobile.svg" width="495">
 </picture>
 ```
 
+- The `width` is the desktop file's own width, whichever file is shown. GitHub caps images at the column width, so on a phone the 320 px file fills the column, and on a desktop a 495 px card stays 495 px instead of stretching to the column the way `width="100%"` would.
 - Order matters: a browser takes the first source whose media matches, and a wide window in dark mode matches both dark sources, so the desktop pair must come first.
 - Pieces with no text (dividers, loaders) need no phone file: they scale down and still read.
 - Check the phone layout on GitHub itself, at a 390 px viewport, before shipping it.

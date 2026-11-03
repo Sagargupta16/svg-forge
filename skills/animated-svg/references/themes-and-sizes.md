@@ -51,7 +51,11 @@ Use either `--size` or `--width`/`--height`, not both.
 
 ### Native and scaled kinds
 
-- **Native** (`timeline`, `logos`, `calendar`, `ring`): lay out at the canvas, with fonts and spacing from `sizes.Layout` and a 7 px font floor.
+- **Native** (`banner`, `heading`, `stats`, `streak`, `breakdown`, `radar`, `card`, `quote`, `skyline`, `timeline`, `logos`, `calendar`, `ring`): lay out at the canvas, with fonts and spacing from `sizes.Layout` and a 7 px font floor.
 - **Scaled** (`tiles`, `hero`, `marquee`, `chart`, `bars`, `flow`, `loader`, `typing`, `divider`, `badge`): draw their own layout, grown toward the canvas shape up to a per-kind limit, then fit in through the root `viewBox` with `preserveAspectRatio="xMidYMid meet"`, centered and never distorted. The margin takes the theme background, except badge, divider, loader and transparent themes.
 - Scaled kinds keep their label sizes, so at icon presets their text is too small to read (flow at 128 px draws labels about 1.4 px tall). For icons, use a native kind or a mark without labels.
 - At any size, check what a phone shows: an 880 px README image renders at about 0.41x at 375 px wide, so text that must be read needs about 22-24 px drawn size ([github-readme.md](github-readme.md)).
+
+### Phone layouts versus `--size`
+
+`--size` changes the canvas; `--device phone` changes the layout. A phone file is drawn 320 px wide, the width a README column has on a phone, so it shows at about 1x and its text floor is 10.5 px instead of 7 px: tiles drop to two columns, flow and timeline turn vertical, the calendar and skyline keep the last 26 weeks, and long labels wrap instead of shrinking ([kinds.md](kinds.md) lists each kind). `--device both` writes the desktop and phone files in the same theme, each with its own id prefix, and the `<picture>` swaps them at 1012 px. The two do not mix: `--device phone` takes no `--size`. Badge, divider and loader have no phone file: a badge is sized to its own text, and the other two carry none.

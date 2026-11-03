@@ -2,6 +2,44 @@
 
 All notable changes to this project are documented here. Follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-11-03
+
+### Added
+
+- **Phone layouts**: `forge.py --device desktop|phone|both`. A phone file is drawn 320 px wide with no text under 10.5 px, a re-layout rather than a shrink. Tiles drop to two columns, flow and timeline turn vertical, calendar and skyline keep the last 26 weeks, rings fall back to a list, and long lists end in a "+N more" line. `--device both` writes `NAME.svg` and `NAME-mobile.svg`, and with `--theme both` four files, and prints a four-source `<picture>`: the dark phone file is the `<img>`, and `(min-width: 1012px)` sources swap in the desktop pair. 1012 px is Primer's `breakpoint.large`. 20 of the 23 kinds have a phone layout; badge, divider and loader do not need one.
+- **Nine new kinds**, 23 in all:
+  - `banner`: header or footer, with six shapes (`wave`, `waving`, `slice`, `rounded`, `cylinder`, `speech`).
+  - `heading`: numbered section header whose rule draws in.
+  - `stats`: glyph rows and a grade ring.
+  - `streak`: total, current and longest, from given numbers or calendar data.
+  - `breakdown`: parts of a whole as a bar, donut or pie with a legend.
+  - `radar`: 3 to 8 axes with an optional compare series.
+  - `card`: project or repo card with status, tags, language, stars and forks.
+  - `quote`: one quote, or up to six that take turns.
+  - `skyline`: the contribution year as an isometric line city, the busiest day lit.
+- **Eight more loaders**: `pulse`, `orbit`, `bars`, `wave`, `ring`, `blocks`, `clock` and `bounce`, each on one clock, beside `spinner`, `dots` and `bar`.
+- **`pack.py` and starter packs**: one JSON file renders a whole README's cards in one theme, accent and device set, and writes `snippet.md` with the markup in order. Links wrap a `<picture>`, cards that share a `row` sit in one centered paragraph, and alt text is required. A pack card gives the same bytes as the matching `forge.py` command. `--check` exits 1 when a file is stale. `assets/packs/profile.json` and `project.json` use neutral sample data.
+- Shared helpers in forge.py: `wrap()` for word-wrapped text and 15 line glyphs (star, fork, commit, pull, issue, flame, check, clock, eye, code, repo, calendar, trophy, heart, bolt).
+- References:
+  - `references/kinds.md`: every kind's data shape, timing and phone layout, every option, and packs.
+  - `github-readme.md` section 3b: the phone pair, the 1012 px swap and its source order.
+  - The row rule: images in a row set `width` or `height`, never both, or GitHub now stacks them (github/markup#2045).
+  - `smil-and-css.md`: CSS `linear()` springs with a matching SMIL spline, a paint-order halo for text over busy art, and a Safari SMIL note.
+- 9 starter templates, one per new kind (27 in all), and 43 new examples (73 in all), including phone files for the header and 11 examples.
+- An eval case for the desktop and phone pair (13 cases), and tests for every new kind, the phone layouts and packs.
+
+### Changed
+
+- The README header ships as four files, so it reads on a phone.
+- A desktop and phone snippet sets `width` to the desktop file's width, so a 495 px card never stretches to the column.
+- `scripts/check.py` and `scripts/preview.py` understand `-mobile` files, and the poster test flags only a zero scale, not `scale(0.875)`.
+- The `animated-svg` and `svg-audit` skills and the `svg-designer` agent now default README cards with text to a phone file. `svg-audit` reports a missing phone file, a `<picture>` whose sources are in the wrong order, and rows of images that set both width and height.
+
+### Known limits
+
+- Card headings on a phone are shortened with an ellipsis past 37 characters.
+- `streak` takes given numbers as they are, so a current streak longer than the longest one is drawn as given.
+
 ## [0.3.0] - 2026-10-18
 
 ### Added

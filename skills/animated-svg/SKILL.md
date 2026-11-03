@@ -3,12 +3,13 @@ name: animated-svg
 description: >-
   Designs, generates, validates and optimizes self-contained animated SVG
   files that render wherever an image can be shown, such as GitHub README
-  cards, banners and headers, loaders, badges, dividers, charts and
-  diagrams, timelines, logo walls, contribution calendars and progress rings.
-  CSS and SMIL only, five shared timing presets (micro, short, medium, long,
-  ambient), a stdlib generator for fourteen kinds at any size with 15 theme
-  presets or a brand color, a validator with rule ids and WCAG contrast
-  checks, a frame renderer and a safe minifier. Use when the user asks for an "animated SVG", a
+  cards, banners and headings, stats, streak and project cards, loaders,
+  badges, dividers, charts and diagrams, timelines, logo walls, contribution
+  calendars and progress rings. CSS and SMIL only, five timing presets, a
+  stdlib generator for 23 kinds at any size with desktop and phone layouts,
+  15 theme presets or a brand color, starter packs for a whole README, a
+  validator with rule ids and WCAG contrast checks, a frame renderer and a
+  safe minifier. Use when the user asks for an "animated SVG", a
   "README card", "README banner" or "README header", an "SVG loader", to
   "animate this SVG", a "line draw", an "SVG diagram for README", a "GitHub
   profile animation", or runs /animated-svg [create|animate|optimize].
@@ -43,7 +44,7 @@ For a finished graphic end to end (storyboard, build, validate, iterate at every
 
 ### 1. Pin the requirements, then pick the delivery target
 
-Before drawing, settle five things from the request (ask only for what cannot be inferred): where it is shown (README, social card, app page, slide), the size (a preset from step 4 or WxH), the theme (GitHub dark and light, a preset, or a brand color), what it must say (the real numbers, names or steps), and whether it loops or plays once.
+Before drawing, settle five things from the request (ask only for what cannot be inferred): where it is shown (README, social card, app page, slide), the size (a preset from step 4 or WxH; a README card with text also gets a phone file), the theme (GitHub dark and light, a preset, or a brand color), what it must say (the real numbers, names or steps), and whether it loops or plays once.
 
 | Target | Shown through | Allowed | Not allowed | Validate with |
 | --- | --- | --- | --- | --- |
@@ -90,10 +91,10 @@ If a kind fits, generate it with `scripts/forge.py` and change the data, not the
 
 | Group | Kinds |
 | --- | --- |
-| Stats and data | `tiles`, `chart`, `bars`, `ring`, `calendar` |
-| Headers and identity | `hero`, `badge`, `logos`, `marquee`, `divider` |
+| Stats and data | `tiles`, `stats`, `streak`, `chart`, `bars`, `breakdown`, `radar`, `ring`, `calendar`, `skyline` |
+| Headers, cards and identity | `hero`, `banner`, `heading`, `card`, `quote`, `badge`, `logos`, `marquee`, `divider` |
 | Diagrams and stories | `flow`, `timeline`, `typing` |
-| Small marks | `loader` |
+| Small marks | `loader` (11 variants) |
 
 The options that matter most:
 - `--size`: `WxH`, a width, or a preset (`readme`, `card`, `og`, `linkedin-banner`, `square`, `story`, `icon-128` and more). Or `--width`/`--height` (8 to 4096), not both.
@@ -107,6 +108,8 @@ python scripts/forge.py --kind hero --theme both --device both --accent "#a78bfa
 ```
 
 A set of files (`--theme both`, `--mode both`, `--device both`) needs `--out` and prints the `<picture>` with the paths as given, so pass a repo-relative `--out`. Bad options or data exit with status 2 and a message.
+
+A whole README (header, section headings, stats, footer) is one pack: copy `assets/packs/profile.json` or `assets/packs/project.json`, edit the data and alt text, and run `python scripts/pack.py PACK.json`. Every card shares one theme, accent and device set, and `snippet.md` holds the markup in order, rows and links included ([references/kinds.md](references/kinds.md), Packs).
 
 If no kind fits, hand-author: start from the closest starter template (forge output with sample data, already validated), keep its frame, prefixed ids and `role`/`<title>`/`<desc>` block, and add motion one recipe at a time from [references/smil-and-css.md](references/smil-and-css.md). Choose SMIL for geometry, paths, morphs, discrete steps and chains; CSS for transform and opacity on groups and anything that should honor reduced motion.
 
@@ -128,10 +131,10 @@ python scripts/validate_svg.py assets/hero-light.svg --theme light --strict-cont
 
 A passing validator is not a working animation.
 
-1. See the timing: `python scripts/frames.py FILE.svg` writes `FILE.frames.png`, frames from t=0 to just before the loop restarts, so the start and the seam sit on one sheet. Read the PNG: entrances, overlaps, and the loop landing back on frame one. `--times 0,1.2,2.4` picks moments; `--theme both` adds a light row; captions show `k`, the keyTimes position. It needs headless Chrome, Edge or Chromium; exit 3 means none was found, so open the `.html` it wrote. Run it again with `--width 240` (a phone README card, a gallery tile) and fix any label that stops reading there.
+1. See the timing: `python scripts/frames.py FILE.svg` writes `FILE.frames.png`, frames from t=0 to just before the loop restarts, so the start and the seam sit on one sheet. Read the PNG: entrances, overlaps, and the loop landing back on frame one. `--times 0,1.2,2.4` picks moments; `--theme both` adds a light row; captions show `k`, the keyTimes position. It needs headless Chrome, Edge or Chromium; exit 3 means none was found, so open the `.html` it wrote. Run it again on the `-mobile.svg` file, and with `--width 240` for a gallery tile, and fix any label that stops reading there.
 2. Open the file directly in Chrome and Firefox (and Safari or WebKit when you can). Watch two full cycles; the seam is where loops break.
 3. Seek exact frames by hand when the sheet is not enough: with the `.svg` open as its own page, run `document.documentElement.pauseAnimations(); document.documentElement.setCurrentTime(2.4)` in the console for SMIL, and `document.getAnimations().forEach(a => { a.pause(); a.currentTime = 2400; })` for CSS. Check each beat boundary from the storyboard.
-4. README files: push to a branch and view the README on GitHub for that branch, in both GitHub themes, and at 375 px wide. An 840 px card renders at about 0.41x on a phone; anything that must be read needs about 22-24 px drawn size.
+4. README files: push to a branch and view the README on GitHub for that branch, in both GitHub themes, at 390 px and at 1280 px wide. The phone file must show under 1012 px and the desktop file above it. An 840 px card with no phone file renders at about 0.41x on a phone; anything that must be read needs about 22-24 px drawn size.
 5. Rows of cards or images inside links: render the snippet with `gh api --method POST markdown -f mode=gfm -F text=@snippet.md` and confirm no `js-gh-image-fallback` class appears.
 6. Accessibility: the file names itself (`role="img"`, `<title>`, `<desc>`); the README markup carries real alt text with the content and numbers (replace forge's title-only alt in the printed snippet); decorative pieces use `alt=""`. See [references/accessibility.md](references/accessibility.md).
 
@@ -147,8 +150,8 @@ All of it, with the config and the reasons: [references/optimize.md](references/
 ## Deliver
 
 Hand back:
-- the file paths and sizes (both theme files when `both`);
-- the README markup: the `<picture>` snippet or `<img>`, with descriptive alt text;
+- the file paths and sizes (both theme files when `both`, and the `-mobile` files when `--device both`);
+- the README markup: the `<picture>` snippet or `<img>`, with descriptive alt text (a pack's `snippet.md`);
 - the timing preset and the beat table used;
 - the validator result (with contrast), the `frames.py` contact sheet, and which browsers, themes and widths were checked;
 - anything not verified (for example Safari not available), and a note when a README loop runs longer than 5 s (WCAG 2.2.2 cannot be met inside an image).
@@ -175,7 +178,7 @@ Hand back:
 - [references/timing.md](references/timing.md): the five presets, easing curves, stagger math, one-clock storyboards, seamless loops, length budgets, WCAG 2.2.2 and the reduced-motion trade-off.
 - [references/design.md](references/design.md): mechanism over decoration, layout grids, palette and contrast on both GitHub themes, typography and width estimates, chips and label fitting, element budgets.
 - [references/optimize.md](references/optimize.md): `optimize_svg.py`, the animation-safe SVGO v4 config, id prefixing, size budgets, determinism.
-- [references/kinds.md](references/kinds.md): every kind with its data shape and default timing, every option, the starter templates.
+- [references/kinds.md](references/kinds.md): every kind with its data shape, default timing and phone layout, every option, packs, the starter templates.
 - [references/themes-and-sizes.md](references/themes-and-sizes.md): theme presets, families and `--mode`, brand and palette themes, the contrast guarantee, size presets, native versus scaled kinds.
 - [references/gotchas.md](references/gotchas.md): symptom, cause and fix for the failures that cost the most time.
 - [references/isometric.md](references/isometric.md): isometric line figures for hero and cover art: projection, solids, stroke weights, a designed rest, one highlight, paint order, the clock as the pointer.

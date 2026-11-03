@@ -28,10 +28,10 @@ Behavior changes to a skill: add or update a case under `evals/`; `pytest` check
 
 ## Adding a generator kind or option
 
-1. Add the kind to `skills/animated-svg/scripts/forge.py`: one function, the shared helpers, the timing preset table. Escape every interpolated string and keep output deterministic. Take every color from the `Theme` and the accent (never a literal), and decide whether it lays out natively at `--size` or is scaled; record that in the `--help` epilog.
+1. Add the kind to `skills/animated-svg/scripts/forge.py`: one function, the shared helpers, the timing preset table. Escape every interpolated string and keep output deterministic. Take every color from the `Theme` and the accent (never a literal), and decide whether it lays out natively at `--size` or is scaled; record that in the `--help` epilog. A kind that shows text gets `phone=True` and a layout for `c.phone`: 320 px wide, every font through `c.fs` (the 10.5 px floor), fewer columns or wrapped lines instead of smaller text, and a "+N more" line when a list will not fit.
 2. Add a test case in `tests/` (the meta-test fails if a kind has none) and a hostile-input case if the kind renders user text. `tests/test_integration.py` runs every kind across presets and themes.
-3. Add a recipe to `scripts/preview.py`, then run `python scripts/preview.py --rebuild` to regenerate its starter file in `skills/animated-svg/assets/templates/`, its examples and `examples/README.md`. Never hand-edit generated files.
-4. Document the kind in `skills/animated-svg/SKILL.md`.
+3. Add a recipe to `scripts/preview.py` (with `--device both` when the kind has a phone layout; the desktop file is the same bytes either way), then run `python scripts/preview.py --rebuild` to regenerate its starter file in `skills/animated-svg/assets/templates/`, its examples and `examples/README.md`. Never hand-edit generated files.
+4. Document the kind in `skills/animated-svg/references/kinds.md` (data shape, timing, phone layout) and in the group table of `skills/animated-svg/SKILL.md`.
 5. Look at the output: `python scripts/preview.py --frames` writes a contact sheet per example, then check it in a browser, and on GitHub through a pushed branch if it targets READMEs.
 
 ## Adding a validator rule

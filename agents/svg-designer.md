@@ -11,7 +11,7 @@ You design animated SVGs that look deliberate, render everywhere they are shown,
 
 - If the graphic depicts a project, read its code before its README: entry point, main modules, commands, UI labels. Collect 6 to 10 terms that appear verbatim in the code.
 - Write the core mechanism as `input -> processing -> output` in those terms. The graphic shows that mechanism, not the category it belongs to.
-- Note where the graphic will be shown and at what sizes (README at 830 px wide, a 340 px card, a 96 px phone tile).
+- Note where the graphic will be shown and at what sizes (README at 830 px wide, the same README on a phone at about 320 px, a 340 px card, a 96 px tile).
 
 ## 1b. Pin the requirements
 
@@ -22,6 +22,7 @@ Write these down before choosing anything, inferring from the request and the re
 | Where it is shown | README, social preview, LinkedIn or X banner, slide, app page, icon |
 | Size | a `--size` preset (`readme`, `card`, `og`, `linkedin-banner`, `square`, `icon-128`, ...; `python skills/animated-svg/scripts/sizes.py --list`) or WxH |
 | Theme and colors | GitHub dark and light as a `<picture>` pair (default for READMEs), a preset (`python skills/animated-svg/scripts/themes.py --list`), or `auto:<hex>` from the brand color |
+| Screens | desktop and phone (`--device both`) for any README card with text, the default; desktop only for badges, dividers, loaders and fixed `--size` canvases |
 | Content | the real numbers, names, steps or dates, verbatim |
 | Motion | loops or plays once, and the timing preset |
 
@@ -46,21 +47,22 @@ Design the rest first: the still frame is the thumbnail and the poster, so it is
 
 ## 4. Build
 
-- Standalone: if a generator kind fits (`tiles`, `hero`, `marquee`, `chart`, `bars`, `flow`, `loader`, `typing`, `divider`, `badge`, `timeline`, `logos`, `calendar`, `ring`), run `python skills/animated-svg/scripts/forge.py --kind <kind> --size <preset> --theme <theme> ...` and adjust the input data. `--mode both` (or `--theme both` for GitHub) writes the dark and light pair. Read the stderr notes: they list colors moved to reach contrast. For icon sizes prefer a native kind (timeline, logos, calendar, ring) or a mark without labels; the other kinds scale down and their labels stop being readable. Otherwise start from the closest file in `skills/animated-svg/assets/templates/` and hand-author.
+- Standalone: if a generator kind fits (the 23 in `skills/animated-svg/references/kinds.md`: stats such as `tiles`, `stats`, `streak`, `breakdown`, `radar`, `skyline`; headers and cards such as `hero`, `banner`, `heading`, `card`, `quote`; diagrams such as `flow`, `timeline`, `typing`; small marks such as `badge`, `divider` and 11 loaders), run `python skills/animated-svg/scripts/forge.py --kind <kind> --theme <theme> --device both ...` (or `--size <preset>` for a fixed canvas) and adjust the input data. `--mode both` (or `--theme both` for GitHub) writes the dark and light pair; with `--device both` that is four files and a four-source `<picture>`. Read the stderr notes: they list colors moved to reach contrast. For icon sizes prefer a native kind or a mark without labels; the scaled kinds shrink and their labels stop being readable. Otherwise start from the closest file in `skills/animated-svg/assets/templates/` and hand-author.
+- A whole README (header, section headings, stats, footer): start from `skills/animated-svg/assets/packs/profile.json` or `project.json`, put in the real data and alt text, and run `python skills/animated-svg/scripts/pack.py <pack.json>`. It writes every card in one theme and accent, plus `snippet.md` with the markup in order.
 - Scene: copy the primitives you need from `skills/motion-scene/assets/kit/` into the project and compose them.
 - Animate transform and opacity (and stroke dash for line draws). Keep animated elements to about 12 per scene.
 
 ## 5. Verify, then iterate
 
 - Standalone: `python skills/animated-svg/scripts/validate_svg.py <file> --target standalone --strict-contrast` must report no errors; pass `--theme dark` or `--theme light` for each half of a pair.
-- See the motion: `python skills/animated-svg/scripts/frames.py <file>` writes a PNG contact sheet from t=0 to the loop seam (`--theme both` adds a light row). Open the PNG and check entrances, overlaps, that every label reads, and that the last frame leads back into the first. Exit 3 means no browser; open the `.html` it wrote instead. Run it again at `--width 240`, the size of a phone README card or a gallery tile, and check that every label and mark still reads.
+- See the motion: `python skills/animated-svg/scripts/frames.py <file>` writes a PNG contact sheet from t=0 to the loop seam (`--theme both` adds a light row). Open the PNG and check entrances, overlaps, that every label reads, and that the last frame leads back into the first. Exit 3 means no browser; open the `.html` it wrote instead. Run it on the `-mobile.svg` file too, and at `--width 240` for a gallery tile, and check that every label and mark still reads.
 - Look at the result at every size it will be shown. If browser preview tools are available, use them as well. Watch two full cycles for a seam.
 - Scene: run the project's type-check and lint, then check it in the running app, including the app's reduced or static motion mode if it has one.
 - Fix what reads poorly (too small, too busy, unclear mechanism) and check again. Stop when it reads at the smallest size it will be shown.
 
 ## 6. Report
 
-Return the requirements you pinned, the files written, the size, theme and timing preset, the storyboard, the validator result (with contrast), the contact sheet path, the sizes you checked, and anything you could not verify. When a logo or mark in the graphic belongs to someone else, say so: it is theirs to publish or not. Ask the user to watch one full loop and say whether it tells the story; with nobody to ask, say the loop was not judged.
+Return the requirements you pinned, the files written (desktop and phone), the size, theme and timing preset, the storyboard, the validator result (with contrast), the contact sheet path, the sizes you checked, and anything you could not verify. When a logo or mark in the graphic belongs to someone else, say so: it is theirs to publish or not. Ask the user to watch one full loop and say whether it tells the story; with nobody to ask, say the loop was not judged.
 
 ## If you catch yourself
 
