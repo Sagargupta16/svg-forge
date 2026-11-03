@@ -1,0 +1,12 @@
+{
+  "title": "Project stats",
+  "rows": [
+    {"label": "Stars", "value": "4.9k", "glyph": "star"},
+    {"label": "Forks", "value": "312", "glyph": "fork"},
+    {"label": "Pull requests merged", "value": "128", "glyph": "pull"},
+    {"label": "Issues closed", "value": "406", "glyph": "issue"},
+    {"label": "Watchers", "value": "88", "glyph": "eye"},
+    {"label": "Median review time", "value": "3.2 h", "glyph": "clock"}
+  ],
+  "grade": {"label": "A", "value": 0.78}
+}

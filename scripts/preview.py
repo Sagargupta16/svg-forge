@@ -379,6 +379,30 @@ RECIPES: list[Recipe] = [
         "vertical rail, one-shot, light theme",
     ),
     Recipe(
+        f"{E}/stats-card.svg",
+        ("--kind", "stats", "--theme", "both", "--data", f"{E}/data/stats.json"),
+        "both themes, six rows and a grade ring",
+    ),
+    Recipe(
+        f"{E}/streak-card.svg",
+        (
+            "--kind",
+            "streak",
+            "--device",
+            "both",
+            "--accent",
+            "#fb923c",
+            "--data",
+            f"{E}/data/streak.json",
+        ),
+        "desktop and phone files; the phone stacks the current streak on top",
+    ),
+    Recipe(
+        f"{E}/streak-calendar.svg",
+        ("--kind", "streak", "--timing", "medium", "--data", f"{E}/data/contributions.json"),
+        "streaks and date ranges computed from calendar data, looping",
+    ),
+    Recipe(
         f"{E}/logos-wall.svg",
         ("--kind", "logos", "--data", f"{E}/data/logos.json"),
         "inline SVG symbols, a PNG and text pills",
