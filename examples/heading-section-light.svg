@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="64" viewBox="0 0 840 64" role="img" aria-labelledby="sf8fbcb3-title sf8fbcb3-desc" class="sf8fbcb3-root">
+<title id="sf8fbcb3-title">Release notes</title>
+<desc id="sf8fbcb3-desc">Section heading: 02 Release notes. What shipped this month</desc>
+<style>.sf8fbcb3-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sf8fbcb3-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sf8fbcb3-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
+<rect width="840" height="64" fill="#ffffff"/>
+<rect x="0" y="12" width="4" height="30" rx="2" fill="#217cec"/>
+<line x1="0" y1="60" x2="840" y2="60" stroke="rgba(11,16,18,0.2)" stroke-width="1"/>
+<text class="sf8fbcb3-m" x="18" y="22.25" fill="#0761d0" font-size="11">02 / WHAT SHIPPED THIS MONTH</text>
+<text class="sf8fbcb3-b" x="18" y="46" fill="#0b1012" font-size="24">Release notes</text>
+<g><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.92;0.9733;1" dur="4.8s" repeatCount="indefinite"/><line x1="0" y1="60" x2="233.2" y2="60" stroke="#0761d0" stroke-width="2" stroke-dasharray="233.2" stroke-dashoffset="0"><animate attributeName="stroke-dashoffset" values="233.2;233.2;0;0;233.2" keyTimes="0;0.04;0.29;0.9733;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="4.8s" repeatCount="indefinite"/></line><circle cx="233.2" cy="60" r="2.6" fill="#0761d0"><animate attributeName="cx" values="0;0;233.2;233.2;0" keyTimes="0;0.04;0.29;0.9733;1" calcMode="spline" keySplines="0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1;0.45 0 0.25 1" dur="4.8s" repeatCount="indefinite"/><animate attributeName="r" values="0;0;2.6;2.6;0" keyTimes="0;0.04;0.09;0.9733;1" dur="4.8s" repeatCount="indefinite"/></circle></g>
+</svg>

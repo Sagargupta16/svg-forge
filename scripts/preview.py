@@ -298,6 +298,64 @@ RECIPES: list[Recipe] = [
         "one entrance and one shine",
     ),
     Recipe(
+        f"{E}/heading-section.svg",
+        (
+            "--kind",
+            "heading",
+            "--theme",
+            "both",
+            "--data",
+            '{"number": "02", "title": "Release notes", "subtitle": "What shipped this month"}',
+        ),
+        "numbered section header, both themes",
+    ),
+    Recipe(
+        f"{E}/banner-header.svg",
+        (
+            "--kind",
+            "banner",
+            "--variant",
+            "waving",
+            "--accent",
+            "#a78bfa",
+            "--data",
+            '{"kicker": "Open source inventory", "title": "Northwind", "subtitle": "Realtime '
+            'stock for small shops", "lines": ["Works offline, syncs when back", "MIT licensed, '
+            'self-host in minutes"]}',
+        ),
+        "header: wave layers drift under lines that take turns",
+    ),
+    Recipe(
+        f"{E}/banner-footer.svg",
+        (
+            "--kind",
+            "banner",
+            "--theme",
+            "both",
+            "--data",
+            '{"section": "footer", "kicker": "Thanks for reading", "lines": ["Built in the '
+            'open.", "Issues and pull requests welcome."]}',
+        ),
+        "footer: a dot rides the wave, both themes",
+    ),
+    Recipe(
+        f"{E}/banner-speech.svg",
+        (
+            "--kind",
+            "banner",
+            "--variant",
+            "speech",
+            "--device",
+            "both",
+            "--accent",
+            "#22c55e",
+            "--data",
+            '{"kicker": "Bluefin CLI", "title": "Ship from the terminal", "lines": ["One '
+            'command to build, test and deploy", "Works with any CI"]}',
+        ),
+        "speech bubble, desktop and 320 px phone files",
+    ),
+    Recipe(
         f"{E}/timeline-career.svg",
         ("--kind", "timeline", "--data", f"{E}/data/career.json"),
         "rail draws in, the current role pulses",
