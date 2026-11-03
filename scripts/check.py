@@ -146,10 +146,14 @@ def check_manifests() -> list[str]:
 
 
 def svg_theme(path: Path) -> str:
-    """The GitHub page(s) a shipped SVG is shown on: one half of a pair on its own page."""
-    if path.stem.endswith("-dark"):
+    """The GitHub page(s) a shipped SVG is shown on: one half of a pair on its own page.
+
+    A -mobile file is the phone half of a desktop and phone set; its theme suffix sits before.
+    """
+    stem = path.stem.removesuffix("-mobile")
+    if stem.endswith("-dark"):
         return "dark"
-    return "light" if path.stem.endswith("-light") else "both"
+    return "light" if stem.endswith("-light") else "both"
 
 
 def check_svgs() -> list[str]:

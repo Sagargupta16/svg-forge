@@ -33,6 +33,7 @@ DOCS = ROOT / "docs"
 OUT = ROOT / "preview"
 sys.path.insert(0, str(SCRIPTS))
 
+import check  # noqa: E402
 import forge  # noqa: E402
 import frames  # noqa: E402
 import validate_svg  # noqa: E402
@@ -58,15 +59,29 @@ class Recipe:
             return self.args[self.args.index("--timing") + 1]
         return forge.KINDS[self.kind].timing
 
+    def option(self, flag: str) -> str | None:
+        return self.args[self.args.index(flag) + 1] if flag in self.args else None
+
     @property
     def both(self) -> bool:
-        return "both" in self.args
+        """A dark and light pair: --theme both, or a family with --mode both."""
+        return self.option("--theme") == "both" or self.option("--mode") == "both"
+
+    @property
+    def devices(self) -> list[str]:
+        device = self.option("--device") or "desktop"
+        return list(forge.DEVICES) if device == "both" else [device]
 
     def files(self) -> list[str]:
-        if not self.both:
+        themes = ["dark", "light"] if self.both else [None]
+        if len(themes) * len(self.devices) == 1:
             return [self.out]
-        stem = self.out.removesuffix(".svg")
-        return [f"{stem}-dark.svg", f"{stem}-light.svg"]
+        stem = Path(self.out.removesuffix(".svg"))
+        return [
+            forge.file_name(stem, theme, device).as_posix()
+            for theme in themes
+            for device in self.devices
+        ]
 
     def argv(self) -> list[str]:
         return [*self.args, "--out", self.out]
@@ -467,7 +482,7 @@ def contact_sheets() -> tuple[list[Path], str]:
     written = []
     for path in sorted(EXAMPLES.glob("*.svg")):
         png = OUT / "frames" / f"{path.stem}.png"
-        theme = next((t for t in ("dark", "light") if path.stem.endswith(f"-{t}")), "both")
+        theme = check.svg_theme(path)
         argv = [str(path), "--out", str(png), "--theme", theme, "--browser", browser]
         with contextlib.redirect_stdout(io.StringIO()):
             code = frames.main(argv)
