@@ -2,15 +2,16 @@
 name: animated-svg
 description: >-
   Designs, generates, validates and optimizes self-contained animated SVG
-  files that render wherever an image can be shown, such as GitHub README
-  cards, banners and headings, stats, streak and project cards, loaders,
-  badges, dividers, charts and diagrams, timelines, logo walls, contribution
-  calendars and progress rings. CSS and SMIL only, five timing presets, a
-  stdlib generator for 23 kinds at any size with desktop and phone layouts,
-  15 theme presets or a brand color, starter packs for a whole README, a
-  validator with rule ids and WCAG contrast checks, a frame renderer and a
-  safe minifier. Use when the user asks for an "animated SVG", a
-  "README card", "README banner" or "README header", an "SVG loader", to
+  files that render wherever an image can be shown, on web pages, in apps,
+  docs sites and GitHub READMEs, such as cards, banners and headings,
+  stats, streak and project cards, loaders, badges, charts and diagrams,
+  timelines, logo walls, contribution calendars and progress rings. CSS and
+  SMIL only, five timing presets, a generator for 23 kinds at any
+  size with desktop and phone layouts, 15 theme presets or a brand color,
+  starter packs for a whole README, a validator with WCAG contrast checks,
+  a frame and poster renderer and a safe minifier. Use when the user asks
+  for an "animated SVG", an "SVG for my website" or landing page, a "README
+  card", "README banner" or "README header", an "SVG loader", to
   "animate this SVG", a "line draw", an "SVG diagram for README", a "GitHub
   profile animation", or runs /animated-svg [create|animate|optimize].
   React and Motion scenes inside an app go to motion-scene; reviews of an
@@ -28,7 +29,7 @@ Script paths below are relative to this skill's folder (the directory that holds
 
 | Need | Skill |
 | --- | --- |
-| A standalone `.svg` for a README, docs site, package page or any `<img>`; or an SVG inlined in a plain HTML page | animated-svg (this one) |
+| A standalone `.svg` for a web page, app, docs site, package page, README or any `<img>`; an SVG inlined in a plain HTML page; a still PNG of one for slides, email or link previews | animated-svg (this one) |
 | An animated React component using Motion (`motion/react`) inside an app | motion-scene |
 | Review, debug or shrink an existing SVG or scene ("why doesn't it animate on GitHub") | svg-audit |
 
@@ -48,10 +49,10 @@ Before drawing, settle five things from the request (ask only for what cannot be
 
 | Target | Shown through | Allowed | Not allowed | Validate with |
 | --- | --- | --- | --- | --- |
-| `standalone` | `<img>` or a Markdown image: GitHub READMEs, docs, npm and PyPI pages | SMIL, CSS in an inline `<style>`, system fonts, small data URIs | script and event handlers, `<foreignObject>`, external `href`/`url()`/`@import`, hover and click, in-SVG theme switching | `--target standalone` |
+| `standalone` | `<img>`, `<picture>`, CSS `background-image` or a Markdown image: web pages, apps, docs sites, npm and PyPI pages, GitHub READMEs | SMIL, CSS in an inline `<style>`, system fonts, small data URIs | script and event handlers, `<foreignObject>`, external `href`/`url()`/`@import`, hover and click, in-SVG theme switching | `--target standalone` |
 | `web` | inline `<svg>` in a page you control | everything above, plus `:hover`/`:focus` and a page-level pause control | script inside the SVG; unprefixed ids (they collide with the page) | `--target web` |
 
-Default to `standalone` when the file will be committed to a repo or shown on a site you do not control. GitHub strips inline `<svg>` from Markdown, so a README can only show the file as an image. Details, sources and the `<picture>` pattern for dark and light: [references/github-readme.md](references/github-readme.md).
+Default to `standalone`: it works on every surface that shows an image, on a site you do not control, and in a repo. GitHub strips inline `<svg>` from Markdown, so a README can only show the file as an image ([references/github-readme.md](references/github-readme.md)). Every surface, from landing pages and apps to slides, email and link previews, with what it does to an animated SVG and how to ship to it: [references/where-it-runs.md](references/where-it-runs.md).
 
 ### 2. Pick a timing preset
 
@@ -99,7 +100,7 @@ If a kind fits, generate it with `scripts/forge.py` and change the data, not the
 The options that matter most:
 - `--size`: `WxH`, a width, or a preset (`readme`, `card`, `og`, `linkedin-banner`, `square`, `story`, `icon-128` and more). Or `--width`/`--height` (8 to 4096), not both.
 - `--theme`: `dark` (default), `light`, `both` (the GitHub pair), a preset (`nord`, `dracula`, `catppuccin-mocha`, ...), a family with `--mode dark|light|both`, `auto:<hex>` for a brand color, or a palette `.json`. Every preset and the contrast rules: [references/themes-and-sizes.md](references/themes-and-sizes.md).
-- `--device phone|both`: a phone layout drawn 320 px wide with no text under 10.5 px; `both` writes `NAME.svg` and `NAME-mobile.svg` and prints the `<picture>` that swaps them at 1012 px ([references/github-readme.md](references/github-readme.md) section 3b). Any README card with text needs it: an 840 px card shows at about 0.37x on a phone.
+- `--device phone|both`: a phone layout drawn 320 px wide with no text under 10.5 px; `both` writes `NAME.svg` and `NAME-mobile.svg` and prints the `<picture>` that swaps them at 1012 px, GitHub's breakpoint; pass `--breakpoint PX` for your own page ([references/github-readme.md](references/github-readme.md) section 3b). Any card with text needs it: an 840 px card shows at about 0.37x on a phone.
 - `--accent "#rrggbb"`, `--timing`, `--loop`/`--once`, `--data FILE.json`, `--title`, `--variant`.
 
 ```bash
@@ -134,7 +135,7 @@ A passing validator is not a working animation.
 1. See the timing: `python scripts/frames.py FILE.svg` writes `FILE.frames.png`, frames from t=0 to just before the loop restarts, so the start and the seam sit on one sheet. Read the PNG: entrances, overlaps, and the loop landing back on frame one. `--times 0,1.2,2.4` picks moments; `--theme both` adds a light row; captions show `k`, the keyTimes position. It needs headless Chrome, Edge or Chromium; exit 3 means none was found, so open the `.html` it wrote. Run it again on the `-mobile.svg` file, and with `--width 240` for a gallery tile, and fix any label that stops reading there.
 2. Open the file directly in Chrome and Firefox (and Safari or WebKit when you can). Watch two full cycles; the seam is where loops break.
 3. Seek exact frames by hand when the sheet is not enough: with the `.svg` open as its own page, run `document.documentElement.pauseAnimations(); document.documentElement.setCurrentTime(2.4)` in the console for SMIL, and `document.getAnimations().forEach(a => { a.pause(); a.currentTime = 2400; })` for CSS. Check each beat boundary from the storyboard.
-4. README files: push to a branch and view the README on GitHub for that branch, in both GitHub themes, at 390 px and at 1280 px wide. The phone file must show under 1012 px and the desktop file above it. An 840 px card with no phone file renders at about 0.41x on a phone; anything that must be read needs about 22-24 px drawn size.
+4. Web pages: open the page at 390 px and 1280 px wide, in both color schemes. README files: push to a branch and view the README on GitHub for that branch, in both GitHub themes, at 390 px and at 1280 px wide. The phone file must show under 1012 px and the desktop file above it. An 840 px card with no phone file renders at about 0.41x on a phone; anything that must be read needs about 22-24 px drawn size.
 5. Rows of cards or images inside links: render the snippet with `gh api --method POST markdown -f mode=gfm -F text=@snippet.md` and confirm no `js-gh-image-fallback` class appears.
 6. Accessibility: the file names itself (`role="img"`, `<title>`, `<desc>`); the README markup carries real alt text with the content and numbers (replace forge's title-only alt in the printed snippet); decorative pieces use `alt=""`. See [references/accessibility.md](references/accessibility.md).
 
@@ -151,7 +152,7 @@ All of it, with the config and the reasons: [references/optimize.md](references/
 
 Hand back:
 - the file paths and sizes (both theme files when `both`, and the `-mobile` files when `--device both`);
-- the README markup: the `<picture>` snippet or `<img>`, with descriptive alt text (a pack's `snippet.md`);
+- the markup: the `<picture>` snippet or `<img>`, with descriptive alt text (a pack's `snippet.md`), or a `frames.py --poster` PNG for a surface that takes no SVG;
 - the timing preset and the beat table used;
 - the validator result (with contrast), the `frames.py` contact sheet, and which browsers, themes and widths were checked;
 - anything not verified (for example Safari not available), and a note when a README loop runs longer than 5 s (WCAG 2.2.2 cannot be met inside an image).
@@ -183,3 +184,4 @@ Hand back:
 - [references/gotchas.md](references/gotchas.md): symptom, cause and fix for the failures that cost the most time.
 - [references/isometric.md](references/isometric.md): isometric line figures for hero and cover art: projection, solids, stroke weights, a designed rest, one highlight, paint order, the clock as the pointer.
 - [references/accessibility.md](references/accessibility.md): naming the file, alt text, decorative graphics, contrast, motion and WCAG.
+- [references/where-it-runs.md](references/where-it-runs.md): image, inline and document embedding; landing pages, apps, docs sites, link previews, slides, email and favicons; poster PNGs; your own breakpoint and theme switch.

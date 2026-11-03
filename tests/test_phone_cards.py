@@ -204,3 +204,19 @@ def test_cli_device_both_theme_both_writes_four_files(
         svg = path.read_text(encoding="utf-8")
         check(svg, "light" if "light" in name else "dark")
         assert (root_of(svg).getAttribute("width") == "320") is name.endswith("mobile")
+
+
+def test_cli_breakpoint_sets_where_the_desktop_file_shows(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "x.svg"
+    argv = ["--kind", "bars", "--device", "both", "--theme", "both", "--out", str(out)]
+
+    code = forge.main([*argv, "--breakpoint", "768"])
+
+    printed = capsys.readouterr().out
+    assert code == 0
+    assert printed.count(" and (min-width: 768px)") == 2
+    assert "1012px" not in printed
+    assert forge.main([*argv, "--breakpoint", "320"]) == 2
+    assert "--breakpoint must be wider than the 320 px phone file" in capsys.readouterr().err

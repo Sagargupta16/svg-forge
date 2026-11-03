@@ -71,6 +71,11 @@ SEEK = """<script>
 function seek(frame) {
   const t = Number(frame.dataset.t), doc = frame.contentDocument;
   if (!doc) return;
+  if (frame.dataset.t === "rest") {  // the static attributes: what a still export shows
+    doc.querySelectorAll("animate,animateTransform,animateMotion,set").forEach(a => a.remove());
+    doc.getAnimations().forEach(a => a.cancel());
+    return;
+  }
   for (const svg of doc.querySelectorAll("svg")) {
     if (!svg.ownerSVGElement && svg.pauseAnimations) {
       svg.pauseAnimations();
@@ -361,6 +366,41 @@ def build_html(
     return "\n".join(lines)
 
 
+def own_size(root: validate_svg.Node) -> tuple[int, int]:
+    """The SVG's drawn size in px: its width and height, else its viewBox, else 300x150."""
+    sizes = [LENGTH.match(root.attr(a) or "") for a in ("width", "height")]
+    if all(sizes):
+        w, h = (float(m.group(1)) for m in sizes if m)
+    else:
+        box = (root.attr("viewBox") or "").replace(",", " ").split()
+        try:
+            w, h = float(box[2]), float(box[3])
+        except (IndexError, ValueError):
+            w, h = 300.0, 150.0  # the CSS default size of a replaced element
+    return max(1, round(w)), max(1, round(h))
+
+
+def build_poster(svg: str, moment: str, width: int, height: int, background: str) -> str:
+    """One frame and nothing else: no caption, no padding, the page as wide as the frame."""
+    return "\n".join(
+        [
+            "<!doctype html>",
+            '<html lang="en">',
+            '<head><meta charset="utf-8"><style>',
+            f"html,body{{margin:0;background:{background};overflow:hidden}}",
+            f"iframe{{display:block;border:0;width:{width}px;height:{height}px}}",
+            "</style></head>",
+            "<body>",
+            f'<iframe sandbox="allow-same-origin" data-t="{moment}" title="poster" '
+            f'srcdoc="{srcdoc(svg, background)}"></iframe>',
+            SEEK,
+            "</body>",
+            "</html>",
+            "",
+        ]
+    )
+
+
 def install_paths() -> list[Path]:
     """Usual Chrome, Edge and Chromium locations on Windows, macOS and Linux."""
     out = []
@@ -404,7 +444,14 @@ def find_browser(override: str | None = None) -> str | None:
     return next((str(p) for p in install_paths() if p.is_file()), None)
 
 
-def screenshot(browser: str, page: Path, png: Path, size: tuple[int, int]) -> str | None:
+def screenshot(
+    browser: str,
+    page: Path,
+    png: Path,
+    size: tuple[int, int],
+    scale: float = 1.0,
+    transparent: bool = False,
+) -> str | None:
     """Screenshot page with a headless browser; None on success, else what went wrong."""
     png.unlink(missing_ok=True)
     with tempfile.TemporaryDirectory(prefix="svg-forge-", ignore_cleanup_errors=True) as profile:
@@ -418,7 +465,8 @@ def screenshot(browser: str, page: Path, png: Path, size: tuple[int, int]) -> st
             "--disable-extensions",
             # headless inherits the OS animation setting; show motion as most viewers see it
             "--force-prefers-no-reduced-motion",
-            "--force-device-scale-factor=1",
+            f"--force-device-scale-factor={fmt(scale)}",
+            *(["--default-background-color=00000000"] if transparent else []),
             f"--user-data-dir={profile}",
             f"--virtual-time-budget={BUDGET_MS}",
             f"--window-size={size[0]},{size[1]}",
@@ -437,6 +485,46 @@ def screenshot(browser: str, page: Path, png: Path, size: tuple[int, int]) -> st
     return f"{browser} wrote no PNG (exit {proc.returncode}): {' '.join(detail)}"
 
 
+def poster(
+    args: argparse.Namespace,
+    svg: str,
+    root: validate_svg.Node,
+    times: list[float] | None,
+    browser: str | None,
+) -> int:
+    """--poster: one PNG of the rest frame, or of the one --times moment."""
+    width, height = own_size(root)
+    if args.width:
+        width, height = args.width, max(1, round(args.width * aspect(root)))
+    moment = "rest" if times is None else fmt(times[0])
+    background = THEMES[args.theme][0] if args.theme else "transparent"
+    png = args.out or Path(f"{args.file.stem}.poster.png")
+    page = png.with_suffix(".html")
+    page.parent.mkdir(parents=True, exist_ok=True)
+    page.write_text(
+        build_poster(svg, moment, width, height, background), encoding="utf-8", newline="\n"
+    )
+    shown = "the rest frame" if times is None else f"t={moment}s"
+    if args.html_only or browser is None:
+        print(f"wrote {page}: {shown}")
+        if args.html_only:
+            return 0
+        print(
+            "frames.py: no Chrome, Edge or Chromium found, so no PNG; open the HTML page in a "
+            "browser, pass --browser PATH, or use --html-only",
+            file=sys.stderr,
+        )
+        return 3
+    error = screenshot(browser, page, png, (width, height), args.scale, transparent=not args.theme)
+    if error:
+        print(f"wrote {page}: {shown}")
+        print(f"frames.py: {error}", file=sys.stderr)
+        return 1
+    px = f"{round(width * args.scale)}x{round(height * args.scale)}"
+    print(f"wrote {png} ({px}) and {page}: {shown}")
+    return 0
+
+
 def parse_times(value: str) -> list[float] | None:
     times = [offset(t) for t in value.split(",") if t.strip()]
     if not times or any(t is None or t < 0 for t in times):
@@ -450,22 +538,39 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--frames", type=int, default=6, help="moments spread over one cycle")
     ap.add_argument("--times", help="exact moments, e.g. 0,0.5,1.2 or 500ms; beats --frames")
     ap.add_argument("--duration", default="auto", help="cycle length: auto or seconds")
-    ap.add_argument("--width", type=int, default=360, help="frame width in px")
+    ap.add_argument("--width", type=int, help="frame width in px (default 360; poster: the file's)")
     ap.add_argument("--cols", type=int, default=3, help="frames per row")
-    ap.add_argument("--theme", choices=["dark", "light", "both"], default="dark")
+    ap.add_argument(
+        "--theme",
+        choices=["dark", "light", "both"],
+        help="page behind the frames (default dark; a poster is transparent unless given)",
+    )
+    ap.add_argument(
+        "--poster",
+        action="store_true",
+        help="write one clean PNG instead of a sheet: the rest frame (the static attributes, "
+        "what a still export shows) or the one --times moment, at the file's own size",
+    )
+    ap.add_argument("--scale", type=float, default=1.0, help="pixel density, e.g. 2 for slides")
     ap.add_argument("--out", type=Path, help="PNG path (default FILE.frames.png here)")
     ap.add_argument("--html-only", action="store_true", help="write the HTML sheet only")
     ap.add_argument("--browser", help="Chrome, Edge or Chromium executable to use")
     args = ap.parse_args(argv)
     if args.frames < 1:
         ap.error("--frames must be at least 1")
-    if args.width < 16:
+    if args.width is not None and args.width < 16:
         ap.error("--width must be at least 16")
+    if not 0.25 <= args.scale <= 4:
+        ap.error("--scale takes 0.25 to 4")
+    if args.poster and args.theme == "both":
+        ap.error("--poster draws one frame; pick --theme dark or light, or leave it transparent")
     if args.cols < 1:
         ap.error("--cols must be at least 1")
     times = parse_times(args.times) if args.times else None
     if args.times and times is None:
         ap.error("--times takes non-negative times like 0,0.5,1.2s or 500ms")
+    if args.poster and times is not None and len(times) != 1:
+        ap.error("--poster draws one frame; give --times one moment, or none for the rest frame")
     browser = None
     if not args.html_only:
         browser = find_browser(args.browser)
@@ -482,6 +587,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"frames.py: {args.file} is not a well-formed SVG: {exc}", file=sys.stderr)
         return 1
 
+    if args.poster:
+        return poster(args, svg, root, times, browser)
+
     found, loops = timeline(root)
     auto = args.duration == "auto"
     duration = found if auto else validate_svg.seconds(args.duration)
@@ -496,8 +604,8 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
     seam = args.times is None and loops and len(times) > 1
-    themes = ["dark", "light"] if args.theme == "both" else [args.theme]
-    width = args.width
+    themes = ["dark", "light"] if args.theme == "both" else [args.theme or "dark"]
+    width = args.width or 360
     height = max(1, round(width * aspect(root)))
     png = args.out or Path(f"{args.file.stem}.frames.png")
     page = png.with_suffix(".html")
@@ -531,7 +639,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 3
     size = sheet_size(len(times), args.cols, width, height, len(themes))
-    error = screenshot(browser, page, png, size)
+    error = screenshot(browser, page, png, size, args.scale)
     if error:
         print(f"wrote {page}: {summary}")
         print(f"frames.py: {error}", file=sys.stderr)

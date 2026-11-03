@@ -413,12 +413,14 @@ def wrap(
 FONT_FLOOR = 7.0  # px; smaller text stops reading on a phone
 # Phone layouts. A desktop README card (840 px) shows at about 0.37x in a phone's 308 px
 # README column, so every label turns to texture. A phone layout is drawn 320 px wide with
-# text at PHONE_TEXT or more, and a <picture> swaps in the desktop card at DESKTOP_MEDIA:
-# GitHub's README column is 383 to 626 px wide from a 768 px to a 1011 px window, where a
-# desktop card would still shrink to 0.46-0.75x.
+# text at PHONE_TEXT or more, and a <picture> swaps in the desktop card from DESKTOP_MIN px.
+# The default is GitHub's: its README column is 383 to 626 px wide from a 768 px to a
+# 1011 px window, where a desktop card would still shrink to 0.46-0.75x. Other pages pass
+# their own with --breakpoint.
 PHONE_W = 320
 PHONE_TEXT = 10.5
-DESKTOP_MEDIA = "(min-width: 1012px)"
+DESKTOP_MIN = 1012
+DESKTOP_MEDIA = f"(min-width: {DESKTOP_MIN}px)"
 DEVICES = ("desktop", "phone")
 MIN_EDGE = 8  # px for --width and --height; a divider or a bar loader is thinner than a canvas
 FLOW_MIN_NODE = 44  # px; a narrower flow node cannot hold even a three-letter label
@@ -1230,7 +1232,8 @@ def kind_hero(c: Ctx) -> Art:
             label = fit(status.upper(), room - 46, size, "mono", MONO_LS)
             pill_w = text_width(label, size, "mono", MONO_LS) + 46
         else:
-            pill_y, dot_y, label = 176 * s, 190 * s, status.upper()
+            pill_y, label = 176 * s, status.upper()
+            dot_y = pill_y + 14  # the pill stays 28 tall at any canvas height
             pill_w = text_width(label, 10, "mono", 1.0) + 46
         pulse = not one
         dot = el("circle", cx=x0 + 18, cy=dot_y, r=4, fill=p.ok)
@@ -7228,12 +7231,15 @@ def picture(dark: str, light: str, alt: str) -> str:
 
 
 def picture_set(
-    paths: dict[tuple[str | None, str], str], alt: str, width: str | None = None
+    paths: dict[tuple[str | None, str], str],
+    alt: str,
+    width: str | None = None,
+    breakpoint: int = DESKTOP_MIN,
 ) -> str:
     """The <picture> for a set of files keyed (theme or None, device).
 
-    Desktop sources come first, each with DESKTOP_MEDIA when there is a phone file too, so
-    a wide window takes them before the phone ones; dark before light. The <img> is the
+    Desktop sources come first, each with (min-width: breakpoint px) when there is a phone
+    file too, so a wide window takes them before the phone ones; dark before light. The <img> is the
     phone file (dark when there are two), which also serves viewers without <picture>.
     width sets the <img> width attribute (never a height: images in one row that set both
     stack, github/markup#2045); by default it is 100% for a desktop and phone set, else none.
@@ -7246,7 +7252,7 @@ def picture_set(
                 continue
             media = [f"(prefers-color-scheme: {theme})"] if theme else []
             if device == "desktop" and both_devices:
-                media.append(DESKTOP_MEDIA)
+                media.append(f"(min-width: {breakpoint}px)")
             if media:  # a lone phone file has no query: it is the <img> below
                 srcset = html.escape(paths[(theme, device)])
                 lines.append(f'  <source media="{" and ".join(media)}" srcset="{srcset}">')
@@ -7356,7 +7362,15 @@ def build_parser() -> argparse.ArgumentParser:
         choices=[*DEVICES, "both"],
         default="desktop",
         help=f"desktop (default), phone ({PHONE_W} px layout, text {PHONE_TEXT:g} px or more), "
-        "or both: NAME.svg and NAME-mobile.svg with a <picture> that swaps at 1012 px",
+        "or both: NAME.svg and NAME-mobile.svg with a <picture> that swaps at --breakpoint",
+    )
+    ap.add_argument(
+        "--breakpoint",
+        type=int,
+        default=DESKTOP_MIN,
+        metavar="PX",
+        help=f"viewport width where --device both shows the desktop file (default "
+        f"{DESKTOP_MIN}, GitHub's large breakpoint; use your page's own, such as 768)",
     )
     ap.add_argument("--reduced-motion", choices=["ignore", "respect"], default="ignore")
     ap.add_argument("--font-stack", help="sans, mono, serif, system, or a font-family list")
@@ -7391,6 +7405,11 @@ def main(argv: list[str] | None = None) -> int:
     svgs: dict[tuple[str | None, str], str] = {}
     notes: list[str] = []
     try:
+        if not PHONE_W < args.breakpoint <= 4096:
+            raise ForgeError(
+                f"--breakpoint must be wider than the {PHONE_W} px phone file and at most "
+                f"4096, got {args.breakpoint}"
+            )
         files = plan(args.theme, args.mode)
         devices = list(DEVICES) if args.device == "both" else [args.device]
         if len(files) * len(devices) > 1 and not args.out:
@@ -7449,7 +7468,8 @@ def main(argv: list[str] | None = None) -> int:
     # stretch to the column, and GitHub caps a wider image at the column on a phone
     desktop = next((svg for (_, device), svg in svgs.items() if device == "desktop"), "")
     width = svg_width(desktop) if len(devices) == 2 else None
-    print(picture_set(shown, html.unescape(alt.group(1) if alt else ""), width=width))
+    alt_text = html.unescape(alt.group(1) if alt else "")
+    print(picture_set(shown, alt_text, width=width, breakpoint=args.breakpoint))
     return 0
 
 

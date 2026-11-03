@@ -11,7 +11,7 @@ You design animated SVGs that look deliberate, render everywhere they are shown,
 
 - If the graphic depicts a project, read its code before its README: entry point, main modules, commands, UI labels. Collect 6 to 10 terms that appear verbatim in the code.
 - Write the core mechanism as `input -> processing -> output` in those terms. The graphic shows that mechanism, not the category it belongs to.
-- Note where the graphic will be shown and at what sizes (README at 830 px wide, the same README on a phone at about 320 px, a 340 px card, a 96 px tile).
+- Note where the graphic will be shown and at what sizes (a landing page hero, an app card, a README at 830 px wide, the same page on a phone at about 320 px, a 96 px tile, a 1200x630 link preview).
 
 ## 1b. Pin the requirements
 
@@ -19,10 +19,10 @@ Write these down before choosing anything, inferring from the request and the re
 
 | Requirement | Settle it as |
 | --- | --- |
-| Where it is shown | README, social preview, LinkedIn or X banner, slide, app page, icon |
+| Where it is shown | web page, app, docs site, README, social preview, LinkedIn or X banner, slide, email, icon (`skills/animated-svg/references/where-it-runs.md` says what each does to an animated SVG) |
 | Size | a `--size` preset (`readme`, `card`, `og`, `linkedin-banner`, `square`, `icon-128`, ...; `python skills/animated-svg/scripts/sizes.py --list`) or WxH |
-| Theme and colors | GitHub dark and light as a `<picture>` pair (default for READMEs), a preset (`python skills/animated-svg/scripts/themes.py --list`), or `auto:<hex>` from the brand color |
-| Screens | desktop and phone (`--device both`) for any README card with text, the default; desktop only for badges, dividers, loaders and fixed `--size` canvases |
+| Theme and colors | dark and light as a `<picture>` pair (default for READMEs and pages that follow the OS), the page's own CSS variables when it is inlined in an app with a theme switch, a preset (`python skills/animated-svg/scripts/themes.py --list`), or `auto:<hex>` from the brand color |
+| Screens | desktop and phone (`--device both`) for any card with text, the default, with `--breakpoint` set to the page's own; desktop only for badges, dividers, loaders and fixed `--size` canvases |
 | Content | the real numbers, names, steps or dates, verbatim |
 | Motion | loops or plays once, and the timing preset |
 
@@ -49,6 +49,7 @@ Design the rest first: the still frame is the thumbnail and the poster, so it is
 
 - Standalone: if a generator kind fits (the 23 in `skills/animated-svg/references/kinds.md`: stats such as `tiles`, `stats`, `streak`, `breakdown`, `radar`, `skyline`; headers and cards such as `hero`, `banner`, `heading`, `card`, `quote`; diagrams such as `flow`, `timeline`, `typing`; small marks such as `badge`, `divider` and 11 loaders), run `python skills/animated-svg/scripts/forge.py --kind <kind> --theme <theme> --device both ...` (or `--size <preset>` for a fixed canvas) and adjust the input data. `--mode both` (or `--theme both` for GitHub) writes the dark and light pair; with `--device both` that is four files and a four-source `<picture>`. Read the stderr notes: they list colors moved to reach contrast. For icon sizes prefer a native kind or a mark without labels; the scaled kinds shrink and their labels stop being readable. Otherwise start from the closest file in `skills/animated-svg/assets/templates/` and hand-author.
 - A whole README (header, section headings, stats, footer): start from `skills/animated-svg/assets/packs/profile.json` or `project.json`, put in the real data and alt text, and run `python skills/animated-svg/scripts/pack.py <pack.json>`. It writes every card in one theme and accent, plus `snippet.md` with the markup in order.
+- A surface that takes no SVG (link previews, slides, email): build the SVG at the surface's size, then `python skills/animated-svg/scripts/frames.py <file> --poster` writes a PNG of its rest frame (`--scale 2` for slides).
 - Scene: copy the primitives you need from `skills/motion-scene/assets/kit/` into the project and compose them.
 - Animate transform and opacity (and stroke dash for line draws). Keep animated elements to about 12 per scene.
 

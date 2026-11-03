@@ -20,7 +20,9 @@ A pack describes the set once, in JSON:
     ]
   }
 
-Pack keys: out_dir (default assets/cards), cards, and the defaults every card inherits:
+Pack keys: out_dir (default assets/cards), cards, breakpoint (the px width where a desktop
+and phone set shows the desktop file, default 1012 for GitHub), and the defaults every
+card inherits:
 theme, mode, accent, device, font_stack, reduced_motion. Card keys: name (the file stem),
 kind, alt (required; "" marks a decorative card), data (inline JSON) or data_file (a JSON
 file, or a .txt text spec for flow), link, row, and any forge.py option under its flag name
@@ -67,7 +69,7 @@ DEFAULT_OUT = "assets/cards"
 SHARED = ("theme", "mode", "accent", "device", "font_stack", "reduced_motion")
 OWN = ("size", "timing", "variant", "width", "height", "title", "desc", "loop", "speed")
 OPTIONS = (*SHARED, *OWN, "id_prefix")
-PACK_KEYS = ("out_dir", "cards", *SHARED)
+PACK_KEYS = ("out_dir", "cards", "breakpoint", *SHARED)
 CARD_KEYS = ("name", "kind", "alt", "data", "data_file", "link", "row", *OPTIONS)
 NUMBERS = frozenset({"width", "height", "speed"})
 KEYWORD = {"font_stack": "font"}  # the forge.build() keyword where it differs from the flag
@@ -209,7 +211,9 @@ def linked(markup: str, link: str | None) -> str:
     return markup if link is None else f'<a href="{html.escape(link)}">{one_line(markup)}</a>'
 
 
-def snippet(cards: list[Card], src_dir: str, label: str) -> str:
+def snippet(
+    cards: list[Card], src_dir: str, label: str, breakpoint: int = forge.DESKTOP_MIN
+) -> str:
     """README markup for every card, in pack order, as one fenced block."""
     blocks: list[tuple[str | None, list[str]]] = []
     for card in cards:
@@ -218,10 +222,12 @@ def snippet(cards: list[Card], src_dir: str, label: str) -> str:
         }
         if card.row is None:
             width = card.width if card.both_devices else None  # never the column's 100%
-            markup = forge.picture_set(paths, card.alt, width=width)
+            markup = forge.picture_set(paths, card.alt, width=width, breakpoint=breakpoint)
             blocks.append((None, [linked(markup, card.link)]))
             continue
-        sized = forge.picture_set(paths, card.alt, width=card.width)  # width only, never height
+        sized = forge.picture_set(  # width only, never height
+            paths, card.alt, width=card.width, breakpoint=breakpoint
+        )
         item = linked(one_line(sized), card.link)
         row = next((items for key, items in blocks if key == card.row), None)
         if row is None:
@@ -263,6 +269,17 @@ def render_pack(path: Path, out_dir: str | None = None) -> tuple[dict[Path, str]
                 shared[key] = option(key, pack[key])
         except Problem as exc:
             problems.append(f"{label}: {exc}")
+    breakpoint = pack.get("breakpoint", forge.DESKTOP_MIN)
+    if (
+        isinstance(breakpoint, bool)
+        or not isinstance(breakpoint, int)
+        or not forge.PHONE_W < breakpoint <= 4096
+    ):
+        problems.append(
+            f"{label}: breakpoint: must be a whole px width over {forge.PHONE_W} "
+            f"and at most 4096, got {json.dumps(breakpoint)}"
+        )
+        breakpoint = forge.DESKTOP_MIN
     base = path.resolve().parent
     out = pack.get("out_dir", DEFAULT_OUT) if out_dir is None else out_dir
     if not isinstance(out, str) or not out.strip():
@@ -299,7 +316,7 @@ def render_pack(path: Path, out_dir: str | None = None) -> tuple[dict[Path, str]
         for card in cards
         for key, svg in card.files.items()
     }
-    files[target / "snippet.md"] = snippet(cards, Path(out).as_posix(), label)
+    files[target / "snippet.md"] = snippet(cards, Path(out).as_posix(), label, breakpoint)
     return files, notes
 
 

@@ -393,3 +393,15 @@ def test_straight_edge_label_sits_at_the_middle() -> None:
 
     x = float(re.search(r'x="([\d.]+)"[^>]*>GO</text>', svg).group(1))
     assert 250 < x < 350
+
+
+@pytest.mark.parametrize("size", ["840x250", "1200x630", "readme", "square"])
+def test_hero_status_dot_sits_inside_its_pill_at_any_size(size: str) -> None:
+    svg = forge.build("hero", theme="dark", size=size)[0]
+    root = minidom.parseString(svg).documentElement
+    pill = next(r for r in root.getElementsByTagName("rect") if r.getAttribute("rx") == "14")
+    dot = next(c for c in root.getElementsByTagName("circle") if c.getAttribute("r") == "4")
+
+    top, height = float(pill.getAttribute("y")), float(pill.getAttribute("height"))
+
+    assert float(dot.getAttribute("cy")) == pytest.approx(top + height / 2, abs=0.01)

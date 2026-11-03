@@ -6,6 +6,9 @@ All notable changes to this project are documented here. Follows [Semantic Versi
 
 ### Added
 
+- **Any page, not only GitHub**: `references/where-it-runs.md` covers image, inline and document embedding, then landing pages, apps, docs sites, link previews, slides, email and favicons. Each surface says what it does to an animated SVG and how to ship to it, with sources. The README, skills, agent and manifests now describe svg-forge as a tool for any page, app or README.
+- **`frames.py --poster`**: one clean PNG of the rest frame, which is what a still export shows, at the file's own size on a transparent page. It is for surfaces that take no SVG: link previews, slides and email. `--scale` sets the pixel density, `--times` picks one moment instead, and `--theme` puts a page color behind it.
+- **`forge.py --breakpoint PX`** and a pack `breakpoint` key set the width where a desktop and phone `<picture>` shows the desktop file. The default stays 1012, GitHub's.
 - **Phone layouts**: `forge.py --device desktop|phone|both`. A phone file is drawn 320 px wide with no text under 10.5 px, a re-layout rather than a shrink. Tiles drop to two columns, flow and timeline turn vertical, calendar and skyline keep the last 26 weeks, rings fall back to a list, and long lists end in a "+N more" line. `--device both` writes `NAME.svg` and `NAME-mobile.svg`, and with `--theme both` four files, and prints a four-source `<picture>`: the dark phone file is the `<img>`, and `(min-width: 1012px)` sources swap in the desktop pair. 1012 px is Primer's `breakpoint.large`. 20 of the 23 kinds have a phone layout; badge, divider and loader do not need one.
 - **Nine new kinds**, 23 in all:
   - `banner`: header or footer, with six shapes (`wave`, `waving`, `slice`, `rounded`, `cylinder`, `speech`).
@@ -30,10 +33,14 @@ All notable changes to this project are documented here. Follows [Semantic Versi
 
 ### Changed
 
-- The README header ships as four files, so it reads on a phone.
+- The README header ships as four files, so it reads on a phone, and its first tagline reads "Animated SVGs for any page, app or README".
 - A desktop and phone snippet sets `width` to the desktop file's width, so a 495 px card never stretches to the column.
 - `scripts/check.py` and `scripts/preview.py` understand `-mobile` files, and the poster test flags only a zero scale, not `scale(0.875)`.
 - The `animated-svg` and `svg-audit` skills and the `svg-designer` agent now default README cards with text to a phone file. `svg-audit` reports a missing phone file, a `<picture>` whose sources are in the wrong order, and rows of images that set both width and height.
+
+### Fixed
+
+- `hero` on a canvas taller or shorter than 250 px drew its status dot off the pill, below its center and past its bottom edge at 1200x630. The dot now sits at the pill's center at any size.
 
 ### Known limits
 

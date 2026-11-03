@@ -307,6 +307,45 @@ def test_bad_arguments_exit_2(tmp_path: Path, args: list[str]) -> None:
     assert exc.value.code == 2
 
 
+def poster_page(tmp_path: Path, src: Path, *extra: str) -> Sheet:
+    out = tmp_path / "poster.png"
+    assert frames.main([str(src), "--poster", "--out", str(out), "--html-only", *extra]) == 0
+    return sheet_of((tmp_path / "poster.html").read_text(encoding="utf-8"))
+
+
+def test_poster_is_one_rest_frame_at_the_files_own_size(tmp_path: Path) -> None:
+    src = tmp_path / "card.svg"
+    src.write_text(svg(anim('dur="1s"')).replace("<svg ", '<svg width="240" height="80" '))
+
+    page = poster_page(tmp_path, src)
+
+    assert len(page.iframes) == 1 and not page.sections
+    assert page.iframes[0]["data-t"] == "rest"
+    text = (tmp_path / "poster.html").read_text(encoding="utf-8")
+    assert "iframe{display:block;border:0;width:240px;height:80px}" in text
+    assert "background:transparent" in text
+
+
+def test_poster_takes_one_moment_and_a_width(tmp_path: Path) -> None:
+    src = write(tmp_path, anim('dur="2s"'))
+
+    page = poster_page(tmp_path, src, "--times", "1.5", "--width", "400", "--theme", "light")
+
+    assert page.iframes[0]["data-t"] == "1.5"
+    text = (tmp_path / "poster.html").read_text(encoding="utf-8")
+    assert "width:400px;height:200px" in text and frames.THEMES["light"][0] in text
+
+
+@pytest.mark.parametrize(
+    "args", [["--times", "0,1"], ["--theme", "both"], ["--scale", "0"], ["--scale", "9"]]
+)
+def test_bad_poster_arguments_exit_2(tmp_path: Path, args: list[str]) -> None:
+    src = write(tmp_path, anim('dur="1s"'))
+    with pytest.raises(SystemExit) as exc:
+        frames.main([str(src), "--poster", "--html-only", "--out", str(tmp_path / "p.png"), *args])
+    assert exc.value.code == 2
+
+
 def test_malformed_svg_exits_1(tmp_path: Path) -> None:
     src = tmp_path / "bad.svg"
     src.write_text("<svg", encoding="utf-8")
@@ -382,3 +421,25 @@ def test_real_browser_shows_smil_and_css_at_each_time(tmp_path: Path) -> None:
     style = [rgb(rows, x + 150, top) for x in cells]
     assert smil == [(255, 0, 0), (0, 0, 255)]
     assert style == [(0, 0, 0), (0, 255, 0)]  # motion shows even if the OS asks for less
+
+
+@pytest.mark.skipif(frames.find_browser() is None, reason="no Chrome, Edge or Chromium here")
+def test_real_browser_poster_shows_the_static_attributes_at_its_scale(tmp_path: Path) -> None:
+    body = (
+        css(".c{animation:c 2s infinite}@keyframes c{from,to{fill:#00ff00}}")
+        + '<rect width="100" height="100" fill="#ff0000"><animate attributeName="fill" '
+        'values="#0000ff;#0000ff" dur="2s" repeatCount="indefinite"/></rect>'
+        + '<rect class="c" x="100" width="100" height="100" fill="#000000"/>'
+    )
+    src = write(tmp_path, body)
+    out = tmp_path / "poster.png"
+
+    assert (
+        frames.main([str(src), "--poster", "--scale", "2", "--theme", "dark", "--out", str(out)])
+        == 0
+    )
+
+    width, height, rows = read_png(out)
+    assert (width, height) == (400, 200)
+    assert rgb(rows, 100, 100) == (255, 0, 0)  # the SMIL value is gone: the rect's own fill
+    assert rgb(rows, 300, 100) == (0, 0, 0)  # the CSS animation is cancelled too

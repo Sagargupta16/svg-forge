@@ -10,7 +10,7 @@
 
 ## Project
 
-Public Claude Code plugin (`svg-forge`) for designing animated SVGs that render everywhere: self-contained files for GitHub READMEs and `<img>`, and React + Motion scenes for web apps. Built from what worked (and broke) in the owner's portfolio covers, profile README renderer and README card actions.
+Public Claude Code plugin (`svg-forge`) for designing animated SVGs that render everywhere: self-contained files for any web page, app, docs site or GitHub README (anything that shows an `<img>`), poster PNGs for slides, email and link previews, and React + Motion scenes for web apps. GitHub is one target, not the scope. Built from what worked (and broke) in the owner's portfolio covers, profile README renderer and README card actions.
 
 Installed with `/plugin marketplace add Sagargupta16/svg-forge` then `/plugin install svg-forge@svg-forge`.
 
@@ -49,7 +49,7 @@ claude plugin eval . --scaffold --allow-tools Write Edit   # real-model eval sui
 
 ## Entry points
 
-- `skills/animated-svg/SKILL.md` -- standalone SVG files (README cards, banners, loaders, icons, diagrams)
+- `skills/animated-svg/SKILL.md` -- standalone SVG files for pages, apps and READMEs (cards, banners, loaders, icons, diagrams)
 - `skills/motion-scene/SKILL.md` -- React + Motion scenes for apps
 - `skills/svg-audit/SKILL.md` -- audit an existing SVG or scene, report first, fix on request
 - `agents/svg-designer.md` -- subagent that storyboards, builds, validates and iterates
@@ -57,7 +57,7 @@ claude plugin eval . --scaffold --allow-tools Write Edit   # real-model eval sui
 - `skills/animated-svg/scripts/themes.py`, `sizes.py` -- theme presets with the contrast guarantee, size presets and `Layout`
 - `skills/animated-svg/scripts/validate_svg.py` -- validator CLI (rule ids SV001-SV024, contrast SV021-SV023)
 - `skills/animated-svg/scripts/pack.py` -- a pack JSON (`assets/packs/`) to a set of cards plus `snippet.md`
-- `skills/animated-svg/scripts/frames.py`, `optimize_svg.py` -- timeline contact sheets, animation-safe minifier
+- `skills/animated-svg/scripts/frames.py`, `optimize_svg.py` -- timeline contact sheets and `--poster` PNGs, animation-safe minifier
 
 ## Key files
 

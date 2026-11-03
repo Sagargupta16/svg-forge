@@ -182,6 +182,31 @@ def test_phone_layouts_swap_at_desktop_width_and_rows_set_only_width(
     )
 
 
+def test_pack_breakpoint_reaches_every_desktop_source(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cards = [{"name": "stats", "kind": "stats", "alt": "Stats"}]
+    path = write_pack(
+        tmp_path, {"theme": "both", "device": "both", "breakpoint": 900, "cards": cards}
+    )
+
+    assert run([str(path)], capsys)[0] == 0
+
+    text = (tmp_path / "assets" / "cards" / "snippet.md").read_text(encoding="utf-8")
+    assert text.count(" and (min-width: 900px)") == 2 and "1012px" not in text
+
+
+@pytest.mark.parametrize("value", [320, 5000, 900.5, "wide", True])
+def test_bad_breakpoint_exits_2(
+    value: object, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = write_pack(tmp_path, {"breakpoint": value, "cards": [GOOD]})
+
+    code, _, err = run([str(path)], capsys)
+
+    assert code == 2 and "pack.json: breakpoint: must be a whole px width over 320" in err
+
+
 def test_pack_card_matches_forge_byte_for_byte(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
