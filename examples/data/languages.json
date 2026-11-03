@@ -1,0 +1,13 @@
+{
+  "title": "Top languages",
+  "items": [
+    {"label": "Python", "value": 418230},
+    {"label": "TypeScript", "value": 236114},
+    {"label": "Rust", "value": 142007},
+    {"label": "Go", "value": 96880},
+    {"label": "Shell", "value": 41210},
+    {"label": "Dockerfile", "value": 18044},
+    {"label": "HTML", "value": 12650},
+    {"label": "Makefile", "value": 4310}
+  ]
+}
