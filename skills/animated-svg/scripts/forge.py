@@ -378,6 +378,15 @@ def snug(text: str, max_w: float, size: float, face: str = "sans", spacing: floa
 # ---------------------------------------------------------------- layout at any size
 
 FONT_FLOOR = 7.0  # px; smaller text stops reading on a phone
+# Phone layouts. A desktop README card (840 px) shows at about 0.37x in a phone's 308 px
+# README column, so every label turns to texture. A phone layout is drawn 320 px wide with
+# text at PHONE_TEXT or more, and a <picture> swaps in the desktop card at DESKTOP_MEDIA:
+# GitHub's README column is 383 to 626 px wide from a 768 px to a 1011 px window, where a
+# desktop card would still shrink to 0.46-0.75x.
+PHONE_W = 320
+PHONE_TEXT = 10.5
+DESKTOP_MEDIA = "(min-width: 1012px)"
+DEVICES = ("desktop", "phone")
 MIN_EDGE = 8  # px for --width and --height; a divider or a bar loader is thinner than a canvas
 FLOW_MIN_NODE = 44  # px; a narrower flow node cannot hold even a three-letter label
 BAR_ROW_MIN = 18.0  # px; a bars row needs its 9 px label plus the 6 px track
@@ -605,6 +614,11 @@ class Ctx:
     reduced: str
     text_on: tuple[str, ...] = ()  # opaque colors small text sits on (see text_grounds)
     marks_on: tuple[str, ...] = ()  # opaque colors marks must reach 3:1 on
+    phone: bool = False  # a phone layout: PHONE_W wide, text at PHONE_TEXT or more
+
+    def fs(self, size: float) -> float:
+        """A font size, raised to PHONE_TEXT on a phone layout."""
+        return max(size, PHONE_TEXT) if self.phone else size
 
     def id(self, name: str) -> str:
         return f"{self.prefix}{name}"
@@ -3277,6 +3291,9 @@ class KindSpec:
     # drawn at its own layout size, which may grow up to this many times its default width
     # and height toward the canvas shape, then scaled into the canvas by the root viewBox.
     stretch: tuple[float, float] | None = None
+    # True: --device phone draws a PHONE_W layout with PHONE_TEXT text. False: the kind has
+    # no text or no width to lose (loader, divider), so one file serves every screen.
+    phone: bool = False
 
     @property
     def sizing(self) -> str:
@@ -3591,10 +3608,22 @@ def build(
     reduced_motion: str = "ignore",
     font: str | None = None,
     id_prefix: str | None = None,
+    device: str = "desktop",
 ) -> tuple[str, list[str]]:
     """One SVG document and the notes on colors adjusted for contrast. See render()."""
     if kind not in KINDS:
         raise ForgeError(f"unknown kind {kind!r}; choose from {', '.join(KINDS)}")
+    if device not in DEVICES:
+        raise ForgeError("--device must be desktop, phone or both (the CLI expands both)")
+    phone = device == "phone"
+    if phone and not KINDS[kind].phone:
+        raise ForgeError(
+            f"{kind} has no phone layout: one file reads on every screen, so drop --device"
+        )
+    if phone and size is not None:
+        raise ForgeError(f"--device phone draws the card {PHONE_W} px wide; drop --size")
+    if phone and width is None:
+        width = float(PHONE_W)
     if theme == "both":
         raise ForgeError("theme both is a dark/light pair; render each with pair=True")
     if mode not in (None, "dark", "light"):
@@ -3646,9 +3675,12 @@ def build(
         reduced=reduced_motion,
         text_on=text_on,
         marks_on=marks_on,
+        phone=phone,
     )
     canvas = None
     extras: dict[str, object] = {}
+    if phone:
+        extras["device"] = device
     if size is not None:
         ctx, canvas, extras["size"] = fit_canvas(ctx, size)
     key = next((name for name, t in THEMES.items() if t == th), None)
@@ -3717,13 +3749,34 @@ def write(path: Path, svg: str) -> bool:
 
 
 def picture(dark: str, light: str, alt: str) -> str:
-    return (
-        "<picture>\n"
-        f'  <source media="(prefers-color-scheme: dark)" srcset="{html.escape(dark)}">\n'
-        f'  <source media="(prefers-color-scheme: light)" srcset="{html.escape(light)}">\n'
-        f'  <img alt="{html.escape(alt)}" src="{html.escape(dark)}">\n'
-        "</picture>"
-    )
+    return picture_set({("dark", "desktop"): dark, ("light", "desktop"): light}, alt)
+
+
+def picture_set(paths: dict[tuple[str | None, str], str], alt: str) -> str:
+    """The <picture> for a set of files keyed (theme or None, device).
+
+    Desktop sources come first, each with DESKTOP_MEDIA when there is a phone file too, so
+    a wide window takes them before the phone ones; dark before light. The <img> is the
+    phone file (dark when there are two), which also serves viewers without <picture>.
+    """
+    both_devices = len({d for _, d in paths}) == 2
+    lines = ["<picture>"]
+    for device in DEVICES:
+        for theme in ("dark", "light", None):
+            if (theme, device) not in paths:
+                continue
+            media = [f"(prefers-color-scheme: {theme})"] if theme else []
+            if device == "desktop" and both_devices:
+                media.append(DESKTOP_MEDIA)
+            if media:  # a lone phone file has no query: it is the <img> below
+                srcset = html.escape(paths[(theme, device)])
+                lines.append(f'  <source media="{" and ".join(media)}" srcset="{srcset}">')
+    keys = [("dark", "phone"), (None, "phone"), ("dark", "desktop"), (None, "desktop")]
+    img = next(paths[k] for k in keys if k in paths)
+    width = ' width="100%"' if both_devices else ""
+    lines.append(f'  <img alt="{html.escape(alt)}" src="{html.escape(img)}"{width}>')
+    lines.append("</picture>")
+    return "\n".join(lines)
 
 
 def epilog() -> str:
@@ -3816,6 +3869,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="loader: spinner, dots or bar; timeline: horizontal or vertical; "
         "calendar: green or accent",
     )
+    ap.add_argument(
+        "--device",
+        choices=[*DEVICES, "both"],
+        default="desktop",
+        help=f"desktop (default), phone ({PHONE_W} px layout, text {PHONE_TEXT:g} px or more), "
+        "or both: NAME.svg and NAME-mobile.svg with a <picture> that swaps at 1012 px",
+    )
     ap.add_argument("--reduced-motion", choices=["ignore", "respect"], default="ignore")
     ap.add_argument("--font-stack", help="sans, mono, serif, system, or a font-family list")
     ap.add_argument("--id-prefix", help="prefix for ids and classes (default: hash of the input)")
@@ -3838,23 +3898,33 @@ def plan(theme: str | None, mode: str | None) -> list[tuple[str | None, str, str
     return [(None, spec, mode)]
 
 
+def file_name(stem: Path, theme: str | None, device: str) -> Path:
+    """NAME[-dark|-light][-mobile].svg next to the --out path."""
+    parts = [stem.name, *([theme] if theme else []), *(["mobile"] if device == "phone" else [])]
+    return stem.with_name("-".join(parts) + ".svg")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    svgs: dict[str | None, str] = {}
+    svgs: dict[tuple[str | None, str], str] = {}
     notes: list[str] = []
     try:
         files = plan(args.theme, args.mode)
-        if len(files) == 2 and not args.out:
-            raise ForgeError("a dark and light pair (--theme both or --mode both) needs --out")
+        devices = list(DEVICES) if args.device == "both" else [args.device]
+        if len(files) * len(devices) > 1 and not args.out:
+            raise ForgeError(
+                "a set of files (--theme both, --mode both or --device both) needs --out"
+            )
         data = load_data(args.data, text_spec=args.kind == "flow")
-        for suffix, spec, mode in files:
-            svgs[suffix], got = build(
+        for (suffix, spec, mode), device in itertools.product(files, devices):
+            svgs[(suffix, device)], got = build(
                 args.kind,
                 theme=spec,
                 mode=mode,
                 accent=args.accent,
                 size=args.size,
                 pair=len(files) == 2,
+                device=device,
                 timing=args.timing,
                 loop=args.loop,
                 speed=args.speed,
@@ -3875,30 +3945,25 @@ def main(argv: list[str] | None = None) -> int:
     for note in dict.fromkeys(notes):
         print(f"forge.py: note: {note}", file=sys.stderr)
     if not args.out:
-        sys.stdout.buffer.write(svgs[None].encode("utf-8"))
+        sys.stdout.buffer.write(next(iter(svgs.values())).encode("utf-8"))
         return 0
     out = Path(args.out)
-    if None in svgs:
-        changed = write(out, svgs[None])
+    if len(svgs) == 1:
+        changed = write(out, next(iter(svgs.values())))
         print(
             f"{'wrote' if changed else 'unchanged'} {out.as_posix()} ({out.stat().st_size} bytes)"
         )
         return 0
     stem = out.with_suffix("") if out.suffix == ".svg" else out
-    paths = {t: stem.with_name(f"{stem.name}-{t}.svg") for t in ("dark", "light")}
-    for t, path in paths.items():
-        changed = write(path, svgs[t])
+    paths = {key: file_name(stem, *key) for key in svgs}
+    for key, path in paths.items():
+        changed = write(path, svgs[key])
         print(
             f"{'wrote' if changed else 'unchanged'} {path.as_posix()} ({path.stat().st_size} bytes)"
         )
-    alt = re.search(r"<title[^>]*>(.*?)</title>", svgs["dark"])
-    print(
-        picture(
-            paths["dark"].as_posix(),
-            paths["light"].as_posix(),
-            html.unescape(alt.group(1) if alt else ""),
-        )
-    )
+    alt = re.search(r"<title[^>]*>(.*?)</title>", next(iter(svgs.values())))
+    shown = {key: path.as_posix() for key, path in paths.items()}
+    print(picture_set(shown, html.unescape(alt.group(1) if alt else "")))
     return 0
 
 
