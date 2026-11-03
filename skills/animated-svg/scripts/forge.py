@@ -5083,6 +5083,395 @@ def kind_calendar(c: Ctx) -> Art:
     return art
 
 
+# ---------------------------------------------------------------- card and quote
+
+CARD_BASE = (410.0, 196.0)  # half a README column: two cards sit side by side
+QUOTE_BASE = (840.0, 160.0)
+SHINE_LEAN = math.tan(math.radians(18))  # the shine band is skewed 18 degrees
+# An opening double quote mark, drawn for this generator in a 24 by 18 box: each mark is a
+# ball with a tail rising to the upper right.
+QUOTE_MARK = (
+    "M1 12.5C1 7 4 3 10 1.5l.8 1.9C7.6 4.8 5.8 6.6 5.6 7.6A5 5 0 1 1 1 12.5z"
+    "M14 12.5C14 7 17 3 23 1.5l.8 1.9C20.6 4.8 18.8 6.6 18.6 7.6A5 5 0 1 1 14 12.5z"
+)
+
+
+def optional_text(spec: dict[str, Any], key: str, what: str, limit: int) -> str:
+    """spec[key] as text, or "" when it is missing or null."""
+    value = spec.get(key)
+    return "" if value is None else text_of(value, what, limit)
+
+
+def card_count(value: object, what: str) -> str:
+    """A star or fork count as shown: a number (1240 shows as 1.2k, 2500000 as 2.5M) or short
+    text as given; "" when missing."""
+    if value is None or value == "":
+        return ""
+    if isinstance(value, str):
+        return text_of(value, what, 8)
+    n = count_of(value, what)
+    if n >= 999_950:
+        return f"{n / 1e6:.1f}M".replace(".0M", "M")
+    return fmt_value(n)
+
+
+def card_data(c: Ctx) -> dict[str, Any]:
+    spec = spec_of(c, "tags")
+    title = c.title or optional_text(spec, "title", "card title", 60)
+    if not title:
+        raise ForgeError('card needs a title: --data {"title": ...} or --title')
+    raw = spec.get("tags")
+    tags = [] if raw is None else need_list(raw, "card tags", 30, 0)
+    return {
+        "title": title,
+        "description": optional_text(spec, "description", "card description", 400),
+        "status": optional_text(spec, "status", "card status", 16),
+        "date": optional_text(spec, "date", "card date", 24),
+        "language": optional_text(spec, "language", "card language", 24),
+        "stars": card_count(spec.get("stars"), "card stars"),
+        "forks": card_count(spec.get("forks"), "card forks"),
+        "tags": [t for t in (text_of(x, f"card tag {i}", 24) for i, x in enumerate(tags)) if t],
+    }
+
+
+def card_metrics(c: Ctx, s: float) -> dict[str, float]:
+    """Fonts and rows of a project card at layout scale s, with the phone text floor; need is
+    the height they take. The rows are fixed, so cards with different data match in height."""
+    df, tf = c.fs(scaled(9, s)), scaled(19, s, 9)
+    bf, cf, mf = c.fs(scaled(12.5, s)), c.fs(scaled(9, s)), c.fs(scaled(12, s))
+    top = 24 * s + df  # date and status baseline
+    title = top + 10 * s + tf
+    body = title + 9 * s + bf * 1.2  # first summary line
+    step = bf * 1.44
+    chips = body + 2 * step + 12 * s  # top of the chip row
+    chip_h = cf + 11 * s
+    meta = chips + chip_h + 10 * s  # top of the language, stars and forks row
+    g = max(16 * s, 16.0)  # glyph size: never drawn below its 16 px box
+    return {
+        "s": s,
+        "pad": 22 * s,
+        "df": df,
+        "tf": tf,
+        "bf": bf,
+        "cf": cf,
+        "mf": mf,
+        "top": top,
+        "title": title,
+        "body": body,
+        "step": step,
+        "chips": chips,
+        "chip_h": chip_h,
+        "meta": meta,
+        "g": g,
+        "need": meta + g + 16 * s,
+    }
+
+
+def card_chips(
+    c: Ctx, tags: list[str], x: float, y: float, room: float, size: float, h: float, s: float
+) -> list[str]:
+    """Tag chips on one row from x; the tags that do not fit give way to a "+N more" chip."""
+    if not tags:
+        return []
+    padx, gap = 6 * s, 6 * s
+
+    def width(text: str) -> float:
+        return text_width(text, size, "mono", MONO_LS) + 2 * padx
+
+    n = len(tags)
+    for k in range(n, -1, -1):
+        labels = tags[:k] + ([f"+{n - k} more"] if k < n else [])
+        if sum(map(width, labels)) + gap * (len(labels) - 1) <= room:
+            break
+    else:
+        return []
+    out = []
+    for i, label in enumerate(labels):
+        color = c.pal.ink if i < k else c.tone("muted")
+        tint = alpha(color, 0.08)
+        cw = width(label)
+        out += [
+            el(
+                "rect", x=x, y=y, width=cw, height=h, rx=h / 2, fill=tint, stroke=alpha(color, 0.35)
+            ),
+            mono(
+                c,
+                label,
+                x + cw / 2,
+                y + h / 2 + size * 0.35,
+                c.legible(color, tint),
+                size,
+                text_anchor="middle",
+            ),
+        ]
+        x += cw + gap
+    return out
+
+
+def card_facts(c: Ctx, d: dict[str, Any], m: dict[str, float], y: float, w: float) -> list[str]:
+    """The repo pin row from the left: a language dot and name, then stars and forks with
+    their glyphs; whatever no longer fits is left out."""
+    s = m["s"]
+    g, mf = m["g"], m["mf"]
+    base = y + g / 2 + mf * 0.35
+    x, right = m["pad"], w - m["pad"]
+    out: list[str] = []
+    for icon, text in (("dot", d["language"]), ("star", d["stars"]), ("fork", d["forks"])):
+        if not text:
+            continue
+        icon_w = g * 0.62 if icon == "dot" else g
+        text = snug(text, right - x - icon_w - 5 * s, mf)
+        if not text:
+            break
+        if icon == "dot":
+            out.append(el("circle", cx=x + icon_w / 2, cy=y + g / 2, r=icon_w / 2, fill=c.pal.ink))
+        else:
+            out.append(glyph(icon, x, y, g, c.theme.dim))
+        out.append(sans(c, text, x + icon_w + 5 * s, base, c.theme.text, mf))
+        x += icon_w + 5 * s + text_width(text, mf) + 16 * s
+    return out
+
+
+def kind_card(c: Ctx) -> Art:
+    """Project or repo card: date and live or source status, title, a three-line summary,
+    tag chips (a "+N more" chip stands in for the rest) and the repo pin facts (language,
+    stars, forks), with a shine sweeping across on each loop.
+
+    Data: {"title", "description", "status", "date", "language", "stars", "forks",
+    "tags": [...]}; only title is required (--title also sets it). status "live" gets a
+    pulsing ok dot, any other status is a quiet label. stars and forks take a number (1240
+    shows as 1.2k) or short text. Default 410 by 196, so two sit side by side in a README;
+    the rows do not move with the data, so a pair always matches in height.
+    """
+    d = card_data(c)
+    w = c.width or CARD_BASE[0]
+    s = layout_scale(w, CARD_BASE[0], c.height, lambda k: card_metrics(c, k)["need"])
+    m = card_metrics(c, s)
+    h = c.height or m["need"]
+    oy = max(0.0, (h - m["need"]) / 2)
+    p = c.theme
+    pad, df = m["pad"], m["df"]
+    room = w - 2 * pad
+    facts = [
+        d["description"],
+        d["status"] and f"status {d['status']}",
+        d["date"],
+        d["language"],
+        d["stars"] and f"{d['stars']} stars",
+        d["forks"] and f"{d['forks']} forks",
+        d["tags"] and "tags " + ", ".join(d["tags"]),
+    ]
+    art = Art(w, h, d["title"], "; ".join([d["title"], *(f for f in facts if f)]))
+    rx = clamp(16 * s, 6, 24)
+    frame(c, art, rx=rx)
+    regular(c, art)
+    one = c.one_shot
+    band = 120 * s
+    travel = w + band + h * SHINE_LEAN + 8
+    loop_clock = None if one else c.cycle(6.0, distance=travel)
+
+    ty = oy + m["top"]
+    top = [el("rect", x=0, y=oy + 22 * s, width=3 * s, height=28 * s, rx=1.5 * s, fill=c.pal.ink)]
+    status = snug(d["status"].upper(), room * 0.4, df, "mono", MONO_LS)
+    used = 0.0
+    if status:
+        live = d["status"].lower() == "live"
+        top.append(mono(c, status, w - pad, ty, p.ok if live else p.dim, df, text_anchor="end"))
+        used = text_width(status, df, "mono", MONO_LS)
+        if live:
+            r = 3.5 * s
+            pulse = ""
+            if loop_clock is not None:
+                pulse = animate("opacity", [(0, 1), (0.5, 0.35), (1, 1)], loop_clock.sub(1.8))
+            cx = w - pad - used - 6 * s - r
+            top.append(el("circle", pulse, cx=cx, cy=ty - df * 0.35, r=r, fill=c.tone("ok")))
+            used += 6 * s + 2 * r
+    day = snug(d["date"].upper(), room - used - 12 * s, df, "mono", MONO_LS)
+    if day:
+        top.append(mono(c, day, pad, ty, c.pal.text, df))
+    name, size = shrink(d["title"], room, m["tf"], "bold", c.fs(scaled(13, s)))
+    parts = [top, [sans(c, name, pad, oy + m["title"], p.ink, size, "b")]]
+    lines = wrap(d["description"], room, m["bf"], lines=3)
+    if lines:
+        step = m["step"]
+        parts.append(
+            [
+                sans(c, line, pad, oy + m["body"] + j * step, p.text, m["bf"], "r")
+                for j, line in enumerate(lines)
+            ]
+        )
+    chips = card_chips(c, d["tags"], pad, oy + m["chips"], room, m["cf"], m["chip_h"], s)
+    if chips:
+        parts.append(chips)
+    pin = card_facts(c, d, m, oy + m["meta"], w)
+    if pin:
+        parts.append(pin)
+
+    if loop_clock is None:
+        clock, begins, item = c.entrance(len(parts))
+        a = begins[min(1, len(parts) - 1)] / clock.dur
+        b = (begins[-1] + item) / clock.dur
+    else:
+        clock = loop_clock
+        sweep = travel / c.speed if c.preset.name == "ambient" else 3.6
+        a = 0.06
+        b = a + min(0.85, sweep / clock.dur)
+    art.defs += [
+        el(
+            "linearGradient",
+            el("stop", offset=0, stop_color="#ffffff", stop_opacity=0),
+            el("stop", offset=0.5, stop_color="#ffffff", stop_opacity=p.shine),
+            el("stop", offset=1, stop_color="#ffffff", stop_opacity=0),
+            id=c.id("shine"),
+            x1=0,
+            x2=1,
+        ),
+        el("clipPath", el("rect", x=1, y=1, width=w - 2, height=h - 2, rx=rx - 1), id=c.id("clip")),
+    ]
+    shine = el(
+        "rect",
+        move(
+            "translate",
+            [(0, (0, 0)), (a, (0, 0)), (b, (travel, 0)), (1, (travel, 0))],
+            clock,
+            additive="sum",
+        ),
+        x=-(band + 4),
+        y=0,
+        width=band,
+        height=h,
+        fill=c.url("shine"),
+        transform="skewX(-18)",
+    )
+    art.body.append(el("g", shine, clip_path=c.url("clip")))
+    if one:
+        dy = 6 * s
+        group = [
+            el("g", rise(clock, begins[i], item, dy=dy), *part) for i, part in enumerate(parts)
+        ]
+        art.body.append(el("g", veil(clock), *group))
+    else:
+        art.body += [x for part in parts for x in part]
+    return art
+
+
+def quote_data(c: Ctx) -> list[dict[str, str]]:
+    spec = spec_of(c, "quotes")
+    if "quotes" in spec:
+        raw = need_list(spec["quotes"], "quote quotes", 6)
+    elif "text" in spec:
+        raw = [spec]
+    else:
+        raise ForgeError('quote data needs {"text", "author"} or {"quotes": [...]}')
+    out = []
+    for i, q in enumerate(raw):
+        if isinstance(q, str):
+            q = {"text": q}
+        if not isinstance(q, dict):
+            raise ForgeError(f"quote {i} must be text or an object with text and author")
+        text = text_of(q.get("text", ""), f"quote {i} text", 400)
+        if not text:
+            raise ForgeError(f"quote {i} needs text")
+        out.append({"text": text, "author": optional_text(q, "author", f"quote {i} author", 60)})
+    return out
+
+
+def quote_metrics(c: Ctx, quotes: list[dict[str, str]], w: float, s: float) -> dict[str, Any]:
+    """Fonts, the wrapped rows of each quote and the text block at layout scale s; need is
+    the card height (QUOTE_BASE's at scale s, or more when the longest quote needs it)."""
+    qf = max(scaled(20, s), 14.0) if c.phone else scaled(20, s)
+    af = c.fs(scaled(10, s))
+    k = max(2 * s, 1.25 if c.phone else 1.0)  # quote mark scale, never under its own box
+    pad, pad_y = 28 * s, 24 * s
+    x0 = pad + 24 * k + 20 * s
+    rows = [wrap(q["text"], w - x0 - pad, qf, lines=5) for q in quotes]
+    lh = qf * 1.45
+    count = max(len(r) for r in rows)
+    authored = any(q["author"] for q in quotes)
+    block = 0.8 * qf + (count - 1) * lh + (14 * s + af * 1.25 if authored else 0.25 * qf)
+    block = max(block, 18 * k)
+    return {
+        "qf": qf,
+        "af": af,
+        "k": k,
+        "pad": pad,
+        "x0": x0,
+        "rows": rows,
+        "lh": lh,
+        "count": count,
+        "authored": authored,
+        "block": block,
+        "need": max(QUOTE_BASE[1] * s, block + 2 * pad_y),
+    }
+
+
+def kind_quote(c: Ctx) -> Art:
+    """Quote card: a large quote mark, the quote wrapped into up to five lines, the author.
+
+    Data: {"text", "author"} for one quote, or {"quotes": [{"text", "author"}, ...]} (a bare
+    list works too) for up to six that take turns on one loop, the first in the still frame
+    (the last when played once). author is optional. A single quote, or any quote on a
+    one-shot preset (the first only), fades in and holds. Default 840 by 160, taller when
+    the longest quote needs more lines.
+    """
+    quotes = quote_data(c)
+    turns = len(quotes) > 1 and not c.one_shot
+    shown = quotes if turns else quotes[:1]
+    w = c.width or QUOTE_BASE[0]
+    s = layout_scale(w, QUOTE_BASE[0], c.height, lambda k: quote_metrics(c, shown, w, k)["need"])
+    m = quote_metrics(c, shown, w, s)
+    h = c.height or m["need"]
+    said = [f"{q['text']} ({q['author']})" if q["author"] else q["text"] for q in shown]
+    desc = ("Quotes taking turns: " if turns else "Quote: ") + "; ".join(said)
+    art = Art(w, h, c.title or ("Quotes" if turns else "Quote"), desc)
+    p = c.theme
+    frame(c, art)
+    regular(c, art)
+    qf, af, lh, x0, pad = m["qf"], m["af"], m["lh"], m["x0"], m["pad"]
+    y_top = (h - m["block"]) / 2
+    y1 = y_top + 0.8 * qf
+    ay = y1 + (m["count"] - 1) * lh + 14 * s + af
+    mark = el(
+        "path",
+        d=QUOTE_MARK,
+        fill=c.pal.ink,
+        transform=f"translate({num(pad)} {num(y_top)}) scale({num(m['k'], 4)})",
+    )
+    ruled = all(q["author"] for q in shown)  # a short rule leads the author line
+    dash = max(14 * s, 10.0)
+    ax = x0 + dash + 8 * s if ruled else x0
+    names = [snug(q["author"].upper(), w - ax - pad, af, "mono", MONO_LS) for q in shown]
+    rule = []
+    if ruled:
+        ry, sw = ay - af * 0.35, max(1.5 * s, 1.0)
+        rule = [el("line", x1=x0, y1=ry, x2=x0 + dash, y2=ry, stroke=p.dim, stroke_width=sw)]
+    slots = [
+        {"class_": c.cls("r"), "x": x0, "y": y1 + j * lh, "fill": p.ink, "font_size": qf}
+        for j in range(m["count"])
+    ]
+    name_at = {"class_": c.cls("m"), "x": ax, "y": ay, "fill": p.dim, "font_size": af}
+    if turns:
+        clock = c.cycle(5.0 * len(shown))
+        poster = 0 if clock.loop else len(shown) - 1
+        rows = [[r[j] if j < len(r) else "" for r in m["rows"]] for j in range(m["count"])]
+        if m["authored"]:
+            rows.append(names)
+            slots.append(name_at)
+        art.body += [mark, *rule]
+        for texts, attrs in zip(rows, slots, strict=True):
+            made = rotating(c, texts, clock, **attrs)
+            # the still frame's quote keeps its empty rows, where the others' lines take turns
+            art.body += [e for i, e in enumerate(made) if texts[i] or i == poster]
+        return art
+    parts = [[mark]] + [[el("text", esc(line), **slots[j])] for j, line in enumerate(m["rows"][0])]
+    if names[0]:
+        parts.append([*rule, el("text", esc(names[0]), **name_at)])
+    clock, begins, item = paced(c, len(parts), distance=w)
+    group = [el("g", rise(clock, begins[i], item, dy=6 * s), *part) for i, part in enumerate(parts)]
+    art.body.append(el("g", veil(clock), *group))
+    return art
+
+
 # ---------------------------------------------------------------- ring
 
 
@@ -5376,6 +5765,15 @@ KINDS: dict[str, KindSpec] = {
     "calendar": KindSpec(
         kind_calendar, "short", "53-week contribution heatmap (--variant accent)", phone=True
     ),
+    "card": KindSpec(
+        kind_card,
+        "medium",
+        "project or repo card: status, summary, tags, language, stars, forks, shine",
+        phone=True,
+    ),
+    "quote": KindSpec(
+        kind_quote, "long", "quote card; several quotes take turns, one fades in", phone=True
+    ),
     "ring": KindSpec(kind_ring, "short", "progress rings that draw in, static values", phone=True),
 }
 # Kinds with no card of their own keep a transparent margin when scaled into a canvas.
@@ -5545,6 +5943,40 @@ SAMPLES: dict[str, Any] = {
         ]
     },
     "calendar": {"start": "2025-10-05", "counts": sample_counts()},
+    "card": {
+        "title": "Northwind",
+        "description": (
+            "A tiny job queue for Python services: retries with backoff, cron schedules and "
+            "a live dashboard, all on one Postgres table."
+        ),
+        "status": "live",
+        "date": "Mar 2026",
+        "language": "Python",
+        "stars": 1240,
+        "forks": 86,
+        "tags": ["python", "postgres", "queue", "cron", "asyncio", "dashboard", "cli"],
+    },
+    "quote": {
+        "quotes": [
+            {
+                "text": (
+                    "Ship the small version first. What people do with it on Tuesday beats "
+                    "the plan you wrote on Monday."
+                ),
+                "author": "Northwind handbook",
+            },
+            {
+                "text": (
+                    "A good default is a decision nobody has to make, and nobody has to undo."
+                ),
+                "author": "Bluefin design notes",
+            },
+            {
+                "text": ("Every alert should say what broke, who it hurts and what to try first."),
+                "author": "Quartz on-call guide",
+            },
+        ]
+    },
     "ring": {
         "items": [
             {"label": "Coverage", "value": 87},

@@ -445,6 +445,48 @@ RECIPES: list[Recipe] = [
         "accent ramp from start and counts, looping reveal",
     ),
     Recipe(
+        f"{E}/card-northwind.svg",
+        ("--kind", "card", "--device", "both", "--accent", "#38bdf8"),
+        "two cards sit side by side; a 320 px phone layout below 1012 px",
+    ),
+    Recipe(
+        f"{E}/card-bluefin.svg",
+        (
+            "--kind",
+            "card",
+            "--device",
+            "both",
+            "--accent",
+            "#38bdf8",
+            "--data",
+            '{"title": "Bluefin", "description": "Typed client for streaming sensor data over '
+            "WebSockets, with offline buffering, schema checks and a React hook for live "
+            'charts.", "status": "source", "date": "Jan 2026", "language": "TypeScript", '
+            '"stars": 312, "forks": 24, "tags": ["typescript", "websocket", "react", "charts"]}',
+        ),
+        "its pair: source status, every tag fits",
+    ),
+    Recipe(
+        f"{E}/quote-rotating.svg",
+        ("--kind", "quote", "--theme", "both"),
+        "three quotes take turns on one long loop",
+    ),
+    Recipe(
+        f"{E}/quote-single.svg",
+        (
+            "--kind",
+            "quote",
+            "--timing",
+            "short",
+            "--accent",
+            "#a78bfa",
+            "--data",
+            '{"text": "Write the error message for the person reading it at 3 a.m., not for '
+            'the person who wrote the code.", "author": "Lumen style guide"}',
+        ),
+        "one quote fades in and holds",
+    ),
+    Recipe(
         f"{E}/ring-goals.svg",
         ("--kind", "ring", "--theme", "both", "--data", f"{E}/data/goals.json"),
         "both themes, value/max labels and tones",
