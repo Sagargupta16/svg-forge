@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="410" height="196" viewBox="0 0 410 196" role="img" aria-labelledby="sf8b6cd4-title sf8b6cd4-desc" class="sf8b6cd4-root">
+<title id="sf8b6cd4-title">Northwind</title>
+<desc id="sf8b6cd4-desc">Northwind; A tiny job queue for Python services: retries with backoff, cron schedules and a live dashboard, all on one Postgres table.; status live; Mar 2026; Python; 1.2k stars; 86 forks; tags python, postgres, queue, cron, asyncio, dashboard, cli</desc>
+<style>.sf8b6cd4-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sf8b6cd4-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sf8b6cd4-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}.sf8b6cd4-r{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:400}</style>
+<defs><linearGradient id="sf8b6cd4-bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#0e1a24"/><stop offset="0.6" stop-color="#0b1012"/></linearGradient><linearGradient id="sf8b6cd4-shine" x1="0" x2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0.16"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient><clipPath id="sf8b6cd4-clip"><rect x="1" y="1" width="408" height="194" rx="15"/></clipPath></defs>
+<rect x="0.5" y="0.5" width="409" height="195" rx="16" fill="url(#sf8b6cd4-bg)" stroke="rgba(255,255,255,0.09)"/>
+<g clip-path="url(#sf8b6cd4-clip)"><rect x="-124" y="0" width="120" height="196" fill="url(#sf8b6cd4-shine)" transform="skewX(-18)"><animateTransform attributeName="transform" type="translate" values="0 0;0 0;601.684 0;601.684 0" keyTimes="0;0.06;0.66;1" additive="sum" dur="6s" repeatCount="indefinite"/></rect></g>
+<rect x="0" y="22" width="3" height="28" rx="1.5" fill="#60a5fa"/>
+<text class="sf8b6cd4-m" x="388" y="33" fill="#22c55e" font-size="9" text-anchor="end">LIVE</text>
+<circle cx="351.38" cy="29.85" r="3.5" fill="#22c55e"><animate attributeName="opacity" values="1;0.35;1" keyTimes="0;0.5;1" dur="2s" repeatCount="indefinite"/></circle>
+<text class="sf8b6cd4-m" x="22" y="33" fill="#60a5fa" font-size="9">MAR 2026</text>
+<text class="sf8b6cd4-b" x="22" y="62" fill="#f3f4f6" font-size="19">Northwind</text>
+<text class="sf8b6cd4-r" x="22" y="86" fill="rgba(255,255,255,0.74)" font-size="12.5">A tiny job queue for Python services: retries with</text>
+<text class="sf8b6cd4-r" x="22" y="104" fill="rgba(255,255,255,0.74)" font-size="12.5">backoff, cron schedules and a live dashboard, all on</text>
+<text class="sf8b6cd4-r" x="22" y="122" fill="rgba(255,255,255,0.74)" font-size="12.5">one Postgres table.</text>
+<rect x="22" y="134" width="52.68" height="20" rx="10" fill="rgba(96,165,250,0.08)" stroke="rgba(96,165,250,0.35)"/>
+<text class="sf8b6cd4-m" x="48.34" y="147.15" fill="#60a5fa" font-size="9" text-anchor="middle">python</text>
+<rect x="80.68" y="134" width="66.24" height="20" rx="10" fill="rgba(96,165,250,0.08)" stroke="rgba(96,165,250,0.35)"/>
+<text class="sf8b6cd4-m" x="113.8" y="147.15" fill="#60a5fa" font-size="9" text-anchor="middle">postgres</text>
+<rect x="152.92" y="134" width="45.9" height="20" rx="10" fill="rgba(96,165,250,0.08)" stroke="rgba(96,165,250,0.35)"/>
+<text class="sf8b6cd4-m" x="175.87" y="147.15" fill="#60a5fa" font-size="9" text-anchor="middle">queue</text>
+<rect x="204.82" y="134" width="39.12" height="20" rx="10" fill="rgba(96,165,250,0.08)" stroke="rgba(96,165,250,0.35)"/>
+<text class="sf8b6cd4-m" x="224.38" y="147.15" fill="#60a5fa" font-size="9" text-anchor="middle">cron</text>
+<rect x="249.94" y="134" width="59.46" height="20" rx="10" fill="rgba(96,165,250,0.08)" stroke="rgba(96,165,250,0.35)"/>
+<text class="sf8b6cd4-m" x="279.67" y="147.15" fill="#60a5fa" font-size="9" text-anchor="middle">asyncio</text>
+<rect x="315.4" y="134" width="59.46" height="20" rx="10" fill="rgba(156,163,175,0.08)" stroke="rgba(156,163,175,0.35)"/>
+<text class="sf8b6cd4-m" x="345.13" y="147.15" fill="#9ca3af" font-size="9" text-anchor="middle">+2 more</text>
+<circle cx="26.96" cy="172" r="4.96" fill="#60a5fa"/>
+<text class="sf8b6cd4-s" x="36.92" y="176.2" fill="rgba(255,255,255,0.74)" font-size="12">Python</text>
+<g transform="translate(93.24 164) scale(1)"><path d="M8 1.4l1.95 4.2 4.55.5-3.4 3.1 1 4.5L8 11.4l-4.1 2.3 1-4.5-3.4-3.1 4.55-.5z" fill="rgba(255,255,255,0.52)"/></g>
+<text class="sf8b6cd4-s" x="114.24" y="176.2" fill="rgba(255,255,255,0.74)" font-size="12">1.2k</text>
+<g transform="translate(157.12 164) scale(1)"><path d="M2.4 3.2a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0M10.4 3.2a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0M6.4 12.8a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0M4 4.8V6a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V4.8M8 8v3.2" fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text class="sf8b6cd4-s" x="178.12" y="176.2" fill="rgba(255,255,255,0.74)" font-size="12">86</text>
+</svg>
