@@ -33,6 +33,7 @@ DOCS = ROOT / "docs"
 OUT = ROOT / "preview"
 sys.path.insert(0, str(SCRIPTS))
 
+import check  # noqa: E402
 import forge  # noqa: E402
 import frames  # noqa: E402
 import validate_svg  # noqa: E402
@@ -58,15 +59,29 @@ class Recipe:
             return self.args[self.args.index("--timing") + 1]
         return forge.KINDS[self.kind].timing
 
+    def option(self, flag: str) -> str | None:
+        return self.args[self.args.index(flag) + 1] if flag in self.args else None
+
     @property
     def both(self) -> bool:
-        return "both" in self.args
+        """A dark and light pair: --theme both, or a family with --mode both."""
+        return self.option("--theme") == "both" or self.option("--mode") == "both"
+
+    @property
+    def devices(self) -> list[str]:
+        device = self.option("--device") or "desktop"
+        return list(forge.DEVICES) if device == "both" else [device]
 
     def files(self) -> list[str]:
-        if not self.both:
+        themes = ["dark", "light"] if self.both else [None]
+        if len(themes) * len(self.devices) == 1:
             return [self.out]
-        stem = self.out.removesuffix(".svg")
-        return [f"{stem}-dark.svg", f"{stem}-light.svg"]
+        stem = Path(self.out.removesuffix(".svg"))
+        return [
+            forge.file_name(stem, theme, device).as_posix()
+            for theme in themes
+            for device in self.devices
+        ]
 
     def argv(self) -> list[str]:
         return [*self.args, "--out", self.out]
@@ -97,8 +112,19 @@ RECIPES: list[Recipe] = [
     ),
     Recipe(
         "docs/hero.svg",
-        ("--kind", "hero", "--theme", "both", "--accent", "#38bdf8", "--data", "docs/hero.json"),
-        "the README header",
+        (
+            "--kind",
+            "hero",
+            "--theme",
+            "both",
+            "--device",
+            "both",
+            "--accent",
+            "#38bdf8",
+            "--data",
+            "docs/hero.json",
+        ),
+        "the README header: dark and light, desktop and phone",
     ),
     Recipe(
         f"{E}/hero-violet.svg",
@@ -107,18 +133,22 @@ RECIPES: list[Recipe] = [
             "hero",
             "--theme",
             "both",
+            "--device",
+            "both",
             "--accent",
             "#a78bfa",
             "--data",
             f"{E}/data/hero.json",
         ),
-        "both themes, custom accent",
+        "dark and light, desktop and phone: four files, custom accent",
     ),
     Recipe(
         f"{E}/tiles-once.svg",
         (
             "--kind",
             "tiles",
+            "--device",
+            "both",
             "--timing",
             "short",
             "--accent",
@@ -126,7 +156,7 @@ RECIPES: list[Recipe] = [
             "--data",
             f"{E}/data/tiles.json",
         ),
-        "staggered entrance that holds",
+        "staggered entrance that holds; two columns on a phone",
     ),
     Recipe(
         f"{E}/tiles-spotlight.svg",
@@ -138,6 +168,8 @@ RECIPES: list[Recipe] = [
         (
             "--kind",
             "flow",
+            "--device",
+            "both",
             "--timing",
             "long",
             "--accent",
@@ -145,7 +177,7 @@ RECIPES: list[Recipe] = [
             "--data",
             f"{E}/data/pipeline.json",
         ),
-        "8-beat storyboard with a return arc",
+        "8-beat storyboard with a return arc; re-flowed top to bottom on a phone",
     ),
     Recipe(
         f"{E}/flow-architecture.svg",
@@ -205,6 +237,46 @@ RECIPES: list[Recipe] = [
         "slow drift from --speed",
     ),
     Recipe(
+        f"{E}/loader-pulse.svg",
+        ("--kind", "loader", "--variant", "pulse", "--accent", "#0ea5e9"),
+        "two rings expanding and fading in turn",
+    ),
+    Recipe(
+        f"{E}/loader-orbit.svg",
+        ("--kind", "loader", "--variant", "orbit", "--accent", "#8b5cf6"),
+        "three dots circling one track at three speeds",
+    ),
+    Recipe(
+        f"{E}/loader-bars.svg",
+        ("--kind", "loader", "--variant", "bars", "--accent", "#d97706"),
+        "five bars stretching in sequence",
+    ),
+    Recipe(
+        f"{E}/loader-wave.svg",
+        ("--kind", "loader", "--variant", "wave", "--accent", "#0d9488"),
+        "five dots rising in a wave",
+    ),
+    Recipe(
+        f"{E}/loader-ring.svg",
+        ("--kind", "loader", "--variant", "ring", "--accent", "#3b82f6"),
+        "a 90 degree arc turning on a faint track",
+    ),
+    Recipe(
+        f"{E}/loader-blocks.svg",
+        ("--kind", "loader", "--variant", "blocks", "--accent", "#ea580c"),
+        "a 2 by 2 grid of squares lighting in turn",
+    ),
+    Recipe(
+        f"{E}/loader-clock.svg",
+        ("--kind", "loader", "--variant", "clock", "--accent", "#ec4899"),
+        "two hands turning at different rates",
+    ),
+    Recipe(
+        f"{E}/loader-bounce.svg",
+        ("--kind", "loader", "--variant", "bounce", "--accent", "#65a30d"),
+        "three dots bouncing over shadows",
+    ),
+    Recipe(
         f"{E}/typing-medium.svg",
         (
             "--kind",
@@ -243,9 +315,67 @@ RECIPES: list[Recipe] = [
         "one entrance and one shine",
     ),
     Recipe(
+        f"{E}/heading-section.svg",
+        (
+            "--kind",
+            "heading",
+            "--theme",
+            "both",
+            "--data",
+            '{"number": "02", "title": "Release notes", "subtitle": "What shipped this month"}',
+        ),
+        "numbered section header, both themes",
+    ),
+    Recipe(
+        f"{E}/banner-header.svg",
+        (
+            "--kind",
+            "banner",
+            "--variant",
+            "waving",
+            "--accent",
+            "#a78bfa",
+            "--data",
+            '{"kicker": "Open source inventory", "title": "Northwind", "subtitle": "Realtime '
+            'stock for small shops", "lines": ["Works offline, syncs when back", "MIT licensed, '
+            'self-host in minutes"]}',
+        ),
+        "header: wave layers drift under lines that take turns",
+    ),
+    Recipe(
+        f"{E}/banner-footer.svg",
+        (
+            "--kind",
+            "banner",
+            "--theme",
+            "both",
+            "--data",
+            '{"section": "footer", "kicker": "Thanks for reading", "lines": ["Built in the '
+            'open.", "Issues and pull requests welcome."]}',
+        ),
+        "footer: a dot rides the wave, both themes",
+    ),
+    Recipe(
+        f"{E}/banner-speech.svg",
+        (
+            "--kind",
+            "banner",
+            "--variant",
+            "speech",
+            "--device",
+            "both",
+            "--accent",
+            "#22c55e",
+            "--data",
+            '{"kicker": "Bluefin CLI", "title": "Ship from the terminal", "lines": ["One '
+            'command to build, test and deploy", "Works with any CI"]}',
+        ),
+        "speech bubble, desktop and 320 px phone files",
+    ),
+    Recipe(
         f"{E}/timeline-career.svg",
-        ("--kind", "timeline", "--data", f"{E}/data/career.json"),
-        "rail draws in, the current role pulses",
+        ("--kind", "timeline", "--device", "both", "--data", f"{E}/data/career.json"),
+        "rail draws in, the current role pulses; vertical on a phone",
     ),
     Recipe(
         f"{E}/timeline-vertical.svg",
@@ -264,6 +394,30 @@ RECIPES: list[Recipe] = [
             f"{E}/data/career.json",
         ),
         "vertical rail, one-shot, light theme",
+    ),
+    Recipe(
+        f"{E}/stats-card.svg",
+        ("--kind", "stats", "--theme", "both", "--data", f"{E}/data/stats.json"),
+        "both themes, six rows and a grade ring",
+    ),
+    Recipe(
+        f"{E}/streak-card.svg",
+        (
+            "--kind",
+            "streak",
+            "--device",
+            "both",
+            "--accent",
+            "#fb923c",
+            "--data",
+            f"{E}/data/streak.json",
+        ),
+        "desktop and phone files; the phone stacks the current streak on top",
+    ),
+    Recipe(
+        f"{E}/streak-calendar.svg",
+        ("--kind", "streak", "--timing", "medium", "--data", f"{E}/data/contributions.json"),
+        "streaks and date ranges computed from calendar data, looping",
     ),
     Recipe(
         f"{E}/logos-wall.svg",
@@ -285,9 +439,49 @@ RECIPES: list[Recipe] = [
         "slow marquee at 24 px/s",
     ),
     Recipe(
+        f"{E}/breakdown-languages.svg",
+        ("--kind", "breakdown", "--device", "both", "--data", f"{E}/data/languages.json"),
+        "stacked bar and legend, a phone layout under 1012 px",
+    ),
+    Recipe(
+        f"{E}/breakdown-donut.svg",
+        (
+            "--kind",
+            "breakdown",
+            "--variant",
+            "donut",
+            "--theme",
+            "both",
+            "--accent",
+            "#a78bfa",
+            "--data",
+            f"{E}/data/languages.json",
+        ),
+        "both themes, one sweep draws the ring",
+    ),
+    Recipe(
+        f"{E}/breakdown-pie.svg",
+        ("--kind", "breakdown", "--variant", "pie", "--timing", "medium", "--accent", "#f59e0b"),
+        "looping pie, colors stepped from the accent",
+    ),
+    Recipe(
+        f"{E}/radar-skills.svg",
+        (
+            "--kind",
+            "radar",
+            "--timing",
+            "medium",
+            "--accent",
+            "#34d399",
+            "--data",
+            f"{E}/data/radar.json",
+        ),
+        "compare series under the value polygon, looping",
+    ),
+    Recipe(
         f"{E}/calendar-green.svg",
-        ("--kind", "calendar", "--data", f"{E}/data/contributions.json"),
-        "quartile levels: one 140-count day does not flatten the rest",
+        ("--kind", "calendar", "--device", "both", "--data", f"{E}/data/contributions.json"),
+        "quartile levels: one 140-count day does not flatten the rest; 26 weeks on a phone",
     ),
     Recipe(
         f"{E}/calendar-accent.svg",
@@ -306,6 +500,48 @@ RECIPES: list[Recipe] = [
             f"{E}/data/activity.json",
         ),
         "accent ramp from start and counts, looping reveal",
+    ),
+    Recipe(
+        f"{E}/card-northwind.svg",
+        ("--kind", "card", "--device", "both", "--accent", "#38bdf8"),
+        "two cards sit side by side; a 320 px phone layout below 1012 px",
+    ),
+    Recipe(
+        f"{E}/card-bluefin.svg",
+        (
+            "--kind",
+            "card",
+            "--device",
+            "both",
+            "--accent",
+            "#38bdf8",
+            "--data",
+            '{"title": "Bluefin", "description": "Typed client for streaming sensor data over '
+            "WebSockets, with offline buffering, schema checks and a React hook for live "
+            'charts.", "status": "source", "date": "Jan 2026", "language": "TypeScript", '
+            '"stars": 312, "forks": 24, "tags": ["typescript", "websocket", "react", "charts"]}',
+        ),
+        "its pair: source status, every tag fits",
+    ),
+    Recipe(
+        f"{E}/quote-rotating.svg",
+        ("--kind", "quote", "--theme", "both"),
+        "three quotes take turns on one long loop",
+    ),
+    Recipe(
+        f"{E}/quote-single.svg",
+        (
+            "--kind",
+            "quote",
+            "--timing",
+            "short",
+            "--accent",
+            "#a78bfa",
+            "--data",
+            '{"text": "Write the error message for the person reading it at 3 a.m., not for '
+            'the person who wrote the code.", "author": "Lumen style guide"}',
+        ),
+        "one quote fades in and holds",
     ),
     Recipe(
         f"{E}/ring-goals.svg",
@@ -329,6 +565,29 @@ RECIPES: list[Recipe] = [
             f"{E}/data/goals.json",
         ),
         "fixed 480x360 canvas wraps the rings into rows",
+    ),
+    Recipe(
+        f"{E}/skyline-year.svg",
+        ("--kind", "skyline", "--device", "both", "--data", f"{E}/data/contributions.json"),
+        "the year as an isometric city, the busiest day lit; the last 26 weeks on a phone",
+    ),
+    Recipe(
+        f"{E}/skyline-accent.svg",
+        (
+            "--kind",
+            "skyline",
+            "--variant",
+            "accent",
+            "--accent",
+            "#a78bfa",
+            "--theme",
+            "both",
+            "--timing",
+            "medium",
+            "--data",
+            f"{E}/data/activity.json",
+        ),
+        "accent ramp, both themes, the city rises again on each loop",
     ),
     Recipe(
         f"{E}/flow-text.svg",
@@ -467,7 +726,7 @@ def contact_sheets() -> tuple[list[Path], str]:
     written = []
     for path in sorted(EXAMPLES.glob("*.svg")):
         png = OUT / "frames" / f"{path.stem}.png"
-        theme = next((t for t in ("dark", "light") if path.stem.endswith(f"-{t}")), "both")
+        theme = check.svg_theme(path)
         argv = [str(path), "--out", str(png), "--theme", theme, "--browser", browser]
         with contextlib.redirect_stdout(io.StringIO()):
             code = frames.main(argv)

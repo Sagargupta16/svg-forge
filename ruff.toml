@@ -12,6 +12,7 @@ known-first-party = [
   "forge",
   "frames",
   "optimize_svg",
+  "pack",
   "poster",
   "preview",
   "sizes",

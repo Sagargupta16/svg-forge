@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Generate self-contained animated SVGs for READMEs, docs and the web (stdlib only).
 
-Kinds: tiles, hero, marquee, chart, bars, flow, loader, typing, divider, badge, timeline,
-logos, calendar, ring.
+Kinds: tiles, hero, marquee, chart, bars, flow, loader, typing, divider, badge, banner,
+heading, timeline, stats, streak, logos, breakdown, radar, calendar, card, quote, ring,
+skyline. Every kind with text also has a phone layout (--device phone or both).
 
 Every file is standalone: SMIL and CSS animation only, no script, no foreignObject, no
 external fonts, images or links, system font stacks, role="img" with <title> and <desc>,
@@ -24,6 +25,8 @@ Examples:
   python forge.py --kind flow --data "push -> build -> unit, e2e -> deploy" --out ci.svg
   python forge.py --kind timeline --variant vertical --data career.json --out career.svg
   python forge.py --kind calendar --data contributions.json --out calendar.svg
+  python forge.py --kind stats --theme both --device both --data stats.json --out stats.svg
+  python forge.py --kind breakdown --variant donut --data languages.json --out langs.svg
 """
 
 from __future__ import annotations
@@ -375,9 +378,50 @@ def snug(text: str, max_w: float, size: float, face: str = "sans", spacing: floa
     return fit(text, max_w, size, face, spacing)
 
 
+def wrap(
+    text: str,
+    max_w: float,
+    size: float,
+    face: str = "sans",
+    spacing: float = 0.0,
+    lines: int = 3,
+) -> list[str]:
+    """Greedy word wrap into at most `lines` lines that each fit max_w.
+
+    A word wider than a line is cut with an ellipsis; text left over after the last line
+    ends that line with an ellipsis; a lone last word pulls the previous word down when
+    both fit, so a paragraph never ends on a widow.
+    """
+    out: list[list[str]] = [[]]
+    for word in text.split():
+        trial = " ".join([*out[-1], word])
+        if out[-1] and text_width(trial, size, face, spacing) > max_w:
+            out.append([])
+        out[-1].append(word)
+    rows = [" ".join(row) for row in out if row]
+    if len(rows) > lines:  # the rest spans two lines or more, so fit() ends it with an ellipsis
+        rows = [*rows[: lines - 1], fit(" ".join(rows[lines - 1 :]), max_w, size, face, spacing)]
+    elif len(out) > 1 and len(out[-1]) == 1 and len(out[-2]) > 2:
+        moved = " ".join([out[-2][-1], out[-1][0]])
+        if text_width(moved, size, face, spacing) <= max_w:
+            rows[-2:] = [" ".join(out[-2][:-1]), moved]
+    return [fit(row, max_w, size, face, spacing) for row in rows]
+
+
 # ---------------------------------------------------------------- layout at any size
 
 FONT_FLOOR = 7.0  # px; smaller text stops reading on a phone
+# Phone layouts. A desktop README card (840 px) shows at about 0.37x in a phone's 308 px
+# README column, so every label turns to texture. A phone layout is drawn 320 px wide with
+# text at PHONE_TEXT or more, and a <picture> swaps in the desktop card from DESKTOP_MIN px.
+# The default is GitHub's: its README column is 383 to 626 px wide from a 768 px to a
+# 1011 px window, where a desktop card would still shrink to 0.46-0.75x. Other pages pass
+# their own with --breakpoint.
+PHONE_W = 320
+PHONE_TEXT = 10.5
+DESKTOP_MIN = 1012
+DESKTOP_MEDIA = f"(min-width: {DESKTOP_MIN}px)"
+DEVICES = ("desktop", "phone")
 MIN_EDGE = 8  # px for --width and --height; a divider or a bar loader is thinner than a canvas
 FLOW_MIN_NODE = 44  # px; a narrower flow node cannot hold even a three-letter label
 BAR_ROW_MIN = 18.0  # px; a bars row needs its 9 px label plus the 6 px track
@@ -605,6 +649,11 @@ class Ctx:
     reduced: str
     text_on: tuple[str, ...] = ()  # opaque colors small text sits on (see text_grounds)
     marks_on: tuple[str, ...] = ()  # opaque colors marks must reach 3:1 on
+    phone: bool = False  # a phone layout: PHONE_W wide, text at PHONE_TEXT or more
+
+    def fs(self, size: float) -> float:
+        """A font size, raised to PHONE_TEXT on a phone layout."""
+        return max(size, PHONE_TEXT) if self.phone else size
 
     def id(self, name: str) -> str:
         return f"{self.prefix}{name}"
@@ -723,6 +772,7 @@ def frame(c: Ctx, art: Art, *, rx: float = 14, solid: bool = False) -> None:
 
 
 def heading(c: Ctx, art: Art, text: str, x: float = 20, y: float = 28, size: float = 10) -> None:
+    size = c.fs(size)
     label = fit(text.upper(), art.width - 2 * x, size, "mono", MONO_LS)
     art.body.append(
         el("text", esc(label), class_=c.cls("m"), x=x, y=y, fill=c.pal.text, font_size=size)
@@ -766,6 +816,85 @@ def regular(c: Ctx, art: Art) -> None:
     art.css.append(f".{c.cls('r')}{{font-family:{c.sans};font-weight:400}}")
 
 
+# ---------------------------------------------------------------- glyphs
+
+
+def _ring(cx: float, cy: float, r: float) -> str:
+    """A circle as a path, so a glyph is one path."""
+    arc = f"a{num(r)} {num(r)} 0 1 0"
+    return f"M{num(cx - r)} {num(cy)}{arc} {num(2 * r)} 0{arc} {num(-2 * r)} 0"
+
+
+# Small line icons in a 16 by 16 box, drawn for this generator: (stroked path, filled path).
+# Stroke width is GLYPH_STROKE box units, so a 16 px glyph has a 1.5 px line.
+GLYPHS: dict[str, tuple[str, str]] = {
+    "star": ("", "M8 1.4l1.95 4.2 4.55.5-3.4 3.1 1 4.5L8 11.4l-4.1 2.3 1-4.5-3.4-3.1 4.55-.5z"),
+    "fork": (
+        _ring(4, 3.2, 1.6)
+        + _ring(12, 3.2, 1.6)
+        + _ring(8, 12.8, 1.6)
+        + "M4 4.8V6a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V4.8M8 8v3.2",
+        "",
+    ),
+    "commit": (_ring(8, 8, 2.6) + "M1 8h4.4M10.6 8H15", ""),
+    "pull": (
+        _ring(4, 3.2, 1.6)
+        + _ring(4, 12.8, 1.6)
+        + _ring(12, 12.8, 1.6)
+        + "M4 4.8v6.4M12 11.2V6.2a2 2 0 0 0-2-2H7.4M9 2.6 7.4 4.2 9 5.8",
+        "",
+    ),
+    "issue": (_ring(8, 8, 6), _ring(8, 8, 1.3)),
+    "flame": (
+        "M8 14.8c-2.9 0-4.9-2.1-4.9-4.9 0-2.6 1.8-4 2.6-6.4.5 1.6 1.4 2.4 2.3 2.6C8.3 4 8.5 2.6 "
+        "9.3 1.2c1.4 2 3.6 4.4 3.6 8 0 3.4-2 5.6-4.9 5.6z",
+        "",
+    ),
+    "check": ("M3 8.6l3.2 3.2L13 4.8", ""),
+    "clock": (_ring(8, 8, 6) + "M8 4.4V8l2.6 1.6", ""),
+    "eye": ("M1.4 8S4 3.6 8 3.6 14.6 8 14.6 8 12 12.4 8 12.4 1.4 8 1.4 8z" + _ring(8, 8, 2), ""),
+    "code": ("M5.6 4 1.6 8l4 4M10.4 4l4 4-4 4", ""),
+    "repo": (
+        "M3 2.4h9.6v10.4H4.4A1.4 1.4 0 0 0 3 14.2zM3 14.2v-11.8M5.4 12.8v2.8l1.3-.9 1.3.9v-2.8",
+        "",
+    ),
+    "calendar": ("M2.4 3.6h11.2v10H2.4zM2.4 6.6h11.2M5.4 2v3M10.6 2v3", ""),
+    "trophy": (
+        "M4.6 2.2h6.8v4a3.4 3.4 0 0 1-6.8 0zM4.6 3.6H2.4a2.2 2.2 0 0 0 2.4 2.6M11.4 3.6h2.2"
+        "a2.2 2.2 0 0 1-2.4 2.6M8 9.6v2.4M5.2 14h5.6M6 12h4v2H6z",
+        "",
+    ),
+    "heart": (
+        "M8 13.6S1.8 9.8 1.8 5.6A3.2 3.2 0 0 1 8 4.2a3.2 3.2 0 0 1 6.2 1.4c0 4.2-6.2 8-6.2 8z",
+        "",
+    ),
+    "bolt": ("", "M9.2 1.2 3 9h4.2L6.6 14.8 13 7H8.8z"),
+}
+GLYPH_STROKE = 1.5
+
+
+def glyph(name: str, x: float, y: float, size: float, color: str) -> str:
+    """Glyph `name` drawn size px square with its top-left corner at (x, y), in color."""
+    stroked, filled = GLYPHS[name]
+    k = size / 16
+    parts = []
+    if stroked:
+        parts.append(
+            el(
+                "path",
+                d=stroked,
+                fill="none",
+                stroke=color,
+                stroke_width=GLYPH_STROKE,
+                stroke_linecap="round",
+                stroke_linejoin="round",
+            )
+        )
+    if filled:
+        parts.append(el("path", d=filled, fill=color))
+    return el("g", *parts, transform=f"translate({num(x)} {num(y)}) scale({num(k, 4)})")
+
+
 # ---------------------------------------------------------------- kinds
 
 
@@ -783,24 +912,52 @@ def kind_tiles(c: Ctx) -> Art:
                 "tone": raw.get("tone"),
             }
         )
+    desc = "; ".join(f"{t['value']} {t['label']}" for t in items)
     n = len(items)
     cols = int(number_of(spec.get("cols", min(n, 4)), "tiles cols"))
     if not 1 <= cols <= 8:
         raise ForgeError("tiles cols must be between 1 and 8")
-    rows = math.ceil(n / cols)
     title = c.title or (text_of(spec["title"], "tiles title") if spec.get("title") else "")
     w = c.width or 840
     pad, gap = 16, 12
+    more = 0  # tiles left off a phone layout, counted on a "+N more" line
+    label_lines: list[list[str]] = []
+    if c.phone:
+        # Two columns, values in full at 18 px bold or more: one column when a value needs
+        # more room than half the card. Past 8 tiles the rest goes to the "+N more" line.
+        pad, gap = 14, 10
+        more, items = max(0, n - 8), items[:8]
+        n = len(items)
+        cols = min(cols, 2, n)
+        half = (w - 2 * pad - gap) / 2 - 32
+        if cols == 2 and any(text_width(t["value"], 18, "bold") > half for t in items):
+            cols = 1
+    rows = math.ceil(n / cols)
     top = pad + (28 if title else 0)
-    th = 80.0 if c.height is None else max(48.0, (c.height - top - pad - (rows - 1) * gap) / rows)
-    h = c.height or top + rows * th + (rows - 1) * gap + pad
     tw = (w - 2 * pad - (cols - 1) * gap) / cols
-    art = Art(w, h, title or "Stat tiles", "; ".join(f"{t['value']} {t['label']}" for t in items))
+    if c.phone:
+        label_lines = [
+            wrap(t["label"].upper(), tw - 32, c.fs(8.5), "mono", MONO_LS, lines=2) or [""]
+            for t in items
+        ]
+        natural = 80.0 + 13 * (max(len(lines) for lines in label_lines) - 1)
+        more_h = 22 if more else 0
+        need = top + rows * natural + (rows - 1) * gap + more_h + pad
+        th = natural + max(0.0, (c.height or 0) - need) / rows
+        h = max(c.height or 0, need)
+    else:
+        th = (
+            80.0
+            if c.height is None
+            else max(48.0, (c.height - top - pad - (rows - 1) * gap) / rows)
+        )
+        h = c.height or top + rows * th + (rows - 1) * gap + pad
+    art = Art(w, h, title or "Stat tiles", desc)
     frame(c, art)
     if title:
         heading(c, art, title, x=pad + 4, y=pad + 14)
     if c.one_shot:
-        clock, begins, item = c.entrance(n)
+        clock, begins, item = c.entrance(n + (1 if more else 0))
     else:
         clock, begins, item = c.cycle(c.preset.base, distance=w), [], 0.0
     layer = []
@@ -808,11 +965,45 @@ def kind_tiles(c: Ctx) -> Art:
         x = pad + (i % cols) * (tw + gap)
         y = top + (i // cols) * (th + gap)
         color = c.tone(t["tone"])
-        value, size = shrink(t["value"], tw - 32, min(26.0, th * 0.34), "bold", 13)
-        label = fit(t["label"].upper(), tw - 32, 8.5, "mono", MONO_LS)
         lit = () if c.one_shot else (alpha(color, 0.06),)  # the spotlight passes over the text
         value_ink = c.legible(c.theme.ink, c.theme.card, *lit)
         label_ink = c.legible(c.theme.dim, c.theme.card, *lit)
+        if c.phone:
+            lines = label_lines[i]
+            off = y + (th - 80.0 - 13 * (len(lines) - 1)) / 2  # the block centered in the tile
+            value, size = shrink(t["value"], tw - 32, 26.0, "bold", 18)
+            marks = [
+                el("rect", x=x, y=off + 17.6, width=3, height=27.2, rx=1.5, fill=color),
+                el(
+                    "text",
+                    esc(value),
+                    class_=c.cls("b"),
+                    x=x + 18,
+                    y=off + 42.4,
+                    fill=value_ink,
+                    font_size=size,
+                ),
+                *(
+                    mono(c, line, x + 18, off + 64 + 13 * k, label_ink, c.fs(8.5))
+                    for k, line in enumerate(lines)
+                ),
+            ]
+        else:
+            value, size = shrink(t["value"], tw - 32, min(26.0, th * 0.34), "bold", 13)
+            label = fit(t["label"].upper(), tw - 32, 8.5, "mono", MONO_LS)
+            marks = [
+                el("rect", x=x, y=y + th * 0.22, width=3, height=th * 0.34, rx=1.5, fill=color),
+                el(
+                    "text",
+                    esc(value),
+                    class_=c.cls("b"),
+                    x=x + 18,
+                    y=y + th * 0.53,
+                    fill=value_ink,
+                    font_size=size,
+                ),
+                mono(c, label, x + 18, y + th * 0.8, label_ink, 8.5),
+            ]
         inner = [
             el(
                 "rect",
@@ -824,17 +1015,7 @@ def kind_tiles(c: Ctx) -> Art:
                 fill=c.theme.card,
                 stroke=c.theme.border,
             ),
-            el("rect", x=x, y=y + th * 0.22, width=3, height=th * 0.34, rx=1.5, fill=color),
-            el(
-                "text",
-                esc(value),
-                class_=c.cls("b"),
-                x=x + 18,
-                y=y + th * 0.53,
-                fill=value_ink,
-                font_size=size,
-            ),
-            mono(c, label, x + 18, y + th * 0.8, label_ink, 8.5),
+            *marks,
         ]
         if c.one_shot:
             layer.append(el("g", rise(clock, begins[i], item), *inner))
@@ -857,6 +1038,10 @@ def kind_tiles(c: Ctx) -> Art:
                 opacity=0,
             )
         )
+    if more:
+        y = top + rows * th + (rows - 1) * gap + 17
+        line = mono(c, f"+{more} MORE", pad + 4, y, c.legible(c.theme.dim), c.fs(8.5))
+        layer.append(el("g", rise(clock, begins[-1], item), line) if c.one_shot else line)
     art.body.append(el("g", veil(clock) if c.one_shot else "", *layer))
     return art
 
@@ -895,8 +1080,46 @@ def kind_hero(c: Ctx) -> Art:
     nodes = [text_of(t, "hero node", 8) for t in spec.get("nodes", [])][:8]
     w = c.width or 840
     h = c.height or 250
-    show_nodes = len(nodes) >= 2 and w >= 560
+    show_nodes = len(nodes) >= 2 and w >= 560 and not c.phone
     left = w * 0.6 if show_nodes else w - 80
+    if c.phone:
+        # One column: kicker, the title (shrunk, then wrapped), taglines wrapped to two lines,
+        # the status pill and the meta line on rows of their own. No constellation: its node
+        # labels would be texture at this width. spots holds baselines (pill: its top).
+        x0, room = 24, w - 48
+        if text_width(title, 22, "bold") <= room:
+            name, size_title = shrink(title, room, 40.0, "bold", 22)
+            title_lines = [name]
+        else:  # the largest size that holds it whole on two lines, else three at 22 px
+            size_title, title_lines = 22.0, wrap(title, room, 22, "bold", lines=3)
+            for size in range(40, 21, -1):
+                lines = wrap(title, room, size, "bold", lines=2)
+                if " ".join(lines) == title:
+                    size_title, title_lines = float(size), lines
+                    break
+        tag_lines = [wrap(t, room, 15, "sans", lines=2) or [""] for t in taglines]
+        meta_lines = wrap(meta.upper(), room, c.fs(10), "mono", MONO_LS, lines=2)
+        spots: dict[str, list[float]] = {}
+        y = 26.0  # ink bottom of the blocks placed so far
+        if kicker:
+            spots["kicker"] = [y + 8]
+            y += 24
+        spots["title"] = [y + size_title * (0.72 + 1.1 * k) for k in range(len(title_lines))]
+        y = spots["title"][-1] + size_title * 0.2
+        if tag_lines:  # played once, only the first tagline is shown
+            rows = len(tag_lines[0]) if c.one_shot else max(map(len, tag_lines))
+            spots["tag"] = [y + 23 + 20 * k for k in range(rows)]
+            y = spots["tag"][-1] + 4
+        if status:
+            spots["pill"] = [y + 16]
+            y += 44
+        if meta_lines:
+            spots["meta"] = [y + 22 + 15 * k for k in range(len(meta_lines))]
+            y = spots["meta"][-1] + 2
+        need = math.ceil(y + 24)
+        h = max(c.height or 0, need)
+        lift = (h - need) / 2  # a taller --height centers the stack
+        spots = {k: [v + lift for v in vs] for k, vs in spots.items()}
     desc = ". ".join(x for x in (kicker, title, *taglines, status, meta) if x)
     art = Art(w, h, title, desc)
     p = c.theme
@@ -939,46 +1162,87 @@ def kind_hero(c: Ctx) -> Art:
         )
     art.body.append(el("g", *backdrop, clip_path=c.url("card")))
 
-    s = h / 250
-    x0 = 44
-    size_title = min(58.0, h * 0.23)
-    name, size_title = shrink(title, left - x0 - 12, size_title, "bold", 22)
     parts: list[list[str]] = []
-    if kicker:
+    if c.phone:
+        if kicker:
+            label = fit(kicker.upper(), room, c.fs(11), "mono", 2)
+            parts.append([mono(c, label, x0, spots["kicker"][0], c.pal.text, c.fs(11))])
         parts.append(
-            [mono(c, fit(kicker.upper(), left - x0, 11, "mono", 2), x0, 62 * s, c.pal.text, 11)]
+            [
+                el(
+                    "text",
+                    esc(line),
+                    class_=c.cls("b"),
+                    x=x0 - 2,
+                    y=y,
+                    fill=p.ink,
+                    font_size=size_title,
+                    letter_spacing=-1,
+                )
+                for line, y in zip(title_lines, spots["title"], strict=True)
+            ]
         )
-    parts.append(
-        [
-            el(
-                "text",
-                esc(name),
-                class_=c.cls("b"),
-                x=x0 - 4,
-                y=118 * s,
-                fill=p.ink,
-                font_size=size_title,
-                letter_spacing=-1,
+        if tag_lines:
+            tag_attrs = {"class_": c.cls("s"), "x": x0, "fill": p.text, "font_size": 15}
+            tags = []
+            for k, y in enumerate(spots["tag"]):
+                # each row takes turns on the shared clock, so a tagline's two lines move
+                # together; a one-line tagline leaves its second row empty
+                row = [lines[k] if k < len(lines) else "" for lines in tag_lines]
+                if one:
+                    tags.append(el("text", esc(row[0]), **tag_attrs, y=y))
+                else:
+                    tags += rotating(c, row, clock, **tag_attrs, y=y)
+            parts.append(tags)
+    else:
+        s = h / 250
+        x0 = 44
+        size_title = min(58.0, h * 0.23)
+        name, size_title = shrink(title, left - x0 - 12, size_title, "bold", 22)
+        if kicker:
+            parts.append(
+                [mono(c, fit(kicker.upper(), left - x0, 11, "mono", 2), x0, 62 * s, c.pal.text, 11)]
             )
-        ]
-    )
-    tag_attrs = {"class_": c.cls("s"), "x": x0, "y": 152 * s, "fill": p.text, "font_size": 18}
-    fitted = [fit(t, left - x0 - 8, 18, "sans") for t in taglines]
-    if fitted:
-        if one:
-            parts.append([el("text", esc(fitted[0]), **tag_attrs)])
-        else:
-            parts.append(rotating(c, fitted, clock, **tag_attrs))
+        parts.append(
+            [
+                el(
+                    "text",
+                    esc(name),
+                    class_=c.cls("b"),
+                    x=x0 - 4,
+                    y=118 * s,
+                    fill=p.ink,
+                    font_size=size_title,
+                    letter_spacing=-1,
+                )
+            ]
+        )
+        tag_attrs = {"class_": c.cls("s"), "x": x0, "y": 152 * s, "fill": p.text, "font_size": 18}
+        fitted = [fit(t, left - x0 - 8, 18, "sans") for t in taglines]
+        if fitted:
+            if one:
+                parts.append([el("text", esc(fitted[0]), **tag_attrs)])
+            else:
+                parts.append(rotating(c, fitted, clock, **tag_attrs))
     if status:
-        pill_w = text_width(status.upper(), 10, "mono", 1.0) + 46
+        size = c.fs(10)
+        if c.phone:
+            pill_y = spots["pill"][0]
+            dot_y = pill_y + 14
+            label = fit(status.upper(), room - 46, size, "mono", MONO_LS)
+            pill_w = text_width(label, size, "mono", MONO_LS) + 46
+        else:
+            pill_y, label = 176 * s, status.upper()
+            dot_y = pill_y + 14  # the pill stays 28 tall at any canvas height
+            pill_w = text_width(label, 10, "mono", 1.0) + 46
         pulse = not one
-        dot = el("circle", cx=x0 + 18, cy=190 * s, r=4, fill=p.ok)
+        dot = el("circle", cx=x0 + 18, cy=dot_y, r=4, fill=p.ok)
         if pulse:
             dot = el(
                 "circle",
                 animate("opacity", [(0, 1), (0.5, 0.35), (1, 1)], clock.sub(1.8)),
                 cx=x0 + 18,
-                cy=190 * s,
+                cy=dot_y,
                 r=4,
                 fill=p.ok,
             )
@@ -986,7 +1250,7 @@ def kind_hero(c: Ctx) -> Art:
             el(
                 "rect",
                 x=x0,
-                y=176 * s,
+                y=pill_y,
                 width=pill_w,
                 height=28,
                 rx=14,
@@ -996,21 +1260,28 @@ def kind_hero(c: Ctx) -> Art:
             dot,
             mono(
                 c,
-                status.upper(),
+                label,
                 x0 + 30,
-                176 * s + 18,
+                pill_y + 18,
                 c.legible(p.ok, alpha(p.ok, 0.08)),
-                10,
+                size,
                 letter_spacing=1,
             ),
         ]
-        if meta:
+        if meta and not c.phone:
             meta_x = x0 + pill_w + 16
             room = left - meta_x
             pill.append(
-                mono(c, fit(meta.upper(), room, 10, "mono", 1.0), meta_x, 176 * s + 18, p.dim, 10)
+                mono(c, fit(meta.upper(), room, 10, "mono", 1.0), meta_x, pill_y + 18, p.dim, 10)
             )
         parts.append(pill)
+    if meta and c.phone:
+        parts.append(
+            [
+                mono(c, line, x0, y, p.dim, c.fs(10))
+                for line, y in zip(meta_lines, spots["meta"], strict=True)
+            ]
+        )
     if show_nodes:
         parts.append(constellation(c, nodes, left, w, h, clock, one))
 
@@ -1106,7 +1377,8 @@ def kind_marquee(c: Ctx) -> Art:
         for r in need_list(rows_raw, "marquee rows", 3)
     ]
     w = c.width or 840
-    chip_h, row_gap, pad, gap, size = 28, 12, 14, 10, 11
+    # a phone layout keeps the same chips: at 320 px they show near 1:1, above PHONE_TEXT
+    chip_h, row_gap, pad, gap, size = 28, 12, 14, 10, c.fs(11)
     h = c.height or pad * 2 + len(rows) * chip_h + (len(rows) - 1) * row_gap
     flat = [t for r in rows for t in r]
     art = Art(w, h, c.title or "Marquee", "Scrolling list: " + ", ".join(flat))
@@ -1198,11 +1470,17 @@ def kind_chart(c: Ctx) -> Art:
     peak_word = text_of(spec.get("peak", "PEAK"), "chart peak", 12)
     unit = text_of(spec.get("unit", ""), "chart unit", 6)
     w = c.width or 600
-    h = c.height or 240
-    x0, x1 = 24, w - 58
-    y0, y1 = (58 if title else 30), h - (34 if labels else 22)
+    h = c.height or (220 if c.phone else 240)
     lo, hi = min(values), max(values)
     span = hi - lo or 1.0
+    axis = c.fs(8)  # axis label size
+    if c.phone:  # the y axis gutter fits its two labels (low and high) at PHONE_TEXT
+        ticks = [fmt_value(lo + span * frac) + unit for frac in (0, 1)]
+        x0, x1 = 16, w - 20 - max(text_width(t, axis, "mono", MONO_LS) for t in ticks)
+        y0, y1 = (56 if title else 30), h - (34 if labels else 22)
+    else:
+        x0, x1 = 24, w - 58
+        y0, y1 = (58 if title else 30), h - (34 if labels else 22)
     n = len(values)
     pts = [
         (x0 + (x1 - x0) * i / (n - 1), y1 - (y1 - y0) * (v - lo) / span)
@@ -1220,7 +1498,7 @@ def kind_chart(c: Ctx) -> Art:
     p = c.theme
     frame(c, art)
     if title:
-        heading(c, art, title, x=24, y=32)
+        heading(c, art, title, x=x0, y=y0 - 26)
     art.defs.append(
         el(
             "linearGradient",
@@ -1237,10 +1515,21 @@ def kind_chart(c: Ctx) -> Art:
     for frac in (0, 0.5, 1):
         y = y1 - (y1 - y0) * frac
         art.body.append(el("line", x1=x0, y1=y, x2=x1, y2=y, stroke=p.grid if frac else p.border))
-        art.body.append(mono(c, fmt_value(lo + span * frac) + unit, x1 + 8, y + 3, p.dim, 8))
+        if c.phone and frac == 0.5:  # fewer ticks on a phone: the middle line goes unlabelled
+            continue
+        tick = fmt_value(lo + span * frac) + unit
+        art.body.append(mono(c, tick, x1 + 8, y + axis * 0.375, p.dim, axis))
     if labels:
-        art.body.append(mono(c, labels[0], x0, h - 14, p.dim, 8))
-        art.body.append(mono(c, labels[-1], x1, h - 14, p.dim, 8, text_anchor="end"))
+        ends = labels[0], labels[-1]
+        if c.phone:  # the two end labels share the axis, the shorter one first
+            room = x1 - x0 - 16
+            wa, wb = (text_width(t, axis, "mono", MONO_LS) for t in ends)
+            ends = (
+                fit(ends[0], max(room / 2, room - wb), axis, "mono", MONO_LS),
+                fit(ends[1], max(room / 2, room - wa), axis, "mono", MONO_LS),
+            )
+        art.body.append(mono(c, ends[0], x0, h - 14, p.dim, axis))
+        art.body.append(mono(c, ends[1], x1, h - 14, p.dim, axis, text_anchor="end"))
     if c.one_shot:
         start = 0.1 if c.preset.name == "short" else 0.0
         draw = 1.1 if c.preset.name == "short" else 0.24
@@ -1252,11 +1541,11 @@ def kind_chart(c: Ctx) -> Art:
     d = clock.dur
     a, b = start / d, (start + draw) / d
     label = f"{peak_word} {fmt_value(hi)}{unit}"
-    tx, anchor = (
-        (px - 8, "end")
-        if px - 8 - text_width(label, 9, "mono", MONO_LS) >= 12
-        else (px + 8, "start")
-    )
+    peak_size = c.fs(9)
+    lw = text_width(label, peak_size, "mono", MONO_LS)
+    tx, anchor = (px - 8, "end") if px - 8 - lw >= 12 else (px + 8, "start")
+    if c.phone and anchor == "start" and tx + lw > w - 12:  # no room either side: stay inside
+        tx = max(12, w - 12 - lw)
     show = [(0, 0), (b, 0), (min(b + 0.25 / d, 1), 1)]
     ring_cls = None
     if clock.loop:
@@ -1306,7 +1595,7 @@ def kind_chart(c: Ctx) -> Art:
                 stroke_width=1.5,
             ),
             el("circle", cx=lx, cy=ly, r=3.5, fill=line_ink),
-            mono(c, label, tx, py - 10, c.pal.text, 9, text_anchor=anchor),
+            mono(c, label, tx, py - 10, c.pal.text, peak_size, text_anchor=anchor),
         ),
     ]
     art.body.append(el("g", veil(clock), *built))
@@ -1337,25 +1626,50 @@ def kind_bars(c: Ctx) -> Art:
             }
         )
     title = c.title or (text_of(spec["title"], "bars title") if spec.get("title") else "")
+    desc = "; ".join(f"{t['label']} {t['shown']}" for t in items)
     n = len(items)
     w = c.width or 600
     top_y = 50 if title else 22
-    row = 36.0
-    if c.height is not None:  # a fixed canvas packs the rows instead of drawing past its edge
-        room = (c.height - top_y - 4) / n
-        if room < BAR_ROW_MIN:
-            fits = int((c.height - top_y - 4) // BAR_ROW_MIN)
-            raise ForgeError(
-                f"bars at --height {num(c.height)} fit at most {fits} item(s), got {n}; "
-                "raise the height or drop items"
-            )
-        row = clamp(room, BAR_ROW_MIN, 36.0)
-    h = c.height or top_y + n * row + 4
-    pad = 24
-    tw = w - 2 * pad
-    art = Art(
-        w, h, title or "Progress bars", "; ".join(f"{t['label']} {t['shown']}" for t in items)
-    )
+    size = c.fs(9)  # labels and values
+    more = 0  # bars left off a phone layout, counted on a "+N more" line
+    rows: list[tuple[float, list[str], float]] = []  # (label baseline, label lines, track y)
+    if c.phone:
+        # Labels wrap to two lines beside the right-aligned value; past 8 bars the rest goes
+        # to the "+N more" line. A taller --height spreads the rows.
+        pad = 16
+        tw = w - 2 * pad
+        more, items = max(0, n - 8), items[:8]
+        n = len(items)
+        labels = []
+        for t in items:
+            room = tw - text_width(t["shown"], size, "mono", MONO_LS) - 12
+            labels.append(wrap(t["label"].upper(), room, size, "mono", MONO_LS, lines=2) or [""])
+        steps = [38.0 + 14 * (len(lines) - 1) for lines in labels]
+        need = top_y + sum(steps) + 4 + (24 if more else 0)
+        spread = max(0.0, (c.height or 0) - need) / n
+        y = top_y + 13
+        for lines, step in zip(labels, steps, strict=True):
+            rows.append((y, lines, y + 14 * (len(lines) - 1) + 8))
+            y += step + spread
+        h = max(c.height or 0, need)
+    else:
+        row = 36.0
+        if c.height is not None:  # a fixed canvas packs the rows instead of drawing past its edge
+            room = (c.height - top_y - 4) / n
+            if room < BAR_ROW_MIN:
+                fits = int((c.height - top_y - 4) // BAR_ROW_MIN)
+                raise ForgeError(
+                    f"bars at --height {num(c.height)} fit at most {fits} item(s), got {n}; "
+                    "raise the height or drop items"
+                )
+            row = clamp(room, BAR_ROW_MIN, 36.0)
+        h = c.height or top_y + n * row + 4
+        pad = 24
+        tw = w - 2 * pad
+        for i, t in enumerate(items):
+            y = top_y + i * row + 12
+            rows.append((y, [fit(t["label"].upper(), tw * 0.7, 9, "mono", MONO_LS)], y + 7))
+    art = Art(w, h, title or "Progress bars", desc)
     p = c.theme
     frame(c, art)
     if title:
@@ -1369,15 +1683,13 @@ def kind_bars(c: Ctx) -> Art:
         item = 0.3 * clock.dur
     fills = []
     track = fade(p.panel_stroke, 0.5)
-    for i, t in enumerate(items):
-        y = top_y + i * row + 12
+    for i, (t, (y, lines, bar_y)) in enumerate(zip(items, rows, strict=True)):
         color = c.mark(c.tone(t["tone"]), track)
+        for k, line in enumerate(lines):
+            art.body.append(mono(c, line, pad, y + 14 * k, p.dim, size))
+        art.body.append(mono(c, t["shown"], pad + tw, y, p.text, size, text_anchor="end"))
         art.body.append(
-            mono(c, fit(t["label"].upper(), tw * 0.7, 9, "mono", MONO_LS), pad, y, p.dim, 9)
-        )
-        art.body.append(mono(c, t["shown"], pad + tw, y, p.text, 9, text_anchor="end"))
-        art.body.append(
-            el("rect", x=pad, y=y + 7, width=tw, height=6, rx=3, fill=p.panel_stroke, opacity=0.5)
+            el("rect", x=pad, y=bar_y, width=tw, height=6, rx=3, fill=p.panel_stroke, opacity=0.5)
         )
         if t["frac"] <= 0:
             continue
@@ -1394,9 +1706,11 @@ def kind_bars(c: Ctx) -> Art:
                     rx=3,
                     fill=color,
                 ),
-                transform=f"translate({num(pad)} {num(y + 7)})",
+                transform=f"translate({num(pad)} {num(bar_y)})",
             )
         )
+    if more:
+        art.body.append(mono(c, f"+{more} MORE", pad, h - 15, c.legible(p.dim), size))
     art.body.append(el("g", veil(clock), *fills))
     return art
 
@@ -1535,6 +1849,91 @@ def parse_flow_text(text: str) -> dict[str, Any]:
     }
 
 
+def flow_rows(
+    c: Ctx, nodes: list[Node], ranks: int, w: float, top: float, nh: float, back: bool
+) -> tuple[float, float, dict[str, float], list[tuple[float, float]]]:
+    """The top to bottom phone layout of kind_flow: place the nodes one rank per row, a rank
+    too wide for the card wrapped onto more rows, and return the card height, the x the
+    return arcs bend toward, each node's width and the (top, bottom) of each gap between
+    rows. Fixed positions swap axes: x runs down the rows, y across them."""
+    pad, gap, lf = 16, 10, c.fs(9)
+    avail = w - 2 * pad - (24 if back else 0)  # return arcs keep a lane on the right
+
+    def need(node: Node) -> float:
+        return text_width(node.label.upper(), lf, "mono", MONO_LS) + 16
+
+    pref = min(max(max(need(n) for n in nodes) + 14, 88), avail - gap)  # the desktop width
+    lines: list[list[Node]] = []
+    for r in range(ranks):
+        rank = [n for n in nodes if n.rank == r]
+        most = max(1, int(avail // (min(max(need(n) for n in rank), avail - gap) + gap)))
+        per = math.ceil(len(rank) / math.ceil(len(rank) / most))
+        lines += [rank[i : i + per] for i in range(0, len(rank), per)]
+    pitch, least = nh + 32, nh + 24  # row to row; the gap holds an edge label
+    h = c.height or top + (len(lines) - 1) * pitch + nh + 20
+    if c.height is not None and len(lines) > 1:
+        pitch = (c.height - top - nh - 20) / (len(lines) - 1)
+        if pitch < least:
+            more = math.ceil(top + (len(lines) - 1) * least + nh + 20)
+            raise ForgeError(
+                f"flow on a phone stacks {len(lines)} rows and needs a height of at least "
+                f"{more}, got {num(c.height)}; drop --height or put more steps in a row"
+            )
+    widths: dict[str, float] = {}
+    for i, line in enumerate(lines):
+        step = avail / len(line)
+        for j, node in enumerate(line):
+            widths[node.id] = min(pref, step - gap)
+            node.x, node.y = pad + step * (j + 0.5), top + nh / 2 + i * pitch
+    for node in nodes:
+        if node.fx is not None:
+            node.y = top + nh / 2 + clamp(node.fx, 0.0, 1.0) * (len(lines) - 1) * pitch
+        if node.fy is not None:
+            nw = widths[node.id]
+            node.x = pad + nw / 2 + clamp(node.fy, 0.0, 1.0) * (avail - nw)
+    gaps = [(top + nh + i * pitch, top + (i + 1) * pitch) for i in range(len(lines) - 1)]
+    return h, w - 10, widths, gaps
+
+
+def flow_label_spot(
+    nodes: list[Node],
+    widths: dict[str, float],
+    v: Node,
+    end: tuple[float, float],
+    pts: list[tuple[float, float]],
+    is_back: bool,
+    gaps: list[tuple[float, float]],
+    w: float,
+    size: float,
+    text_w: float,
+) -> tuple[float, float, str, float]:
+    """Where an edge label goes in the top to bottom flow: x, baseline, anchor and the width
+    it may take. A forward label sits beside the arrow head, on the side the edge does not
+    come from. A return label sits left of its arc in a row gap: the one nearest the middle
+    of the arc whose rows leave the label clear of their nodes."""
+    pad = 16
+    if is_back:
+        lo, hi = min(p[1] for p in pts), max(p[1] for p in pts)
+        mid = (lo + hi) / 2
+        inside = [g for g in gaps if lo < g[0] and g[1] < hi] or gaps or [(mid, mid)]
+        spots = []
+        for g0, g1 in sorted(inside, key=lambda g: abs((g[0] + g[1]) / 2 - mid)):
+            gy = (g0 + g1) / 2
+            x = min(pts, key=lambda p: abs(p[1] - gy))[0] - 6
+            near = [n for n in nodes if g0 - 30 < n.y < g1 + 30]
+            clear = all(n.x + widths[n.id] / 2 < x - text_w - 4 for n in near)
+            spots.append((not clear, x, gy + size * 0.35))
+        _, x, y = min(spots, key=lambda s: s[0])
+        return x, y, "end", x - pad
+    row = [n.x for n in nodes if n is not v and abs(n.y - v.y) < 1]
+    y = end[1] - 5
+    if pts[0][0] > end[0] + 0.5:  # the edge comes in from the right: label on the left
+        x = end[0] - 7
+        return x, y, "end", x - max([pad, *(nx + 6 for nx in row if nx < v.x)])
+    x = end[0] + 7
+    return x, y, "start", min([w - pad, *(nx - 6 for nx in row if nx > v.x)]) - x
+
+
 def kind_flow(c: Ctx) -> Art:
     """Nodes joined by paths with packets riding them: pipeline or architecture diagram.
 
@@ -1543,6 +1942,11 @@ def kind_flow(c: Ctx) -> Art:
     the diagram plays as a storyboard: one beat per column, packets travel into each column,
     its nodes light up, return arcs run last, then everything fades and the loop restarts.
     Text data (a string) is a spec for parse_flow_text().
+
+    On a phone the columns stay when every label fits them at the phone text size; when they
+    do not, the diagram turns top to bottom: one rank per row (a crowded rank wraps onto
+    more rows), labels beside the arrow heads, return arcs down the right side, and fixed
+    x and y positions swap axes. The storyboard plays the same either way.
     """
     spec = parse_flow_text(c.data) if isinstance(c.data, str) else spec_of(c, "nodes")
     nodes, edges = flow_graph(spec)
@@ -1557,29 +1961,45 @@ def kind_flow(c: Ctx) -> Art:
     ranks = max(n.rank for n in nodes) + 1
     title = c.title or (text_of(spec["title"], "flow title") if spec.get("title") else "")
     w = c.width or 840
-    h = c.height or 260
-    pad, nh = 24, 30
+    pad, nh = (16 if c.phone else 24), 30
+    lf, ef = c.fs(9), c.fs(8)  # node and edge label sizes
     top = 52 if title else 24
-    bottom = h - (54 if back else 22)
     lanes = (w - 2 * pad) / ranks
-    if lanes - 22 < FLOW_MIN_NODE:
-        least = math.ceil(2 * pad + ranks * (FLOW_MIN_NODE + 22))
-        raise ForgeError(
-            f"flow with {ranks} columns needs a width of at least {least}, got {num(w)}; "
-            "widen the canvas or put fewer steps in a row"
-        )
-    longest = max(text_width(n.label.upper(), 9, "mono", MONO_LS) for n in nodes)
+    longest = max(text_width(n.label.upper(), lf, "mono", MONO_LS) for n in nodes)
     nw = min(max(longest + 30, 88), 176, lanes - 22)
-    for r in range(ranks):
-        col = [n for n in nodes if n.rank == r]
-        for k, node in enumerate(col):
-            node.x = pad + lanes * (r + 0.5)
-            node.y = top + (bottom - top) * (k + 0.5) / len(col)
-    for node in nodes:
-        if node.fx is not None:
-            node.x = pad + nw / 2 + min(max(node.fx, 0.0), 1.0) * (w - 2 * pad - nw)
-        if node.fy is not None:
-            node.y = top + nh / 2 + min(max(node.fy, 0.0), 1.0) * (bottom - top - nh)
+    down = c.phone and (
+        lanes - 22 < FLOW_MIN_NODE
+        or longest > nw - 16
+        or any(
+            text_width(lab.upper(), ef, "mono", MONO_LS) > lanes - nw - 6 for _, _, lab in forward
+        )
+    )
+    if down:
+        h, arc_x, widths, gaps = flow_rows(c, nodes, ranks, w, top, nh, bool(back))
+    else:
+        if c.phone:  # as tall as the fullest column needs
+            most = max(sum(n.rank == r for n in nodes) for r in range(ranks))
+            h = c.height or top + most * (nh + 26) + (54 if back else 22)
+        else:
+            h = c.height or 260
+        bottom = h - (54 if back else 22)
+        if lanes - 22 < FLOW_MIN_NODE:
+            least = math.ceil(2 * pad + ranks * (FLOW_MIN_NODE + 22))
+            raise ForgeError(
+                f"flow with {ranks} columns needs a width of at least {least}, got {num(w)}; "
+                "widen the canvas or put fewer steps in a row"
+            )
+        for r in range(ranks):
+            col = [n for n in nodes if n.rank == r]
+            for k, node in enumerate(col):
+                node.x = pad + lanes * (r + 0.5)
+                node.y = top + (bottom - top) * (k + 0.5) / len(col)
+        for node in nodes:
+            if node.fx is not None:
+                node.x = pad + nw / 2 + min(max(node.fx, 0.0), 1.0) * (w - 2 * pad - nw)
+            if node.fy is not None:
+                node.y = top + nh / 2 + min(max(node.fy, 0.0), 1.0) * (bottom - top - nh)
+        widths, arc_x, gaps = {n.id: nw for n in nodes}, 0.0, []
     desc = "Flow: " + "; ".join(f"{a} to {b}" + (f" ({lab})" if lab else "") for a, b, lab in edges)
     art = Art(
         w,
@@ -1614,17 +2034,29 @@ def kind_flow(c: Ctx) -> Art:
         )
     )
     routes = []  # (edge, d, length, mid, is_back)
+    edge_labels = []
     arc_y = h - 16
     for a, b, label in edges:
         u, v = by_id[a], by_id[b]
-        if (a, b, label) in back:
+        is_back = (a, b, label) in back
+        if down and is_back:  # out of the right side, down the side lane, into the right side
+            q0, q3 = (u.x + widths[a] / 2, u.y), (v.x + widths[b] / 2 + 3, v.y)
+            q1, q2 = (arc_x, u.y), (arc_x, v.y)
+        elif down:
+            q0, q3 = (u.x, u.y + nh / 2), (v.x, v.y - nh / 2 - 2)
+            my = (q0[1] + q3[1]) / 2
+            q1, q2 = (q0[0], my), (q3[0], my)
+        elif is_back:
             q0, q3 = (u.x, u.y + nh / 2), (v.x, v.y + nh / 2 + 3)
             q1, q2 = (u.x, arc_y), (v.x, arc_y)
         else:
-            q0, q3 = (u.x + nw / 2, u.y), (v.x - nw / 2 - 2, v.y)
+            q0, q3 = (u.x + widths[a] / 2, u.y), (v.x - widths[b] / 2 - 2, v.y)
             mx = (q0[0] + q3[0]) / 2
             q1, q2 = (mx, q0[1]), (mx, q3[1])
-        if abs(q0[1] - q3[1]) < 0.5 and (a, b, label) not in back:
+        if down and not is_back and abs(q0[0] - q3[0]) < 0.5:
+            d = f"M{num(q0[0])} {num(q0[1])} V{num(q3[1])}"
+            pts = [q0, q3]
+        elif not down and abs(q0[1] - q3[1]) < 0.5 and not is_back:
             d = f"M{num(q0[0])} {num(q0[1])} H{num(q3[0])}"
             pts = [q0, q3]
         else:
@@ -1632,10 +2064,25 @@ def kind_flow(c: Ctx) -> Art:
             pts = cubic(q0, q1, q2, q3)
         length = sum(math.dist(s, t) for s, t in itertools.pairwise(pts)) * 1.02 + 2
         if len(pts) == 2:
-            mid = ((q0[0] + q3[0]) / 2, q0[1])
+            mid = (q0[0], (q0[1] + q3[1]) / 2) if down else ((q0[0] + q3[0]) / 2, q0[1])
         else:
             mid = pts[len(pts) // 2]
-        routes.append(((a, b, label), d, length, mid, (a, b, label) in back))
+        routes.append(((a, b, label), d, length, mid, is_back))
+        if not label:
+            continue
+        text = label.upper()
+        if down:
+            full = text_width(text, ef, "mono", MONO_LS)
+            spot = flow_label_spot(nodes, widths, v, q3, pts, is_back, gaps, w, ef, full)
+            x, y, anchor, room = spot
+            text = snug(text, room, ef, "mono", MONO_LS)
+            if text:
+                edge_labels.append(mono(c, text, x, y, p.dim, ef, text_anchor=anchor))
+            continue
+        if c.phone:  # centered on the edge: keep it inside the card
+            text = snug(text, 2 * min(mid[0] - pad, w - pad - mid[0]), ef, "mono", MONO_LS)
+        if text:
+            edge_labels.append(mono(c, text, mid[0], mid[1] - 7, p.dim, ef, text_anchor="middle"))
 
     one = c.one_shot
     beats = ranks + (1 if back else 0) + 1
@@ -1663,9 +2110,9 @@ def kind_flow(c: Ctx) -> Art:
             return (ranks + 0.05) * bl, (ranks + 0.85) * bl
         return (u.rank + 1.05) * bl, (v.rank + 0.85) * bl
 
-    base_edges, traces, packets, edge_labels = [], [], [], []
+    base_edges, traces, packets = [], [], []
     ramp = min(0.1 * bl, 0.25 / d_s)
-    for edge, d, length, mid, is_back in routes:
+    for edge, d, length, _, is_back in routes:
         a, b = travel(edge, is_back)
         stroke = {"fill": "none", "stroke_width": 1.3}
         if is_back:
@@ -1718,13 +2165,10 @@ def kind_flow(c: Ctx) -> Art:
                     opacity=0,
                 )
             )
-        if edge[2]:
-            edge_labels.append(
-                mono(c, edge[2].upper(), mid[0], mid[1] - 7, p.dim, 8, text_anchor="middle")
-            )
 
     node_base, overlays, node_labels = [], [], []
     for node in nodes:
+        nw = widths[node.id]
         x, y = node.x - nw / 2, node.y - nh / 2
         color = c.tone(node.tone)
         strong = node.tone not in (None, "", "muted")
@@ -1740,10 +2184,10 @@ def kind_flow(c: Ctx) -> Art:
             stroke=alpha(color, 0.8) if strong else p.panel_stroke,
             stroke_width=1.2,
         )
-        label = fit(node.label.upper(), nw - 16, 9, "mono", MONO_LS)
+        label = fit(node.label.upper(), nw - 16, lf, "mono", MONO_LS)
         lit = () if one else (alpha(color, 0.16),)  # the node lights up under its label
         ink = c.legible(color if strong else p.text, fill, *lit)
-        text = mono(c, label, node.x, node.y + 3.5, ink, 9, text_anchor="middle")
+        text = mono(c, label, node.x, node.y + 3.5 * lf / 9, ink, lf, text_anchor="middle")
         if one:
             r0 = begins[node.rank]
             node_base.append(el("g", rise(clock, r0, item, dy=6), rect, text))
@@ -1777,94 +2221,103 @@ def kind_flow(c: Ctx) -> Art:
 LOADER_TURN = {"micro": 0.6, "short": 0.9, "medium": 1.2, "long": 2.0, "ambient": 4.0}
 
 
-def kind_loader(c: Ctx) -> Art:
-    """Loading indicator: spinner, dots or an indeterminate bar. Loops unless --once."""
-    spec = spec_of(c, "variant") if c.data is not None else {}
-    variant = c.variant or spec.get("variant", "spinner")
-    if isinstance(variant, list):
-        variant = variant[0] if variant else "spinner"
-    if variant not in ("spinner", "dots", "bar"):
-        raise ForgeError(f"loader variant must be spinner, dots or bar, got {variant!r}")
-    turn = LOADER_TURN[c.preset.name]
-    ink = c.pal.ink
-    if variant == "spinner":
-        w = c.width or 48
-        h = c.height or w
-        r = min(w, h) / 2 - 6
-        circ = 2 * math.pi * r
-        if c.preset.name == "ambient":
-            turn = max(1.0, circ / c.speed)
-        spin, breathe = Clock(turn, c.loop), Clock(round(turn * 2, 3), c.loop)
-        art = Art(w, h, c.title or "Loading", "Animated spinner loader")
-        cx, cy = w / 2, h / 2
-        short, long_ = circ * 0.18, circ * 0.62
-        art.body += [
-            el("circle", cx=cx, cy=cy, r=r, fill="none", stroke=NEUTRAL, stroke_width=4),
+def _swell(a: float, b: float, rest: float, peak: float) -> list[tuple[float, object]]:
+    """Frames that sit at rest, reach peak halfway through [a, b] and settle back by b."""
+    return [(0, rest), (a, rest), ((a + b) / 2, peak), (b, rest), (1, rest)]
+
+
+def _hop(a: float, b: float, rest: float, apex: float) -> list[tuple[float, object]]:
+    """Frames for one parabolic hop over [a, b]: rest, up to apex halfway, back down to rest."""
+    frames: list[tuple[float, object]] = [(0, rest), (a, rest)]
+    for k in range(1, 8):
+        u = k / 8
+        frames.append((a + (b - a) * u, rest + (apex - rest) * 4 * u * (1 - u)))
+    return [*frames, (b, rest), (1, rest)]
+
+
+def _loader_spinner(c: Ctx, turn: float) -> Art:
+    w = c.width or 48
+    h = c.height or w
+    r = min(w, h) / 2 - 6
+    circ = 2 * math.pi * r
+    if c.preset.name == "ambient":
+        turn = max(1.0, circ / c.speed)
+    spin, breathe = Clock(turn, c.loop), Clock(round(turn * 2, 3), c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated spinner loader")
+    cx, cy = w / 2, h / 2
+    short, long_ = circ * 0.18, circ * 0.62
+    art.body += [
+        el("circle", cx=cx, cy=cy, r=r, fill="none", stroke=NEUTRAL, stroke_width=4),
+        el(
+            "g",
+            move("rotate", [(0, (0, cx, cy)), (1, (360, cx, cy))], spin),
             el(
-                "g",
-                move("rotate", [(0, (0, cx, cy)), (1, (360, cx, cy))], spin),
-                el(
-                    "circle",
-                    animate(
-                        "stroke-dasharray",
-                        [
-                            (0, f"{num(short)} {num(circ)}"),
-                            (0.5, f"{num(long_)} {num(circ)}"),
-                            (1, f"{num(short)} {num(circ)}"),
-                        ],
-                        breathe,
-                    ),
-                    cx=cx,
-                    cy=cy,
-                    r=r,
-                    fill="none",
-                    stroke=ink,
-                    stroke_width=4,
-                    stroke_linecap="round",
-                    stroke_dasharray=f"{num(short)} {num(circ)}",
+                "circle",
+                animate(
+                    "stroke-dasharray",
+                    [
+                        (0, f"{num(short)} {num(circ)}"),
+                        (0.5, f"{num(long_)} {num(circ)}"),
+                        (1, f"{num(short)} {num(circ)}"),
+                    ],
+                    breathe,
                 ),
+                cx=cx,
+                cy=cy,
+                r=r,
+                fill="none",
+                stroke=c.pal.ink,
+                stroke_width=4,
+                stroke_linecap="round",
+                stroke_dasharray=f"{num(short)} {num(circ)}",
             ),
-        ]
-        return art
-    if variant == "dots":
-        w = c.width or 72
-        h = c.height or 24
-        clock = Clock(turn, c.loop)
-        art = Art(w, h, c.title or "Loading", "Animated three-dot loader")
-        r = min(h / 2 - 3, w / 12)
-        for i in range(3):
-            a = i * 0.18
-            art.body.append(
-                el(
-                    "circle",
-                    animate(
-                        "opacity",
-                        [(0, 0.3), (a, 0.3), (a + 0.2, 1), (a + 0.42, 0.3), (1, 0.3)],
-                        clock,
-                    ),
-                    animate(
-                        "r",
-                        [
-                            (0, r * 0.7),
-                            (a, r * 0.7),
-                            (a + 0.2, r),
-                            (a + 0.42, r * 0.7),
-                            (1, r * 0.7),
-                        ],
-                        clock,
-                    ),
-                    cx=w / 2 + (i - 1) * w / 4,
-                    cy=h / 2,
-                    r=r * 0.7,
-                    fill=ink,
-                    opacity=0.3,
-                )
+        ),
+    ]
+    return art
+
+
+def _loader_dots(c: Ctx, turn: float) -> Art:
+    w = c.width or 72
+    h = c.height or 24
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated three-dot loader")
+    r = min(h / 2 - 3, w / 12)
+    for i in range(3):
+        a = i * 0.18
+        art.body.append(
+            el(
+                "circle",
+                animate(
+                    "opacity",
+                    [(0, 0.3), (a, 0.3), (a + 0.2, 1), (a + 0.42, 0.3), (1, 0.3)],
+                    clock,
+                ),
+                animate(
+                    "r",
+                    [
+                        (0, r * 0.7),
+                        (a, r * 0.7),
+                        (a + 0.2, r),
+                        (a + 0.42, r * 0.7),
+                        (1, r * 0.7),
+                    ],
+                    clock,
+                ),
+                cx=w / 2 + (i - 1) * w / 4,
+                cy=h / 2,
+                r=r * 0.7,
+                fill=c.pal.ink,
+                opacity=0.3,
             )
-        return art
+        )
+    return art
+
+
+def _loader_bar(c: Ctx, turn: float) -> Art:
     w = c.width or 240
     h = c.height or 8
     seg = w * 0.32
-    ink = c.mark(ink, NEUTRAL)  # the segment runs over the grey track
+    ink = c.mark(c.pal.ink, NEUTRAL)  # the segment runs over the grey track
     clock = Clock(round(turn * 1.4, 3), c.loop)
     art = Art(w, h, c.title or "Loading", "Animated indeterminate progress bar")
     art.defs.append(el("clipPath", el("rect", width=w, height=h, rx=h / 2), id=c.id("track")))
@@ -1892,6 +2345,316 @@ def kind_loader(c: Ctx) -> Art:
     return art
 
 
+def _loader_pulse(c: Ctx, turn: float) -> Art:
+    """A hub with two rings that expand and fade, one after the other."""
+    w = c.width or 48
+    h = c.height or w
+    s = min(w, h)
+    hub, near, far = s * 0.08, s * 0.12, s * 0.44
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated pulsing rings loader")
+    art.body.append(el("circle", cx=w / 2, cy=h / 2, r=hub, fill=c.pal.ink))
+    for start in (0.0, 0.5):
+        end = start + 0.48
+        art.body.append(
+            el(
+                "circle",
+                animate(
+                    "r",
+                    [(0, near), (start, near), (end, far), (end + 0.02, near)],
+                    clock,
+                    ease=True,
+                ),
+                animate("opacity", [(0, 0), (start, 0), (start + 0.06, 1), (end, 0)], clock),
+                cx=w / 2,
+                cy=h / 2,
+                r=far * 0.6,
+                fill="none",
+                stroke=c.pal.ink,
+                stroke_width=s / 16,
+                opacity=0.35,
+            )
+        )
+    return art
+
+
+def _loader_orbit(c: Ctx, turn: float) -> Art:
+    """Three dots on one track, each going round at its own speed (1, 2 and 3 laps a cycle).
+
+    The start angles are not evenly spread (100 and 140 degrees apart), so the three never
+    meet at one spot; any two cross now and then."""
+    w = c.width or 48
+    h = c.height or w
+    cx, cy = w / 2, h / 2
+    s = min(w, h)
+    r = s * 0.375
+    ink = c.mark(c.pal.ink, NEUTRAL)  # the dots ride over the grey track
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated three-dot orbit loader")
+    art.body.append(
+        el("circle", cx=cx, cy=cy, r=r, fill="none", stroke=NEUTRAL, stroke_width=s / 24)
+    )
+    for laps, start, size in ((1, -90, 0.075), (2, 10, 0.062), (3, 150, 0.05)):
+        angle = math.radians(start)
+        art.body.append(
+            el(
+                "g",
+                move("rotate", [(0, (0, cx, cy)), (1, (360 * laps, cx, cy))], clock),
+                el(
+                    "circle",
+                    cx=cx + r * math.cos(angle),
+                    cy=cy + r * math.sin(angle),
+                    r=s * size,
+                    fill=ink,
+                ),
+            )
+        )
+    return art
+
+
+def _loader_bars(c: Ctx, turn: float) -> Art:
+    """Five equalizer bars that stretch and brighten one after the other."""
+    w = c.width or 48
+    h = c.height or w
+    s = min(w, h)
+    bar, gap, count = s * 0.1, s * 0.09, 5
+    short, tall = s * 0.2, s * 0.8
+    left = (w - (count * bar + (count - 1) * gap)) / 2
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated equalizer bars loader")
+    for i in range(count):
+        a = i * 0.1
+        art.body.append(
+            el(
+                "rect",
+                animate("height", _swell(a, a + 0.5, short, tall), clock, ease=EASE_IN_OUT),
+                animate(
+                    "y",
+                    _swell(a, a + 0.5, (h - short) / 2, (h - tall) / 2),
+                    clock,
+                    ease=EASE_IN_OUT,
+                ),
+                animate("opacity", _swell(a, a + 0.5, 0.35, 1), clock, ease=EASE_IN_OUT),
+                x=left + i * (bar + gap),
+                y=(h - short) / 2,
+                width=bar,
+                height=short,
+                rx=bar / 2,
+                fill=c.pal.ink,
+                opacity=0.35,
+            )
+        )
+    return art
+
+
+def _loader_wave(c: Ctx, turn: float) -> Art:
+    """Five dots that rise and fall in a travelling wave."""
+    w = c.width or 72
+    h = c.height or 32
+    dot = min(h / 8, w / 18)
+    pitch, lift = dot * 3, dot * 2
+    left = (w - 4 * pitch) / 2
+    low, high = h / 2 + lift / 2, h / 2 - lift / 2
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated wave of dots loader")
+    for i in range(5):
+        a = i * 0.1
+        art.body.append(
+            el(
+                "circle",
+                animate("cy", _swell(a, a + 0.6, low, high), clock, ease=EASE_IN_OUT),
+                animate("opacity", _swell(a, a + 0.6, 0.4, 1), clock, ease=EASE_IN_OUT),
+                cx=left + i * pitch,
+                cy=low,
+                r=dot,
+                fill=c.pal.ink,
+                opacity=0.4,
+            )
+        )
+    return art
+
+
+def _loader_ring(c: Ctx, turn: float) -> Art:
+    """A quarter arc with round caps (90 degrees end to end) turning on a faint track."""
+    w = c.width or 48
+    h = c.height or w
+    cx, cy = w / 2, h / 2
+    s = min(w, h)
+    r, thick = s * 0.375, s / 12
+    circ = 2 * math.pi * r
+    ink = c.mark(c.pal.ink, NEUTRAL)  # the arc runs over the grey track
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated spinning ring loader")
+    art.body += [
+        el("circle", cx=cx, cy=cy, r=r, fill="none", stroke=NEUTRAL, stroke_width=thick),
+        el(
+            "g",
+            move("rotate", [(0, (0, cx, cy)), (1, (360, cx, cy))], clock),
+            el(
+                "circle",
+                cx=cx,
+                cy=cy,
+                r=r,
+                fill="none",
+                stroke=ink,
+                stroke_width=thick,
+                stroke_linecap="round",
+                stroke_dasharray=f"{num(circ / 4 - thick)} {num(circ)}",
+            ),
+        ),
+    ]
+    return art
+
+
+def _loader_blocks(c: Ctx, turn: float) -> Art:
+    """A 2 by 2 grid of squares that light up clockwise."""
+    w = c.width or 48
+    h = c.height or w
+    s = min(w, h)
+    side, gap = s * 0.3125, s * 0.125
+    left, top = (w - 2 * side - gap) / 2, (h - 2 * side - gap) / 2
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated four-block loader")
+    for i, (col, row) in enumerate(((0, 0), (1, 0), (1, 1), (0, 1))):
+        a = i * 0.2
+        art.body.append(
+            el(
+                "rect",
+                animate(
+                    "opacity",
+                    [
+                        (0, 0.25),
+                        (a, 0.25),
+                        (a + 0.08, 1),
+                        (a + 0.24, 1),
+                        (a + 0.4, 0.25),
+                        (1, 0.25),
+                    ],
+                    clock,
+                ),
+                x=left + col * (side + gap),
+                y=top + row * (side + gap),
+                width=side,
+                height=side,
+                rx=side * 0.2,
+                fill=c.pal.ink,
+                opacity=0.25,
+            )
+        )
+    return art
+
+
+def _loader_clock(c: Ctx, turn: float) -> Art:
+    """A clock face whose short hand turns once a cycle and long hand four times."""
+    w = c.width or 48
+    h = c.height or w
+    cx, cy = w / 2, h / 2
+    s = min(w, h)
+    face = s * 0.4
+    near, far = face * 0.78, face * 0.9
+    ticks = "".join(
+        f"M{num(cx + dx * near)} {num(cy + dy * near)}L{num(cx + dx * far)} {num(cy + dy * far)}"
+        for dx, dy in ((0, -1), (1, 0), (0, 1), (-1, 0))
+    )
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated clock loader")
+    art.body += [
+        el("circle", cx=cx, cy=cy, r=face, fill="none", stroke=NEUTRAL, stroke_width=s / 24),
+        el(
+            "path",
+            d=ticks,
+            fill="none",
+            stroke=NEUTRAL,
+            stroke_width=s / 24,
+            stroke_linecap="round",
+        ),
+    ]
+    for reach, thick, laps in ((0.5, s / 16, 1), (0.78, s / 24, 4)):
+        art.body.append(
+            el(
+                "line",
+                move("rotate", [(0, (0, cx, cy)), (1, (360 * laps, cx, cy))], clock),
+                x1=cx,
+                y1=cy,
+                x2=cx,
+                y2=cy - face * reach,
+                stroke=c.pal.ink,
+                stroke_width=thick,
+                stroke_linecap="round",
+            )
+        )
+    art.body.append(el("circle", cx=cx, cy=cy, r=s / 16, fill=c.pal.ink))
+    return art
+
+
+def _loader_bounce(c: Ctx, turn: float) -> Art:
+    """Three dots that hop one after the other, each with a shadow that shrinks as it rises."""
+    w = c.width or 56
+    h = c.height or 40
+    dot = min(h / 10, w / 14)
+    pitch, floor = dot * 3.5, h * 0.8
+    rest, apex = floor - dot, floor - dot - h * 0.4
+    wide, narrow = dot * 1.2, dot * 0.6
+    ink = c.mark(c.pal.ink, NEUTRAL)  # a resting dot touches its shadow
+    clock = Clock(turn, c.loop)
+    art = Art(w, h, c.title or "Loading", "Animated three-dot bounce loader")
+    for i in range(3):
+        a = i * 0.16
+        art.body.append(
+            el(
+                "ellipse",
+                animate("rx", _hop(a, a + 0.6, wide, narrow), clock),
+                cx=w / 2 + (i - 1) * pitch,
+                cy=floor + dot * 0.4,
+                rx=wide,
+                ry=dot * 0.3,
+                fill=NEUTRAL,
+            )
+        )
+    for i in range(3):
+        a = i * 0.16
+        art.body.append(
+            el(
+                "circle",
+                animate("cy", _hop(a, a + 0.6, rest, apex), clock),
+                cx=w / 2 + (i - 1) * pitch,
+                cy=rest,
+                r=dot,
+                fill=ink,
+            )
+        )
+    return art
+
+
+LOADER_VARIANTS: dict[str, Callable[[Ctx, float], Art]] = {
+    "spinner": _loader_spinner,
+    "dots": _loader_dots,
+    "bar": _loader_bar,
+    "pulse": _loader_pulse,
+    "orbit": _loader_orbit,
+    "bars": _loader_bars,
+    "wave": _loader_wave,
+    "ring": _loader_ring,
+    "blocks": _loader_blocks,
+    "clock": _loader_clock,
+    "bounce": _loader_bounce,
+}
+
+
+def kind_loader(c: Ctx) -> Art:
+    """Loading indicator, one of LOADER_VARIANTS on a LOADER_TURN clock. Loops unless --once."""
+    spec = spec_of(c, "variant") if c.data is not None else {}
+    variant = c.variant or spec.get("variant", "spinner")
+    if isinstance(variant, list):
+        variant = variant[0] if variant else "spinner"
+    if not isinstance(variant, str) or variant not in LOADER_VARIANTS:
+        names = list(LOADER_VARIANTS)
+        raise ForgeError(
+            f"loader variant must be {', '.join(names[:-1])} or {names[-1]}, got {variant!r}"
+        )
+    return LOADER_VARIANTS[variant](c, LOADER_TURN[c.preset.name])
+
+
 def kind_typing(c: Ctx) -> Art:
     """Terminal window that types each command, then shows its output lines."""
     spec = spec_of(c, "lines")
@@ -1909,20 +2672,34 @@ def kind_typing(c: Ctx) -> Art:
     w = c.width or 640
     fs = 13.0
     cw = fs * EM["mono"]
-    pad, line_h = 20, 21
+    pad, line_h = (16 if c.phone else 20), 21
     cmd_x = pad + (len(prompt) + 1) * cw
-    rows = []  # (y, cmd, outs, tone)
+
+    def screen_lines(text: str, room: float) -> list[str]:
+        """The text's screen lines: one, cut to fit, on desktop; on a phone, wrapped at
+        spaces. A word longer than a line breaks mid-word, from where the line has room."""
+        if not c.phone:
+            return [fit(text, room, fs, "mono")]
+        per = max(int(room // cw), 4)
+        out = [""]
+        for word in text.split(" "):
+            trial = f"{out[-1]} {word}" if out[-1] else word
+            if out[-1] and len(trial) > per and (len(word) <= per or len(out[-1]) > per - 4):
+                out.append("")
+                trial = word
+            while len(trial) > per:
+                out[-1], trial = trial[:per], trial[per:]
+                out.append("")
+            out[-1] = trial
+        return out
+
+    rows = []  # (y, typed lines, lines of each output, tone)
     y = 62.0
     for cmd, outs, tone in cmds:
-        rows.append(
-            (
-                y,
-                fit(cmd, w - cmd_x - pad, fs, "mono"),
-                [fit(o, w - 2 * pad - 16, fs, "mono") for o in outs],
-                tone,
-            )
-        )
-        y += line_h * (1 + len(outs)) + 8
+        typed = screen_lines(cmd, w - cmd_x - pad)
+        pieces = [screen_lines(o, w - 2 * pad - 16) for o in outs]
+        rows.append((y, typed, pieces, tone))
+        y += line_h * (len(typed) + sum(map(len, pieces))) + 8
     h = c.height or y + 4
     art = Art(w, h, window_title, "Terminal: " + "; ".join(f"{prompt} {cmd}" for cmd, _, _ in cmds))
     p = c.theme
@@ -1954,11 +2731,11 @@ def kind_typing(c: Ctx) -> Art:
     art.body.append(
         mono(
             c,
-            fit(window_title, w - 160, 10, "mono", MONO_LS),
+            fit(window_title, w - 160, c.fs(10), "mono", MONO_LS),
             w / 2,
             21,
             p.dim,
-            10,
+            c.fs(10),
             text_anchor="middle",
         )
     )
@@ -1967,9 +2744,9 @@ def kind_typing(c: Ctx) -> Art:
     cps = c.speed / cw if c.preset.name == "ambient" else 38.0
     t = 0.3
     plan = []  # (prompt_at, type_start, type_end, out_times)
-    for _, cmd, outs, _ in rows:
+    for _, typed, outs, _ in rows:
         start = t + 0.12
-        end = start + len(cmd) / cps
+        end = start + sum(map(len, typed)) / cps
         out_times = [end + 0.15 + j * 0.1 for j in range(len(outs))]
         plan.append((t, start, end, out_times))
         t = (out_times[-1] if out_times else end) + 0.35
@@ -1984,7 +2761,7 @@ def kind_typing(c: Ctx) -> Art:
         )
     else:
         hold = {"medium": 1.6, "long": 2.4}.get(c.preset.name, 4.0)
-        clock = c.cycle(total + hold, distance=sum(len(r[1]) for r in rows) * cw)
+        clock = c.cycle(total + hold, distance=sum(len(s) for r in rows for s in r[1]) * cw)
         scale = min(1.0, (clock.dur - hold) / total)
     d = clock.dur
 
@@ -1994,7 +2771,7 @@ def kind_typing(c: Ctx) -> Art:
     shown = []
     cur_x: list[tuple[float, object]] = [(0, cmd_x)]
     cur_y: list[tuple[float, object]] = [(0, rows[0][0] - 12)]
-    for i, ((y, cmd, outs, tone), (at, start, end, out_times)) in enumerate(
+    for i, ((y, typed, outs, tone), (at, start, end, out_times)) in enumerate(
         zip(rows, plan, strict=True)
     ):
         shown.append(
@@ -2008,44 +2785,58 @@ def kind_typing(c: Ctx) -> Art:
                 fill=c.legible(p.ok),
             )
         )
-        widths: list[tuple[float, object]] = [(0, 0), (f(start), 0)]
-        per = (end - start) / max(len(cmd), 1)
-        for k in range(1, len(cmd) + 1):
-            widths.append((f(start + k * per), k * cw))
-            cur_x.append((f(start + k * per), cmd_x + k * cw))
-        widths[-1] = (widths[-1][0], w - cmd_x)
+        per = (end - start) / max(sum(map(len, typed)), 1)
         cur_y.append((f(at), y - 12))
-        cur_x.insert(len(cur_x) - len(cmd), (f(at), cmd_x))
-        art.defs.append(
-            el(
-                "clipPath",
+        mark = len(cur_x)
+        done = 0  # characters typed on the lines above
+        for j, cmd in enumerate(typed):  # a wrapped command types on, line by line
+            ly = y + line_h * j
+            widths: list[tuple[float, object]] = [(0, 0), (f(start + done * per), 0)]
+            for k in range(1, len(cmd) + 1):
+                widths.append((f(start + (done + k) * per), k * cw))
+                cur_x.append((f(start + (done + k) * per), cmd_x + k * cw))
+            widths[-1] = (widths[-1][0], w - cmd_x)
+            if j:  # the cursor drops to this line with its first character
+                cur_y.append((f(start + (done + 1) * per), ly - 12))
+            clip = f"c{i}" if j == 0 else f"c{i}-{j}"
+            art.defs.append(
                 el(
-                    "rect",
-                    animate("width", widths, clock, discrete=True),
-                    x=cmd_x,
-                    y=y - 15,
-                    width=w - cmd_x,
-                    height=20,
-                ),
-                id=c.id(f"c{i}"),
+                    "clipPath",
+                    el(
+                        "rect",
+                        animate("width", widths, clock, discrete=True),
+                        x=cmd_x,
+                        y=ly - 15,
+                        width=w - cmd_x,
+                        height=20,
+                    ),
+                    id=c.id(clip),
+                )
             )
-        )
-        shown.append(
-            el("text", esc(cmd), class_=tcls, x=cmd_x, y=y, fill=p.ink, clip_path=c.url(f"c{i}"))
-        )
-        color = c.legible(c.tone(tone) if tone else p.text)
-        for j, (out, ot) in enumerate(zip(outs, out_times, strict=True)):
             shown.append(
+                el("text", esc(cmd), class_=tcls, x=cmd_x, y=ly, fill=p.ink, clip_path=c.url(clip))
+            )
+            done += len(cmd)
+        cur_x.insert(mark, (f(at), cmd_x))
+        color = c.legible(c.tone(tone) if tone else p.text)
+        line = len(typed)
+        for lines, ot in zip(outs, out_times, strict=True):
+            show = animate("opacity", [(0, 0), (f(ot), 1)], clock, discrete=True)
+            texts = [
                 el(
                     "text",
                     esc(out),
-                    animate("opacity", [(0, 0), (f(ot), 1)], clock, discrete=True),
+                    show if len(lines) == 1 else "",
                     class_=tcls,
                     x=pad + 16,
-                    y=y + line_h * (j + 1),
+                    y=y + line_h * (line + k),
                     fill=color,
                 )
-            )
+                for k, out in enumerate(lines)
+            ]
+            line += len(lines)
+            # a wrapped output line shows all at once, on one animation
+            shown += texts if len(lines) == 1 else [el("g", show, *texts)]
     blink = c.cls("cur")
     count = "infinite" if clock.loop else "4"
     art.css.append(
@@ -2271,6 +3062,657 @@ def kind_badge(c: Ctx) -> Art:
     return art
 
 
+# ---------------------------------------------------------------- banner and heading
+
+# Text region insets per variant, in layout px: (from the edge the shape hugs, from the far
+# edge). The shape hugs the top of a header and the bottom of a footer.
+BANNER_INSETS = {
+    "wave": (56, 14),
+    "waving": (16, 50),
+    "slice": (16, 16),
+    "rounded": (16, 26),
+    "cylinder": (26, 26),
+    "speech": (24, 40),
+}
+
+
+def titled_spec(c: Ctx, list_key: str | None = None) -> dict[str, Any]:
+    """The data of a kind whose bare string is its title: a dict, {"title": s} for a string,
+    {list_key: list} for a list. With no --data, --title alone replaces the sample."""
+    if c.data is None:
+        return {"title": c.title} if c.title else SAMPLES[c.kind]
+    if isinstance(c.data, str):
+        return {"title": c.data}
+    if isinstance(c.data, list) and list_key:
+        return {list_key: c.data}
+    if isinstance(c.data, dict):
+        return c.data
+    raise ForgeError(f"--data for {c.kind} must be a JSON object or a title string")
+
+
+def rows_of(
+    text: str, room: float, size: float, face: str, lines: int, floor: float
+) -> tuple[list[str], float]:
+    """text wrapped into at most `lines` rows of room px at the largest size from size down
+    to floor that keeps every word; a row not even one character fits in is dropped."""
+    spacing = MONO_LS if face == "mono" else 0.0
+    whole = " ".join(text.split())
+    rows = wrap(text, room, size, face, spacing, lines)
+    while size > floor and " ".join(rows) != whole:
+        size = max(floor, size - 1)
+        rows = wrap(text, room, size, face, spacing, lines)
+    return [r for r in rows if text_width(r, size, face, spacing) <= room + 0.01], size
+
+
+def one_size(
+    texts: list[str], room: float, size: float, face: str, floor: float
+) -> tuple[list[str], float]:
+    """Texts that take turns in one place share a size: the largest from size down to floor
+    at which the widest fits room; each is then cut to room ("" when nothing fits)."""
+    spacing = MONO_LS if face == "mono" else 0.0
+    while size > floor and max(text_width(t, size, face, spacing) for t in texts) > room:
+        size = max(floor, size - 1)
+    return [snug(t, room, size, face, spacing) for t in texts], size
+
+
+def layered(c: Ctx, color: str, tints: tuple[str, ...], text: bool = True) -> str:
+    """color tuned to read on the plain grounds and under every combination of the tint
+    layers (4.5:1 as text, 3:1 as a mark), so it holds wherever a drifting layer passes."""
+    base = c.text_on if text else c.marks_on
+    combos = (combo for k in range(len(tints) + 1) for combo in itertools.combinations(tints, k))
+    grounds = tuple(dict.fromkeys(g for combo in combos for g in tinted(base, combo)))
+    return tune(color, grounds) if text else tune(color, marks=grounds)
+
+
+def kind_heading(c: Ctx) -> Art:
+    """Numbered section header: a number eyebrow, the title and an accent rule that draws in
+    under it, on the theme bg as a full canvas with no frame border. Made to ship as a
+    --theme both pair, one per README section.
+
+    Data: {"number": "01", "title": "Projects", "subtitle": "What ships next"}, or a bare
+    title string. An integer number is zero-padded to two digits; the eyebrow reads
+    "01 / WHAT SHIPS NEXT". Default 840 by 64. The phone layout (320 wide) wraps the
+    eyebrow and the title onto two lines each.
+    """
+    spec = titled_spec(c)
+    raw = spec.get("number", "")
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        raw = f"{raw:02d}"
+    number = text_of(raw, "heading number", 8)
+    title = c.title or text_of(spec.get("title", ""), "heading title", 80)
+    subtitle = text_of(spec.get("subtitle", ""), "heading subtitle", 80)
+    if not title:
+        raise ForgeError("heading needs a title")
+    eyebrow = " / ".join(x for x in (number, subtitle.upper()) if x)
+    base_w = PHONE_W if c.phone else 840
+    w = c.width or base_w
+
+    def lay(s: float, rows: int) -> dict[str, Any]:
+        x0 = 18 * s
+        room = w - x0 - 12 * s
+        ef, tf = c.fs(scaled(11, s)), c.fs(scaled(24, s, 12))
+        brow, ef = rows_of(eyebrow, room, ef, "mono", rows, c.fs(scaled(9, s)))
+        head, tf = rows_of(title, room, tf, "bold", rows, c.fs(scaled(16, s, 10)))
+        y = 14 * s
+        brow_y = [y + 0.75 * ef + i * 1.5 * ef for i in range(len(brow))]
+        if brow:
+            y = brow_y[-1] + 0.25 * ef + 3 * s
+        head_y = [y + 0.75 * tf + i * 1.2 * tf for i in range(len(head))]
+        if head:
+            y = head_y[-1] + 0.25 * tf
+        rule = y + 8 * s
+        return {
+            "x0": x0,
+            "ef": ef,
+            "tf": tf,
+            "brow": list(zip(brow, brow_y, strict=True)),
+            "head": list(zip(head, head_y, strict=True)),
+            "bar": (12 * s, (head_y[-1] - 4 * s) if head else rule - 8 * s),
+            "rule": rule,
+            "need": rule + 4 * s,
+        }
+
+    rows = 2 if c.phone else 1
+    s = layout_scale(w, base_w, c.height, lambda k: lay(k, rows)["need"])
+    if c.height is not None and not c.phone:  # a tall canvas: let the title wrap
+        rows = max((r for r in (1, 2, 3) if lay(s, r)["need"] <= c.height), default=1)
+    m = lay(s, rows)
+    h = c.height or m["need"]
+    oy = max(0.0, (h - m["need"]) / 2)
+    desc = f"Section heading: {' '.join(x for x in (number, title) if x)}"
+    art = Art(w, h, title, desc + (f". {subtitle}" if subtitle else ""))
+    p = c.theme
+    if not p.transparent:
+        art.body.append(el("rect", width=w, height=h, fill=p.bg))
+    top, low = m["bar"]
+    if low > top:
+        art.body.append(
+            el(
+                "rect",
+                x=0,
+                y=oy + top,
+                width=max(4 * s, 2),
+                height=low - top,
+                rx=max(2 * s, 1),
+                fill=c.mark(c.pal.deep),
+            )
+        )
+    ry = oy + m["rule"]
+    stroke = max(2 * s, 1.5)
+    art.body.append(
+        el("line", x1=0, y1=ry, x2=w, y2=ry, stroke=p.panel_stroke, stroke_width=max(s, 1))
+    )
+    widest = max((text_width(t, m["tf"], "bold") for t, _ in m["head"]), default=0.0)
+    end = round(min(w - 8 * s, m["x0"] + widest + 28 * s), 2)
+    brow = [mono(c, t, m["x0"], oy + y, c.pal.text, m["ef"]) for t, y in m["brow"]]
+    head = [sans(c, t, m["x0"], oy + y, p.ink, m["tf"], "b") for t, y in m["head"]]
+    groups = [g for g in (brow, head) if g]
+    if c.one_shot:
+        clock, begins, item = c.entrance(len(groups) + 1)
+        start, draw = begins[-1], item
+        layer = [el("g", rise(clock, begins[i], item, dy=6 * s), *g) for i, g in enumerate(groups)]
+    else:
+        clock = c.cycle(c.preset.base, distance=w)
+        start, draw = 0.04 * clock.dur, min(0.3 * clock.dur, 1.2)
+        art.body += [t for g in groups for t in g]
+        layer = []
+    a, b = start / clock.dur, (start + draw) / clock.dur
+    r = max(2.6 * s, 1.5)
+    layer += [
+        el(
+            "line",
+            animate(
+                "stroke-dashoffset", [(0, num(end)), (a, num(end)), (b, 0)], clock, ease=EASE_IN_OUT
+            ),
+            x1=0,
+            y1=ry,
+            x2=end,
+            y2=ry,
+            stroke=c.pal.ink,
+            stroke_width=stroke,
+            stroke_dasharray=num(end),
+            stroke_dashoffset=0,
+        ),
+        el(
+            "circle",
+            animate("cx", [(0, 0), (a, 0), (b, end)], clock, ease=EASE_IN_OUT),
+            animate("r", [(0, 0), (a, 0), (min(a + 0.05, b), r)], clock),
+            cx=end,
+            cy=ry,
+            r=r,
+            fill=c.pal.ink,
+        ),
+    ]
+    art.body.append(el("g", veil(clock), *layer))
+    return art
+
+
+@dataclass(frozen=True)
+class Band:
+    """Where a banner shape is drawn: the canvas, the layout scale, the edge the shape hugs
+    and the clock its layers drift on (they hold still on a one-shot entrance)."""
+
+    w: float
+    h: float
+    s: float
+    footer: bool
+    clock: Clock
+    drift: bool
+    enter: tuple[float, float] = (0.0, 1.0)  # one-shot: cycle fractions the shape builds in
+
+    def y(self, v: float) -> float:
+        """A height measured from the edge the shape hugs: the top of a header, the bottom
+        of a footer."""
+        return round(self.h - v if self.footer else v, 2)
+
+
+def wave_curve(
+    x0: float, x1: float, y: float, amp: float, period: float
+) -> tuple[tuple[float, float], list[tuple[tuple[float, float], ...]]]:
+    """A sine-like wave around y from x0 to x1, snapped out to whole half periods with the
+    phase pinned to x = 0 (crest first): its start and one cubic per half period."""
+    half = period / 2
+    k0, k1 = math.floor(x0 / half), math.ceil(x1 / half)
+    lift = amp / 0.75  # a cubic with both handles at lift peaks at 0.75 of it
+    out = []
+    for k in range(k0, k1):
+        x = k * half
+        up = -lift if k % 2 == 0 else lift
+        out.append(((x + half / 3, y + up), (x + 2 * half / 3, y + up), (x + half, y)))
+    return (k0 * half, y), out
+
+
+def cubic_length(p0: tuple[float, float], seg: tuple[tuple[float, float], ...]) -> float:
+    pts = [p0, *seg]
+    prev, total = p0, 0.0
+    for i in range(1, 25):
+        t = i / 24
+        q = tuple(
+            (1 - t) ** 3 * pts[0][j]
+            + 3 * (1 - t) ** 2 * t * pts[1][j]
+            + 3 * (1 - t) * t**2 * pts[2][j]
+            + t**3 * pts[3][j]
+            for j in (0, 1)
+        )
+        total += math.dist(prev, q)
+        prev = q
+    return total
+
+
+def curve_d(
+    start: tuple[float, float],
+    segs: list[tuple[tuple[float, float], ...]],
+    dx: float = 0.0,
+    dy: float = 0.0,
+    move: bool = True,
+) -> str:
+    """Path data for wave_curve() output, shifted by (dx, dy); without move, no leading M."""
+    head = f"M{num(start[0] + dx)} {num(start[1] + dy)}" if move else ""
+    return head + "".join(
+        "C" + " ".join(f"{num(x + dx)} {num(y + dy)}" for x, y in seg) for seg in segs
+    )
+
+
+def drifting(band: Band, frames: list[tuple[float, object]], *parts: str) -> str:
+    """A layer group that follows translate frames on the band's clock while it loops."""
+    motion = move("translate", frames, band.clock, ease=EASE_IN_OUT) if band.drift else ""
+    return el("g", motion, *parts)
+
+
+def banner_wave(c: Ctx, band: Band) -> tuple[list[str], tuple[str, ...]]:
+    """The readme-kit footer: a faint wave with an accent stretch and a dot riding along it,
+    off one edge and on at the other; played once, the accent draws the wave in."""
+    s, w = band.s, band.w
+    y = band.y(34 * s)
+    period = max(w / 2, 160 * s)
+    seg = 110 * s
+    reach = seg + 16 * s  # past both edges, so the dot and the stretch wrap unseen
+    start, segs = wave_curve(-reach, w + reach, y, 12 * s, period)
+    d = curve_d(start, segs)
+    parts = [el("path", d=d, fill="none", stroke=c.theme.panel_stroke, stroke_width=1.2 * s)]
+    lengths = [cubic_length((segs[i - 1][2] if i else start), sg) for i, sg in enumerate(segs)]
+    total = sum(lengths)
+    ink, width, r = c.pal.ink, max(2 * s, 1.5), max(3.5 * s, 2)
+    # the dot rests on the half-period node nearest the middle: what a static frame shows
+    mid = min(range(len(segs) + 1), key=lambda i: abs(start[0] + i * period / 2 - w / 2))
+    mx, my = start[0] + mid * period / 2, y
+    if not band.drift:  # one-shot: the accent draws the wave in, the dot lands at the end
+        a, b = band.enter
+        draw = [(0, num(total)), (a, num(total)), (b, 0)]
+        parts += [
+            el(
+                "path",
+                animate("stroke-dashoffset", draw, band.clock, ease=EASE_IN_OUT),
+                d=d,
+                fill="none",
+                stroke=ink,
+                stroke_width=width,
+                stroke_dasharray=num(total),
+                stroke_dashoffset=0,
+            ),
+            el(
+                "circle",
+                animate("r", [(0, 0), (b - 0.1 * (b - a), 0), (b, r)], band.clock),
+                cx=mx,
+                cy=my,
+                r=r,
+                fill=ink,
+            ),
+        ]
+        return parts, ()
+    clock = band.clock.sub(4.0)
+    at = sum(lengths[:mid])
+    parts += [
+        el(
+            "path",
+            animate("stroke-dashoffset", [(0, num(seg)), (1, num(-total))], clock),
+            d=d,
+            fill="none",
+            stroke=ink,
+            stroke_width=width,
+            stroke_linecap="round",
+            stroke_dasharray=f"{num(seg)} {num(total + seg)}",
+            stroke_dashoffset=num(seg - at),
+        ),
+        el(
+            "circle",
+            el("animateMotion", path=curve_d(start, segs, -mx, -my), **clock.timing()),
+            cx=mx,
+            cy=my,
+            r=r,
+            fill=ink,
+        ),
+    ]
+    return parts, ()
+
+
+def banner_waving(c: Ctx, band: Band) -> tuple[list[str], tuple[str, ...]]:
+    """Three filled wave layers from the hugged edge to just short of the far one, each
+    drifting one wavelength per loop (the middle one the other way), with an accent line on
+    the front edge; the text sits on the filled part, clear of the edges."""
+    s, w, h = band.s, band.w, band.h
+    dur = band.clock.dur
+    parts, tints = [], []
+    # (gap to the far edge, amplitude, opacity, drift px/s, direction), back to front
+    layers = ((18, 9, 0.1, 18, -1), (28, 8, 0.14, 26, 1), (38, 7, 0.2, 34, -1))
+    for i, (gap, amp, opacity, speed, way) in enumerate(layers):
+        period = clamp(speed * s * dur, 120 * s, 520 * s)
+        start, segs = wave_curve(0, w + period, band.y(h - gap * s), amp * s, period)
+        end = segs[-1][2][0]
+        edge = band.y(-1)
+        area = f"M0 {num(edge)}L{num(start[0])} {num(start[1])}" + curve_d(start, segs, move=False)
+        area += f"L{num(end)} {num(edge)}Z"
+        tint = alpha(c.pal.ink, opacity)
+        tints.append(tint)
+        shapes = [el("path", d=area, fill=tint)]
+        if i == len(layers) - 1:
+            line = layered(c, c.pal.ink, tuple(tints), text=False)  # it runs on its own layer
+            shapes.append(
+                el(
+                    "path",
+                    d=curve_d(start, segs),
+                    fill="none",
+                    stroke=line,
+                    stroke_width=max(1.5 * s, 1),
+                )
+            )
+        frames: list[tuple[float, object]] = [(0, (0, 0)), (1, (-period, 0))]
+        if way > 0:
+            frames = [(0, (-period, 0)), (1, (0, 0))]
+        motion = move("translate", frames, band.clock) if band.drift else ""
+        parts.append(el("g", motion, *shapes))
+    return parts, tuple(tints)
+
+
+def banner_slice(c: Ctx, band: Band) -> tuple[list[str], tuple[str, ...]]:
+    """Two diagonal slices from the hugged edge, deep on the left and shallow on the right,
+    that sway against each other."""
+    s, w, h = band.s, band.w, band.h
+    reach = 12 * s
+    back, front = alpha(c.pal.ink, 0.1), alpha(c.pal.ink, 0.16)
+    out = []
+    for tint, (left, right), sway, clock in (
+        (back, (1.02, 0.36), 6 * s, band.clock),
+        (front, (0.74, 0.06), -7 * s, band.clock.sub(band.clock.dur / 2)),
+    ):
+        far, near = band.y(-reach), (band.y(left * h), band.y(right * h))
+        pts = [(-reach, far), (w + reach, far), (w + reach, near[1]), (-reach, near[0])]
+        shape = el("polygon", points=" ".join(f"{num(x)},{num(y)}" for x, y in pts), fill=tint)
+        frames: list[tuple[float, object]] = [(0, (0, 0)), (0.5, (0, sway)), (1, (0, 0))]
+        motion = move("translate", frames, clock, ease=EASE_IN_OUT) if band.drift else ""
+        out.append(el("g", motion, shape))
+    return out, (back, front)
+
+
+def banner_rounded(c: Ctx, band: Band) -> tuple[list[str], tuple[str, ...]]:
+    """A panel that hangs from the hugged edge with round far corners, two soft orbs drifting
+    inside it."""
+    s, w, h = band.s, band.w, band.h
+    rx = min(22 * s, (h - 12 * s) / 2)
+    y0 = -rx if not band.footer else 12 * s
+    panel = {"x": 14 * s, "y": y0, "width": w - 28 * s, "height": h - 12 * s + rx, "rx": rx}
+    tint, orb_a, orb_b = (alpha(c.pal.ink, a) for a in (0.08, 0.05, 0.045))
+    clip = c.id("panel")
+    orbs = [
+        drifting(
+            band,
+            [(0, (0, 0)), (0.5, (0.12 * w, band.y(0.1 * h) - band.y(0))), (1, (0, 0))],
+            el("circle", cx=0.14 * w, cy=band.y(0.1 * h), r=0.8 * h, fill=orb_a),
+        ),
+        drifting(
+            band,
+            [(0, (0, 0)), (0.5, (-0.14 * w, band.y(0) - band.y(0.1 * h))), (1, (0, 0))],
+            el("circle", cx=0.9 * w, cy=band.y(1.05 * h), r=0.62 * h, fill=orb_b),
+        ),
+    ]
+    return [
+        el("clipPath", el("rect", **panel), id=clip),
+        el("rect", **panel, fill=tint, stroke=alpha(c.pal.ink, 0.35)),
+        el("g", *orbs, clip_path=c.url("panel")),
+    ], (tint, orb_a, orb_b)
+
+
+def banner_cylinder(c: Ctx, band: Band) -> tuple[list[str], tuple[str, ...]]:
+    """A capsule with an end face, and a sheen that rolls along it from the hugged side."""
+    s, w, h = band.s, band.w, band.h
+    ch = h - 24 * s
+    body = {"x": 14 * s, "y": 12 * s, "width": w - 28 * s, "height": ch, "rx": ch / 2}
+    tint, sheen = alpha(c.pal.ink, 0.1), alpha(c.pal.ink, 0.14)
+    clip, glow = c.id("tube"), c.id("sheen")
+    bw = max(0.22 * w, 80 * s)
+    sweep: list[tuple[float, object]] = [(0, (0, 0)), (1, (w + bw, 0))]
+    if band.footer:
+        sweep = [(0, (w + bw, 0)), (1, (0, 0))]
+    roll = band.clock.sub(5.0)
+    motion = move("translate", sweep, roll) if band.drift else ""
+    face = w - 14 * s - ch / 2
+    ink = c.pal.ink
+    fade = el(
+        "linearGradient",
+        el("stop", offset=0, stop_color=ink, stop_opacity=0),
+        el("stop", offset=0.5, stop_color=ink, stop_opacity=0.14),
+        el("stop", offset=1, stop_color=ink, stop_opacity=0),
+        id=glow,
+        x1=0,
+        x2=1,
+    )
+    return [
+        el("defs", el("clipPath", el("rect", **body), id=clip), fade),
+        el("rect", **body, fill=tint, stroke=alpha(c.pal.ink, 0.35)),
+        el(
+            "ellipse",
+            cx=face,
+            cy=h / 2,
+            rx=ch * 0.22,
+            ry=ch / 2,
+            fill="none",
+            stroke=alpha(c.pal.ink, 0.35),
+        ),
+        el(
+            "g",
+            el("rect", motion, x=-bw, y=12 * s, width=bw, height=ch, fill=c.url("sheen")),
+            clip_path=c.url("tube"),
+        ),
+    ], (tint, sheen)
+
+
+def banner_speech(c: Ctx, band: Band) -> tuple[list[str], tuple[str, ...]]:
+    """A speech bubble with its tail toward the far edge (the content), over a fainter copy
+    that sways behind it."""
+    s, w, h = band.s, band.w, band.h
+    tail = 16 * s
+    x0, x1 = 14 * s, w - 14 * s
+    t0, t1 = 10 * s, h - 10 * s - tail  # from the hugged edge
+    r = min(18 * s, (t1 - t0) / 2)
+    tx = x0 + max(0.12 * w, r + 4 * s)
+
+    def p(x: float, t: float) -> str:
+        return f"{num(x)} {num(band.y(t))}"
+
+    d = (
+        f"M{p(x0 + r, t0)}H{num(x1 - r)}Q{p(x1, t0)} {p(x1, t0 + r)}V{num(band.y(t1 - r))}"
+        f"Q{p(x1, t1)} {p(x1 - r, t1)}H{num(tx + 26 * s)}L{p(tx + 4 * s, t1 + tail)}"
+        f"L{p(tx, t1)}H{num(x0 + r)}Q{p(x0, t1)} {p(x0, t1 - r)}V{num(band.y(t0 + r))}"
+        f"Q{p(x0, t0)} {p(x0 + r, t0)}Z"
+    )
+    back, front = alpha(c.pal.ink, 0.06), alpha(c.pal.ink, 0.1)
+    rest = (8 * s, band.y(7 * s) - band.y(0))
+    swing = (-6 * s, band.y(10 * s) - band.y(0))
+    motion = ""
+    if band.drift:
+        motion = move("translate", [(0, rest), (0.5, swing), (1, rest)], band.clock, ease=True)
+    shadow = el(
+        "path", motion, d=d, fill=back, transform=f"translate({num(rest[0])} {num(rest[1])})"
+    )
+    edge = layered(c, c.pal.ink, (back,), text=False)
+    return [
+        shadow,
+        el("path", d=d, fill=front, stroke=edge, stroke_width=max(1.5 * s, 1)),
+    ], (back, front)
+
+
+BANNER_SHAPES: dict[str, Callable[[Ctx, Band], tuple[list[str], tuple[str, ...]]]] = {
+    "wave": banner_wave,
+    "waving": banner_waving,
+    "slice": banner_slice,
+    "rounded": banner_rounded,
+    "cylinder": banner_cylinder,
+    "speech": banner_speech,
+}
+
+
+def kind_banner(c: Ctx) -> Art:
+    """Header or footer banner: a kicker, a title and lines that take turns under it, over a
+    shape from --variant. wave (default) is a faint wave with a dot riding it; waving,
+    slice, rounded, cylinder and speech are tinted shape layers that drift on a seamless
+    loop. The shape hugs the top of a header and the bottom of a footer, and every text
+    color reaches 4.5:1 under any mix of its layers.
+
+    Data: {"kicker": "Open source", "title": "Northwind", "subtitle": "Inventory for small
+    shops", "lines": ["Works offline", "MIT licensed"], "section": "header"}; a bare string
+    is the title, a bare list the lines. The subtitle leads the lines; with no title the
+    lines take the title's place (the footer look). Default 840 by 160 for a header and 840
+    by 150 for a footer; the phone layout (320 wide) wraps the title and the subtitle onto
+    two lines each.
+    """
+    spec = titled_spec(c, "lines")
+    kicker = text_of(spec.get("kicker", ""), "banner kicker", 40)
+    title = c.title or text_of(spec.get("title", ""), "banner title", 60)
+    subtitle = text_of(spec.get("subtitle", ""), "banner subtitle", 90)
+    lines = [
+        text_of(t, "banner line", 90)
+        for t in need_list(spec.get("lines", []), "banner lines", 6, 0)
+    ]
+    lines = [t for t in lines if t]
+    section = spec.get("section", "header")
+    if section not in ("header", "footer"):
+        raise ForgeError(f"banner section must be header or footer, got {section!r}")
+    variant = c.variant or "wave"
+    if variant not in BANNER_SHAPES:
+        raise ForgeError(
+            f"banner variant must be one of {', '.join(BANNER_SHAPES)}, got {variant!r}"
+        )
+    if title:
+        head, tail = [title], [t for t in (subtitle, *lines) if t]
+    else:
+        head, tail = lines or [subtitle], [subtitle] if lines and subtitle else []
+    head = [t for t in head if t]
+    if not head:
+        raise ForgeError("banner needs a title, a subtitle or lines")
+    footer = section == "footer"
+    base_w = PHONE_W if c.phone else 840
+    base_h = 150 if footer else 160
+    w = c.width or base_w
+    edge_in, far_in = BANNER_INSETS[variant]
+    side = {"cylinder": 14 + 0.3 * base_h, "rounded": 34, "speech": 34}.get(variant, 28)
+    big = (24 if footer else 26) if c.phone else (30 if footer else 34)
+
+    def lay(s: float, rows: int) -> dict[str, Any]:
+        room = w - 2 * side * s
+        kf, hf, tf = c.fs(scaled(10, s)), c.fs(scaled(big, s, 14)), c.fs(scaled(16, s))
+        low = c.fs(scaled(11 if c.phone else 12, s))  # the tail shrinks to this first
+        kick = [snug(kicker.upper(), room, kf, "mono", MONO_LS)] if kicker else []
+        kick = [k for k in kick if k]
+        if len(head) > 1:
+            heads, hf = one_size(head, room, hf, "bold", c.fs(scaled(18, s, 10)))
+            heads = [[t] for t in heads if t]
+        else:
+            got, hf = rows_of(head[0], room, hf, "bold", rows, c.fs(scaled(18, s, 10)))
+            heads = [got] if got else []
+        if len(tail) > 1:
+            tails, tf = one_size(tail, room, tf, "sans", low)
+            tails = [[t] for t in tails if t]
+        elif tail:
+            got, tf = rows_of(tail[0], room, tf, "sans", rows, low)
+            tails = [got] if got else []
+        else:
+            tails = []
+        y, ys = 0.0, {}
+        if kick:
+            ys["kick"] = [0.75 * kf]
+            y = kf + 10 * s
+        if heads:
+            ys["head"] = [y + 0.75 * hf + i * 1.12 * hf for i in range(len(heads[0]))]
+            y = ys["head"][-1] + 0.25 * hf
+        if tails:
+            y += 9 * s
+            ys["tail"] = [y + 0.75 * tf + i * 1.4 * tf for i in range(len(tails[0]))]
+            y = ys["tail"][-1] + 0.25 * tf
+        return {
+            "kf": kf,
+            "hf": hf,
+            "tf": tf,
+            "kick": kick,
+            "heads": heads,
+            "tails": tails,
+            "ys": ys,
+            "block": y,
+            "need": (edge_in + far_in) * s + y,
+        }
+
+    rows = 2 if c.phone else 1
+    s = layout_scale(w, base_w, c.height, lambda k: lay(k, rows)["need"])
+    if c.height is not None and not c.phone:
+        rows = 2 if lay(s, 2)["need"] <= c.height else 1
+    m = lay(s, rows)
+    h = c.height or max(round(base_h * s, 2), m["need"])
+    top = (far_in if footer else edge_in) * s
+    oy = top + max(0.0, (h - m["need"]) / 2)
+    texts = [kicker, *head, *tail]
+    art = Art(
+        w, h, title or head[0], "Banner: " + ". ".join(t.rstrip(".") for t in texts if t) + "."
+    )
+    p = c.theme
+    if not p.transparent:
+        art.body.append(el("rect", width=w, height=h, fill=p.bg))
+
+    slots = [k for k in ("kick", "head", "tail") if k in m["ys"]]
+    if c.one_shot:
+        clock, begins, item = c.entrance(1 + len(slots))
+        enter = (begins[0] / clock.dur, (begins[-1] + item) / clock.dur)
+    else:
+        turns = max(len(m["heads"]), len(m["tails"]), 1)
+        clock, begins, item, enter = c.cycle(turns * 3.0, distance=w), [], 0.0, (0.0, 1.0)
+    band = Band(w, h, s, footer, clock, drift=not c.one_shot, enter=enter)
+    shapes, tints = BANNER_SHAPES[variant](c, band)
+    inks = {
+        "kick": layered(c, c.pal.text, tints),
+        "head": layered(c, p.ink, tints),
+        "tail": layered(c, composite(p.text, p.bg), tints),
+    }
+    turn = {"kick": [m["kick"]], "head": m["heads"], "tail": m["tails"]}
+    size = {"kick": m["kf"], "head": m["hf"], "tail": m["tf"]}
+    face = {"kick": "m", "head": "b", "tail": "s"}
+    groups = []
+    for key in slots:
+        ys = [oy + y for y in m["ys"][key]]
+        attrs = {
+            "class_": c.cls(face[key]),
+            "x": w / 2,
+            "fill": inks[key],
+            "font_size": size[key],
+            "text_anchor": "middle",
+        }
+        texts = turn[key]
+        if len(texts) > 1 and not c.one_shot:  # one line at a time, on the shared clock
+            groups.append(rotating(c, [t[0] for t in texts], clock, **attrs, y=ys[0]))
+        else:
+            groups.append(
+                [el("text", esc(t), **attrs, y=y) for t, y in zip(texts[0], ys, strict=True)]
+            )
+    if c.one_shot:
+        a, b = enter[0], begins[0] / clock.dur + item / clock.dur
+        layer = [el("g", animate("opacity", [(0, 0), (a, 0), (b, 1)], clock, ease=True), *shapes)]
+        layer += [
+            el("g", rise(clock, begins[i + 1], item, dy=6 * s), *g) for i, g in enumerate(groups)
+        ]
+        art.body.append(el("g", veil(clock), *layer))
+    else:
+        art.body += shapes
+        art.body += [t for g in groups for t in g]
+    return art
+
+
 # ---------------------------------------------------------------- timeline
 
 
@@ -2333,6 +3775,29 @@ def timeline_rail(
     r = scaled(6, s, 3)
     nodes: list[tuple[float, float, float]] = []
     labels: list[list[str]] = []
+    if c.phone:  # the rail down the left, each item's date over its wrapped title and subtitle
+        pad, df, tf, sf, r = 16.0, c.fs(9), c.fs(13), c.fs(11), 6.0
+        rx, tx = pad + 10, pad + 28
+        room = w - pad - tx
+        y = oy + pad + (c.fs(10) + 20 if title else 2)
+        ys = []
+        for it in items:
+            ys.append(y + max(df * 0.5, r))
+            day = snug(it["when"].upper(), room, df, "mono", MONO_LS)
+            out = [mono(c, day, tx, ys[-1] + df * 0.35, c.pal.text, df)] if day else []
+            y = ys[-1] + df * 0.35
+            for k, line in enumerate(wrap(it["title"], room, tf, lines=2)):
+                y += tf * (1.4 if k == 0 else 1.25)
+                out.append(sans(c, line, tx, y, p.ink, tf))
+            for k, line in enumerate(wrap(it["subtitle"], room, sf, lines=2) if subs else []):
+                y += sf * (1.45 if k == 0 else 1.35)
+                out.append(sans(c, line, tx, y, p.dim, sf, "r"))
+            labels.append(out)
+            y += 0.3 * tf + 14
+        y0, y1 = ys[0] - 2 * r, ys[-1] + 2 * r
+        nodes = [(rx, yc, (yc - y0) / (y1 - y0)) for yc in ys]
+        path = f"M{num(rx)} {num(y0)} V{num(y1)}"
+        return Rail(max(y - 14, y1) + pad - oy, path, y1 - y0, nodes, labels)
     if vertical:
         widest = max(text_width(it["when"].upper(), df, "mono", MONO_LS) for it in items)
         date_w = min(widest, w * 0.3)
@@ -2392,7 +3857,9 @@ def kind_timeline(c: Ctx) -> Art:
 
     Horizontal by default, labels alternating above and below when the rail is dense.
     --variant vertical (the default under 400 px wide or on a canvas taller than wide) runs
-    the rail down the left with the text beside each node.
+    the rail down the left with the text beside each node. A phone layout is always
+    vertical: each date sits over its title and subtitle, which wrap onto a second line
+    instead of being cut.
     """
     spec = spec_of(c, "items")
     items = timeline_items(spec)
@@ -2402,7 +3869,7 @@ def kind_timeline(c: Ctx) -> Art:
     variant = c.variant or ("vertical" if wide < 400 or tall else "horizontal")
     if variant not in ("horizontal", "vertical"):
         raise ForgeError(f"timeline variant must be horizontal or vertical, got {variant!r}")
-    vertical = variant == "vertical"
+    vertical = variant == "vertical" or c.phone
     base_w = 560 if vertical else 840
     w = c.width or base_w
     subs = any(it["subtitle"] for it in items)
@@ -2410,10 +3877,20 @@ def kind_timeline(c: Ctx) -> Art:
     def need(k: float) -> float:
         return timeline_rail(c, items, title, w, k, subs, vertical).height
 
-    s = layout_scale(w, base_w, c.height, need)
-    if c.height is not None and subs and need(s) > c.height:
-        subs = False  # no room for second lines: drop them before shrinking further
+    if c.phone:  # text keeps its phone size, so a short --height drops subtitles, then fails
+        s = 1.0
+        if c.height is not None and subs and need(s) > c.height:
+            subs = False
+        if c.height is not None and need(s) > c.height:
+            raise ForgeError(
+                f"timeline on a phone needs a height of at least {math.ceil(need(s))}, "
+                f"got {num(c.height)}; drop --height or list fewer items"
+            )
+    else:
         s = layout_scale(w, base_w, c.height, need)
+        if c.height is not None and subs and need(s) > c.height:
+            subs = False  # no room for second lines: drop them before shrinking further
+            s = layout_scale(w, base_w, c.height, need)
     lay = timeline_rail(c, items, title, w, s, subs, vertical)
     h = c.height or lay.height
     oy = max(0.0, (h - lay.height) / 2)
@@ -2431,7 +3908,8 @@ def kind_timeline(c: Ctx) -> Art:
     regular(c, art)
     if title:
         hf = scaled(10, s)
-        heading(c, art, title, x=24 * s, y=oy + 24 * s + hf, size=hf)
+        pad = 16 if c.phone else 24 * s
+        heading(c, art, title, x=pad, y=oy + pad + c.fs(hf) + (4 if c.phone else 0), size=hf)
     n = len(items)
     if c.one_shot:
         q = c.preset
@@ -2516,6 +3994,418 @@ def kind_timeline(c: Ctx) -> Art:
         layer.append(el("g", animate("opacity", [(0, 0), (a, 0), (b, 1)], clock, ease=True), *dots))
         if texts:
             layer.append(el("g", rise(clock, at, item, dy=6 * s), *texts))
+    art.body.append(el("g", veil(clock), *layer))
+    return art
+
+
+# ---------------------------------------------------------------- stats and streak
+
+CARD_W, CARD_H = 495, 195  # two cards side by side fill an 880 px README row
+STREAK_SPAN = 3660  # days; ten years of contributions
+STREAK_LABELS = ("Total contributions", "Current streak", "Longest streak")
+
+
+def glyph_at(name: str, x: float, y: float, size: float, color: str) -> str:
+    """glyph() at any size through one matrix(): below 16 px its scale(0.x) reads as
+    scale(0) to the poster check in tests/poster.py."""
+    k = num(size / 16, 4)
+    return el("g", glyph(name, 0, 0, 16, color), transform=f"matrix({k} 0 0 {k} {num(x)} {num(y)})")
+
+
+def stats_rows(spec: dict[str, Any]) -> list[dict[str, str]]:
+    rows = []
+    for i, raw in enumerate(need_list(spec.get("rows"), "stats rows", 6)):
+        if not isinstance(raw, dict):
+            raise ForgeError(f"stats row {i} must be an object with label and value")
+        name = raw.get("glyph")
+        if name not in (None, "") and (not isinstance(name, str) or name not in GLYPHS):
+            raise ForgeError(f"stats row {i} glyph must be one of {', '.join(GLYPHS)}")
+        label = text_of(raw.get("label", ""), f"stats row {i} label", 40)
+        value = text_of(raw.get("value", ""), f"stats row {i} value", 16)
+        if not label or not value:
+            raise ForgeError(f"stats row {i} needs a label and a value")
+        rows.append({"label": label, "value": value, "glyph": name or ""})
+    return rows
+
+
+def stats_grade(spec: dict[str, Any]) -> tuple[str, float] | None:
+    raw = spec.get("grade")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ForgeError("stats grade must be an object with label and value")
+    label = text_of(raw.get("label", ""), "stats grade label", 6)
+    value = number_of(raw.get("value", 0), "stats grade value")
+    if not label:
+        raise ForgeError("stats grade needs a label like A+")
+    if not 0 <= value <= 1:
+        raise ForgeError(f"stats grade value must be between 0 and 1, got {value:g}")
+    return label, value
+
+
+def kind_stats(c: Ctx) -> Art:
+    """Summary card: a title, up to six rows of glyph, label and value, and a grade ring on
+    the right. The rows enter staggered while the ring draws in to the grade value; values
+    are static text shown as given (no count-up).
+
+    Data: {"title": "Open source", "rows": [{"label": "Stars", "value": "1.2k", "glyph":
+    "star"}, ...], "grade": {"label": "A+", "value": 0.86}}. A bare list is the rows. glyph
+    is one of GLYPHS and optional; without a grade the rows take the full width.
+    """
+    spec = spec_of(c, "rows")
+    rows = stats_rows(spec)
+    grade = stats_grade(spec)
+    title = c.title or (text_of(spec["title"], "stats title") if spec.get("title") else "")
+    n = len(rows)
+    glyphs = any(r["glyph"] for r in rows)
+    w = c.width or CARD_W
+
+    def lay(s: float) -> dict[str, float]:
+        pad = 22 * s
+        hf = c.fs(scaled(10, s))
+        lf = c.fs(scaled(12.5, s))
+        vf = max(c.fs(scaled(13.5, s)), lf * 1.08)
+        top = pad + (hf + 16 * s if title else 0)
+        step = vf * 1.85
+        if not c.phone:  # six rows tighten to keep the card CARD_H tall
+            step = clamp((CARD_H * s - top - pad) / n, vf * 1.5, step)
+        dia = (max(92 * s, 72) if c.phone else 92 * s) if grade else 0.0
+        body = max(n * step, dia)
+        return dict(
+            pad=pad,
+            hf=hf,
+            lf=lf,
+            vf=vf,
+            top=top,
+            step=step,
+            dia=dia,
+            body=body,
+            need=top + body + pad,
+        )
+
+    s = layout_scale(w, CARD_W, c.height, lambda k: lay(k)["need"])
+    m = lay(s)
+    h = c.height or max(CARD_H * s, m["need"])
+    bw = min(w, CARD_W * s)
+    ox, oy = (w - bw) / 2, max(0.0, (h - m["need"]) / 2)
+    pad, lf, vf, step, dia = m["pad"], m["lf"], m["vf"], m["step"], m["dia"]
+    left, right = ox + pad, ox + bw - pad
+    desc = "; ".join(f"{r['label']} {r['value']}" for r in rows)
+    if grade:
+        desc += f"; grade {grade[0]} ({math.floor(round(grade[1] * 100, 6))}%)"
+    art = Art(w, h, title or "Stats", "Stats: " + desc)
+    p = c.theme
+    frame(c, art, rx=clamp(14 * s, 6, 24))
+    if title:
+        heading(c, art, title, x=left, y=oy + pad + m["hf"], size=m["hf"])
+    clock, begins, item = paced(c, n + 1, distance=w)
+    d = clock.dur
+    layer = []
+    cy = oy + m["top"] + m["body"] / 2
+    ends = right
+    if grade:
+        sw = max(dia * 0.085, 2.0)
+        r = dia / 2 - sw / 2
+        cx = right - dia / 2 - 8 * s
+        ends = cx - dia / 2 - 22 * s
+        circ = 2 * math.pi * r
+        art.body.append(
+            el(
+                "circle",
+                cx=cx,
+                cy=cy,
+                r=r,
+                fill="none",
+                stroke=p.panel_stroke,
+                stroke_width=sw,
+                opacity=0.6,
+            )
+        )
+        if grade[1] > 0:
+            arc = num(circ * grade[1])
+            a, b = begins[0] / d, (begins[n] + item) / d
+            layer.append(
+                el(
+                    "circle",
+                    animate(
+                        "stroke-dashoffset", [(0, arc), (a, arc), (b, 0)], clock, ease=EASE_IN_OUT
+                    ),
+                    cx=cx,
+                    cy=cy,
+                    r=r,
+                    fill="none",
+                    stroke=c.pal.ink,
+                    stroke_width=sw,
+                    stroke_linecap="round",
+                    stroke_dasharray=f"{arc} {num(circ)}",
+                    stroke_dashoffset=0,
+                    transform=f"rotate(-90 {num(cx)} {num(cy)})",
+                )
+            )
+        size = c.fs(scaled(26, s))
+        mark, size = shrink(grade[0], 2 * r - sw - 8 * s, size, "bold", c.fs(FONT_FLOOR))
+        if mark:
+            label = sans(c, mark, cx, cy + size * 0.35, p.ink, size, "b", text_anchor="middle")
+            layer.append(el("g", rise(clock, begins[n], item, dy=4 * s), label))
+    gsz = lf * 1.12
+    tx = left + (gsz + 9 * s if glyphs else 0)
+    y0 = cy - n * step / 2
+    for k, row in enumerate(rows):
+        mid = y0 + step * (k + 0.5)
+        parts = []
+        if row["glyph"]:
+            parts.append(glyph_at(row["glyph"], left, mid - gsz / 2, gsz, c.pal.ink))
+        value = snug(row["value"], ends - tx, vf, "bold")
+        if value:
+            parts.append(sans(c, value, ends, mid + vf * 0.35, p.ink, vf, "b", text_anchor="end"))
+        room = ends - tx - text_width(value, vf, "bold") - 12 * s
+        name = snug(row["label"], room, lf)
+        if name:
+            parts.append(sans(c, name, tx, mid + lf * 0.35, p.text, lf))
+        if parts:
+            layer.append(el("g", rise(clock, begins[k], item, dy=6 * s), *parts))
+    art.body.append(el("g", veil(clock), *layer))
+    return art
+
+
+def streaks(counts: list[float]) -> tuple[int, int, int, int]:
+    """Current and longest run of days with a contribution, each with the index it ends on
+    (-1 for no run).
+
+    The rule is streaks() from the same author's github-stats-card-action (MIT), so the
+    two tools agree: the last day is today, which may still be empty; only an empty
+    yesterday breaks the current streak. Of runs that tie for longest, the latest wins.
+    """
+    longest = run = 0
+    longest_end = -1
+    for i, count in enumerate(counts):
+        run = run + 1 if count else 0
+        if run and run >= longest:
+            longest, longest_end = run, i
+    end = len(counts) - 2 if counts and counts[-1] == 0 else len(counts) - 1
+    current = 0
+    for count in reversed(counts[: end + 1]):
+        if not count:
+            break
+        current += 1
+    return current, end if current else -1, longest, longest_end
+
+
+def day_text(day: date, year: bool = True) -> str:
+    return f"{MONTHS[day.month - 1]} {day.day}" + (f", {day.year}" if year else "")
+
+
+def span_texts(a: date, b: date) -> list[str]:
+    """The date range a to b, longest wording first; the card shows the first that fits."""
+    if a == b:
+        return [day_text(a), day_text(a, False)]
+    start, end = day_text(a, False), day_text(b)
+    if a.year == b.year:
+        return [f"{start} - {end}", f"{start} - {day_text(b, False)}"]
+    month = f"{MONTHS[a.month - 1]} {a.year} - {MONTHS[b.month - 1]} {b.year}"
+    short = [f"{start} - {end}"] if (b - a).days < 300 else []  # the year is plain from b
+    return [f"{day_text(a)} - {end}", *short, month]
+
+
+def first_fit(options: list[str], room: float, size: float, face: str = "sans") -> str:
+    """The first option that fits room at size, else the last one cut to fit."""
+    for text in options:
+        if text_width(text, size, face) <= room:
+            return text
+    return snug(options[-1], room, size, face) if options else ""
+
+
+def streak_panels(spec: dict[str, Any]) -> list[tuple[str, list[str]]]:
+    """(number, range wordings) for total, current and longest, from given numbers or from
+    a contributions data set read through calendar_days()."""
+    if "days" in spec or "counts" in spec:
+        days = calendar_days(spec)
+        first, last = min(days), max(days)
+        span = (last - first).days + 1
+        if span > STREAK_SPAN:
+            raise ForgeError(f"streak data spans {span} days; the most is {STREAK_SPAN}")
+        counts = [days.get(first + timedelta(days=k), 0.0) for k in range(span)]
+        current, current_end, longest, longest_end = streaks(counts)
+
+        def run(length: int, end: int) -> list[str]:
+            b = first + timedelta(days=end)
+            return span_texts(b - timedelta(days=length - 1), b) if length else []
+
+        return [
+            (fmt_count(sum(counts)), span_texts(first, last)),
+            (fmt_count(current), run(current, current_end) or span_texts(last, last)),
+            (fmt_count(longest), run(longest, longest_end)),
+        ]
+    if not any(key in spec for key in ("total", "current", "longest")):
+        raise ForgeError(
+            "streak data needs total, current and longest, or contributions as days: "
+            "[{date, count}, ...] or start and counts"
+        )
+    out = []
+    for key in ("total", "current", "longest"):
+        if key not in spec:
+            raise ForgeError(f"streak data needs {key} next to the other two numbers")
+        value = count_of(spec[key], f"streak {key}")
+        if key != "total" and not value.is_integer():
+            raise ForgeError(f"streak {key} must be a whole number of days, got {value:g}")
+        span = spec.get(f"{key}_range")
+        span = "" if span in (None, "") else text_of(span, f"streak {key}_range", 40)
+        out.append((fmt_count(value), [span] if span else []))
+    return out
+
+
+def kind_streak(c: Ctx) -> Art:
+    """Streak card in three panels: total contributions with its date range, the current
+    streak as a big number in a ring under a flame (the one highlight), and the longest
+    streak with its range. The panels rise in turn, the ring draws in and the flame lands
+    in its gap. Under 400 px wide, and on a phone, the current streak sits on top with
+    total and longest side by side under it.
+
+    Data: given numbers {"total": 1284, "total_range": "Oct 5, 2025 - Present", "current":
+    12, "current_range": "Sep 29 - Oct 10", "longest": 41, "longest_range": "Mar 2 - Apr
+    11"} (the ranges are optional text), or contributions in the calendar format ({"days":
+    [{"date", "count"}, ...]} or {"start", "counts"}): the streaks then follow streaks(),
+    with the last day as today, and the ranges come from the dates.
+    """
+    spec = spec_of(c, "days")
+    panels = streak_panels(spec)
+    title = c.title or (text_of(spec["title"], "streak title") if spec.get("title") else "")
+    w = c.width or CARD_W
+    stacked = c.phone or w < 400
+    base_w = PHONE_W if stacked else CARD_W
+
+    def lay(s: float) -> dict[str, float]:
+        pad = 20 * s
+        hf = c.fs(scaled(10, s))
+        nf, lf, rf = c.fs(scaled(26, s)), c.fs(scaled(12, s)), c.fs(scaled(10.5, s))
+        dia, flame = 88 * s, 20 * s
+        sw = max(dia * 0.075, 2.0)
+        top = pad + (hf + 14 * s if title else 0)
+        cy = top + flame / 2 + dia / 2 - sw / 2
+        label = cy + dia / 2 + 8 * s + lf
+        low = label + rf * 1.55 + rf * 0.35  # the bottom of the current streak's range
+        rule = low + 14 * s
+        num_y = rule + 14 * s + nf * 0.75 if stacked else cy + nf * 0.35
+        side = num_y + 8 * s + lf
+        bottom = max(low, side + rf * 1.55 + rf * 0.35)
+        return dict(
+            pad=pad,
+            hf=hf,
+            nf=nf,
+            lf=lf,
+            rf=rf,
+            dia=dia,
+            flame=flame,
+            sw=sw,
+            top=top,
+            cy=cy,
+            label=label,
+            low=low,
+            rule=rule,
+            num=num_y,
+            side=side,
+            need=bottom + pad,
+        )
+
+    s = layout_scale(w, base_w, c.height, lambda k: lay(k)["need"])
+    m = lay(s)
+    h = c.height or max(0 if stacked else CARD_H * s, m["need"])
+    bw = min(w, base_w * s)
+    ox, oy = (w - bw) / 2, max(0.0, (h - m["need"]) / 2)
+    pad, nf, lf, rf, sw = m["pad"], m["nf"], m["lf"], m["rf"], m["sw"]
+    left, right = ox + pad, ox + bw - pad
+    cy = oy + m["cy"]
+    p = c.theme
+    (total, total_span), (current, current_span), (longest, longest_span) = panels
+
+    def days(v: str) -> str:
+        return f"{v} day" + ("" if v == "1" else "s")
+
+    def told(span: list[str]) -> str:
+        return f" ({span[0]})" if span else ""
+
+    desc = (
+        f"Streak: {total} contributions{told(total_span)}; current streak {days(current)}"
+        f"{told(current_span)}; longest streak {days(longest)}{told(longest_span)}."
+    )
+    art = Art(w, h, title or "Contribution streak", desc)
+    frame(c, art, rx=clamp(14 * s, 6, 24))
+    regular(c, art)
+    if title:
+        heading(c, art, title, x=left, y=oy + pad + m["hf"], size=m["hf"])
+    if stacked:  # hairlines between the panels
+        col = (right - left) / 2
+        xs = [left + col / 2, (left + right) / 2, left + col * 1.5]
+        rooms = [col - 8 * s, right - left, col - 8 * s]
+        y, end = oy + m["rule"], oy + m["need"] - pad
+        rules = [
+            f"M{num(left)} {num(y)} H{num(right)}",
+            f"M{num(xs[1])} {num(y + 10 * s)} V{num(end)}",
+        ]
+    else:
+        col = (right - left) / 3
+        xs = [left + col * (k + 0.5) for k in range(3)]
+        rooms = [col - 8 * s] * 3
+        y, end = oy + m["top"] + 4 * s, oy + m["low"]
+        rules = [f"M{num(left + col * k)} {num(y)} V{num(end)}" for k in (1, 2)]
+    for path in rules:
+        art.body.append(el("path", d=path, fill="none", stroke=p.border))
+    # the ring leaves a gap at the top for the flame: arc and track start just past it
+    dia, flame = m["dia"], m["flame"]
+    r = dia / 2 - sw / 2
+    circ = 2 * math.pi * r
+    gap = flame + 5 * s
+    arc = num(circ - gap)
+    turn = f"rotate({num(-90 + gap / circ * 180, 3)} {num(xs[1])} {num(cy)})"
+    ring = {"cx": xs[1], "cy": cy, "r": r, "fill": "none", "stroke_width": sw, "transform": turn}
+    art.body.append(
+        el(
+            "circle",
+            **ring,
+            stroke=p.panel_stroke,
+            stroke_dasharray=f"{arc} {num(circ)}",
+            opacity=0.6,
+        )
+    )
+    clock, begins, item = paced(c, 4, distance=w)
+    d = clock.dur
+    order = (1, 0, 2) if stacked else (0, 1, 2)  # panel by entrance slot: the top one first
+    at = {panel: begins[k] for k, panel in enumerate(order)}
+    a, b = at[1] / d, (begins[3] + item) / d
+    layer = [
+        el(
+            "circle",
+            animate("stroke-dashoffset", [(0, arc), (a, arc), (b, 0)], clock, ease=EASE_IN_OUT),
+            **ring,
+            stroke=c.pal.ink,
+            stroke_linecap="round",
+            stroke_dasharray=f"{arc} {num(circ)}",
+            stroke_dashoffset=0,
+        )
+    ]
+    for k, (value, span) in enumerate(panels):
+        x, room = xs[k], rooms[k]
+        parts = []
+        if k == 1:
+            inner = 2 * r - sw - 10 * s
+            text, size = shrink(value, inner, c.fs(scaled(30, s)), "bold", c.fs(FONT_FLOOR))
+            num_y, label_y, ink = cy + size * 0.35, oy + m["label"], c.pal.text
+        else:
+            text, size = shrink(value, room, nf, "bold", c.fs(FONT_FLOOR))
+            num_y, label_y, ink = oy + m["num"], oy + m["side"], p.text
+        if text:
+            parts.append(sans(c, text, x, num_y, p.ink, size, "b", text_anchor="middle"))
+        label = snug(STREAK_LABELS[k], room, lf)
+        if label:
+            parts.append(sans(c, label, x, label_y, ink, lf, text_anchor="middle"))
+        when = first_fit(span, room, rf)
+        if when:
+            y = label_y + rf * 1.55
+            parts.append(sans(c, when, x, y, p.dim, rf, "r", text_anchor="middle"))
+        if parts:
+            layer.append(el("g", rise(clock, at[k], item, dy=6 * s), *parts))
+    spark = glyph_at("flame", xs[1] - flame / 2, cy - r - flame / 2, flame, c.pal.ink)
+    layer.append(el("g", rise(clock, begins[3], item, dy=4 * s), spark))
     art.body.append(el("g", veil(clock), *layer))
     return art
 
@@ -2787,12 +4677,53 @@ def logo_pill(
     return out
 
 
+LOGO_PHONE_ROWS = 6  # a longer phone wall ends with a "+N more" pill
+Logo = tuple[str, str | None, str | None]  # label, symbol id, color
+
+
+def logo_rows(
+    entries: list[Logo], cols: int, half: float, ph: float, size: float, limit: int
+) -> list[tuple[bool, list[Logo]]]:
+    """The phone rows of a logo wall as (full width, entries): up to cols (1 or 2) half pills
+    a row, and a pill whose label does not fit half the row on a full row of its own. A half
+    pill that would sit alone pairs with the next one that fits, so the order moves by at
+    most one slot. Past limit rows the wall keeps what fits and ends with a "+N more" pill."""
+
+    def fits(entry: Logo) -> bool:
+        room = half - 2 * ph * 0.32 - (ph * 0.72 if entry[1] else 0)
+        return cols == 2 and text_width(entry[0].upper(), size, "mono", MONO_LS) <= room
+
+    def pack(shown: list[Logo]) -> list[tuple[bool, list[Logo]]]:
+        rows: list[tuple[bool, list[Logo]]] = []
+        open_row: list[Logo] | None = None
+        for entry in shown:
+            if not fits(entry):
+                rows.append((True, [entry]))
+            elif open_row is None:
+                open_row = [entry]
+                rows.append((False, open_row))
+            else:
+                open_row.append(entry)
+                open_row = None
+        return rows
+
+    keep = len(entries)
+    rows = pack(entries)
+    while len(rows) > limit and keep > 1:
+        keep -= 1
+        rows = pack([*entries[:keep], (f"+{len(entries) - keep} more", None, None)])
+    return rows
+
+
 def kind_logos(c: Ctx) -> Art:
     """Logo wall: SVG logos inlined as prefixed <symbol>s, PNG or WebP as data: URIs, and text
     pills for entries without a file.
 
     A balanced grid with a staggered entrance; --timing ambient scrolls one row as a seamless
-    marquee at --speed px/s instead. File paths resolve from the current directory.
+    marquee at --speed px/s instead. File paths resolve from the current directory. A phone
+    layout draws two columns of pills (a label too long for half the row takes all of it)
+    in at most LOGO_PHONE_ROWS rows, the last slot saying how many more there are; its
+    marquee keeps the desktop pill size.
     """
     spec = spec_of(c, "items")
     entries: list[tuple[str, str | None, str | None]] = []
@@ -2829,16 +4760,26 @@ def kind_logos(c: Ctx) -> Art:
 
     def lay(s: float) -> tuple[float, float, float, float, int, int, float]:
         pad, gap = (14 if marquee else 16) * s, 12 * s
-        size = scaled(10, s)
+        size = c.fs(scaled(10, s))
         ph = max(44 * s, size * 2.8)
         top = pad + (scaled(10, s) + 18 * s if title else 0)
         if marquee:
             return pad, gap, size, ph, 1, n, top + ph + pad
+        if c.phone:
+            pad, gap, ph = 14.0, 10.0, 40.0
+            top = pad + (scaled(10, s) + 18 * s if title else 0)
+            half = (w - 2 * pad - gap) / 2
+            rows = len(logo_rows(entries, min(cols or 2, 2), half, ph, size, limit))
+            return pad, gap, size, ph, rows, 2, top + rows * (ph + gap) - gap + pad
         most = cols or max(1, int((w - 2 * pad + gap) // (150 * s + gap)))
         rows = math.ceil(n / most)
         return pad, gap, size, ph, rows, math.ceil(n / rows), top + rows * (ph + gap) - gap + pad
 
-    s = layout_scale(w, 840, c.height, lambda k: lay(k)[-1])
+    limit = LOGO_PHONE_ROWS
+    if c.phone and c.height is not None:  # a short canvas holds fewer rows
+        free = c.height - 28 - (28 if title else 0)
+        limit = max(1, min(limit, int((free + 10) // 50)))
+    s = 1.0 if c.phone else layout_scale(w, 840, c.height, lambda k: lay(k)[-1])
     pad, gap, size, ph, rows, per_row, need = lay(s)
     h = c.height or need
     oy = max(0.0, (h - need) / 2)
@@ -2855,18 +4796,31 @@ def kind_logos(c: Ctx) -> Art:
     if not marquee:
         art.desc = "Logo wall: " + names
         cw = (w - 2 * pad - (per_row - 1) * gap) / per_row
-        clock, begins, item = paced(c, n, distance=w)
+        spots: list[tuple[float, float, float, Logo]] = []  # x, y, width, entry
+        if c.phone:
+            for row, (full, line) in enumerate(
+                logo_rows(entries, min(cols or 2, 2), cw, ph, size, limit)
+            ):
+                y = top + row * (ph + gap)
+                if full:
+                    spots.append((pad, y, w - 2 * pad, line[0]))
+                else:
+                    x = pad + (2 - len(line)) * (cw + gap) / 2
+                    spots += [(x + k * (cw + gap), y, cw, e) for k, e in enumerate(line)]
+        else:
+            for k, entry in enumerate(entries):
+                row, col = divmod(k, per_row)
+                x = pad + (per_row - min(per_row, n - row * per_row)) * (cw + gap) / 2
+                x += col * (cw + gap)
+                spots.append((x, top + row * (ph + gap), cw, entry))
+        clock, begins, item = paced(c, len(spots), distance=w)
         pills = []
-        for k, entry in enumerate(entries):
-            row, col = divmod(k, per_row)
-            x = pad + (per_row - min(per_row, n - row * per_row)) * (cw + gap) / 2
-            x += col * (cw + gap)
-            y = top + row * (ph + gap)
+        for k, (x, y, pw, entry) in enumerate(spots):
             pills.append(
                 el(
                     "g",
                     rise(clock, begins[k], item, dy=6 * s),
-                    *logo_pill(c, x, y, cw, ph, size, entry),
+                    *logo_pill(c, x, y, pw, ph, size, entry),
                 )
             )
         art.body.append(el("g", veil(clock), *pills))
@@ -2905,6 +4859,548 @@ def kind_logos(c: Ctx) -> Art:
         art.body.append(
             el("rect", x=0.5, y=top - 6 * s, width=w - 1, height=ph + 12 * s, fill=c.url("fade"))
         )
+    return art
+
+
+# ---------------------------------------------------------------- breakdown and radar
+
+BREAKDOWN_NAMED = 10  # items shown by name; the rest share one Other item
+GOLDEN = 0.381966  # 2 - phi: a hue stride of this share of the categories keeps neighbours apart
+
+
+def breakdown_items(spec: dict[str, Any]) -> list[dict[str, Any]]:
+    """Items largest first: at most BREAKDOWN_NAMED by name, then one Other item that holds
+    the rest and any item the data already calls Other. Each item gets its share of the
+    total and a percent label in tenths, rounded by largest remainder so the legend adds up
+    to exactly 100%."""
+    items: list[dict[str, Any]] = []
+    other: float | None = None
+    for i, raw in enumerate(need_list(spec.get("items"), "breakdown items", 200)):
+        if not isinstance(raw, dict):
+            raise ForgeError(f"breakdown item {i} must be an object with label and value")
+        label = text_of(raw.get("label", ""), f"breakdown item {i} label", 40)
+        if not label:
+            raise ForgeError(f"breakdown item {i} needs a label")
+        value = count_of(raw.get("value"), f"breakdown item {i} value")
+        if label.casefold() == "other":
+            other = (other or 0.0) + value
+            continue
+        color = raw.get("color")
+        if color not in (None, ""):
+            color = parse_color(color, f"breakdown item {i} color")
+        items.append({"label": label, "value": value, "color": color or None})
+    items.sort(key=lambda it: -it["value"])  # stable: equal values keep their order
+    if len(items) > BREAKDOWN_NAMED:
+        other = (other or 0.0) + sum(it["value"] for it in items[BREAKDOWN_NAMED:])
+        del items[BREAKDOWN_NAMED:]
+    if other is not None:
+        items.append({"label": "Other", "value": other, "color": None, "other": True})
+    total = sum(it["value"] for it in items)
+    if not 0 < total < math.inf:
+        raise ForgeError("breakdown values must add up to a finite number above 0")
+    exact = [it["value"] * 1000 / total for it in items]
+    tenths = [math.floor(v) for v in exact]
+    for k in sorted(range(len(items)), key=lambda k: tenths[k] - exact[k])[: 1000 - sum(tenths)]:
+        tenths[k] += 1
+    for it, t in zip(items, tenths, strict=True):
+        it["share"] = it["value"] / total
+        it["pct"] = f"{t / 10:.1f}%"
+    return items
+
+
+def category_colors(c: Ctx, items: list[dict[str, Any]]) -> list[str]:
+    """One mark color per item: muted grey for Other, an item's own color, else hues spaced
+    evenly around the circle from the accent, taken in a stride of about GOLDEN of the
+    count so neighbours differ most, every other one a step further from the card. Each is
+    tuned to 3:1 wherever marks are drawn."""
+    n = sum(1 for it in items if not it.get("other"))
+    stride = min(
+        (k for k in range(1, n) if math.gcd(k, n) == 1),
+        key=lambda k: abs(k - n * GOLDEN),
+        default=1,
+    )
+    h, light, sat = _hls(c.pal.ink)
+    lift = 0.08 if is_dark(c.theme) else -0.08
+    out = []
+    for k, it in enumerate(items):
+        if it.get("other"):
+            out.append(c.tone("muted"))
+        elif it["color"]:
+            out.append(c.mark(it["color"]))
+        else:
+            hue = (h + ((k * stride) % n) / n) % 1
+            out.append(c.mark(_hex(hue, light + lift * (k % 2), max(sat, 0.45))))
+    return out
+
+
+def legend_entry(
+    c: Ctx, x: float, y: float, col_w: float, lf: float, color: str, it: dict[str, Any]
+) -> list[str]:
+    """Swatch, label and percent with its baseline at y, inside a col_w wide column."""
+    dot, gap = lf * 0.4, lf * 0.6
+    pct_w = text_width(it["pct"], lf, "mono", MONO_LS)
+    tx = x + 2 * dot + gap
+    room = col_w - (tx - x) - gap - pct_w - lf * 0.5
+    label = snug(it["label"].upper(), room, lf, "mono", MONO_LS)
+    out = [el("circle", cx=x + dot, cy=y - lf * 0.35, r=dot, fill=color)]
+    if label:
+        out.append(mono(c, label, tx, y, c.theme.text, lf))
+        tx += text_width(label, lf, "mono", MONO_LS) + gap
+    pct = snug(it["pct"], x + col_w - tx, lf, "mono", MONO_LS)
+    if pct:
+        out.append(mono(c, pct, tx, y, c.theme.dim, lf))
+    return out
+
+
+def kind_breakdown(c: Ctx) -> Art:
+    """Parts of a whole, such as a repository's languages: a heading, the chart and a legend
+    of swatch, label and percent per item, each legend entry arriving as the chart reaches
+    its item.
+
+    --variant bar (the default) is one stacked bar that grows in from the left; donut and
+    pie draw the same shares as a ring or a disc that one clockwise sweep reveals from the
+    top, and the donut names its largest item in the middle. Data: {"title", "items":
+    [{"label", "value", "color"?}]} or the bare list; a value is any non-negative size
+    (bytes, hours, counts). Items show largest first, ten by name and the rest as Other.
+    The chart sits beside its legend, or above it on a phone and on a canvas about as tall
+    as wide.
+    """
+    spec = spec_of(c, "items")
+    variant = c.variant or "bar"
+    if variant not in ("bar", "donut", "pie"):
+        raise ForgeError(f"breakdown variant must be bar, donut or pie, got {variant!r}")
+    items = breakdown_items(spec)
+    colors = category_colors(c, items)
+    title = c.title or (text_of(spec["title"], "breakdown title") if spec.get("title") else "")
+    n = len(items)
+    w = c.width or 495
+    bar = variant == "bar"
+    stack = bar or c.phone or (c.height is not None and c.height >= 0.8 * w)
+    if bar and not c.phone:
+        most = 2 if n <= 6 else 3  # rows of two, three once the list runs long
+    else:
+        most = 1 if n <= 4 and not stack else 2
+
+    def lay(s: float) -> dict[str, float]:
+        pad = (16 if c.phone else 22) * s
+        hf, lf = c.fs(scaled(10, s)), c.fs(scaled(10, s))
+        row = lf + max(11 * s, 0.45 * lf)
+        widest = max(
+            lf * 2.6
+            + text_width(it["label"].upper(), lf, "mono", MONO_LS)
+            + text_width(it["pct"], lf, "mono", MONO_LS)
+            for it in items
+        )
+        top = pad + (hf + 14 * s if title else 0)
+        dia = 0.0
+        if bar:
+            room, legend_y = w - 2 * pad, top + 14 * s + 24 * s
+        elif stack:
+            dia = min((150 if c.phone else 140) * s, w - 2 * pad)
+            room, legend_y = w - 2 * pad, top + dia + 20 * s
+        else:
+            dia = 124 * s
+            room, legend_y = w - 2 * pad - dia - 36 * s, 0.0
+        cols = max(1, min(most, n, int(room // (widest + 8 * s))))
+        rows = math.ceil(n / cols)
+        col_w = room / cols if bar else min(room / cols, widest + 28 * s)
+        block = rows * row
+        if bar or stack:
+            need = legend_y + block + pad * 0.8
+        else:
+            need = top + max(dia, block) + pad
+        return {
+            "pad": pad,
+            "hf": hf,
+            "lf": lf,
+            "row": row,
+            "top": top,
+            "dia": dia,
+            "legend_y": legend_y,
+            "cols": cols,
+            "col_w": col_w,
+            "block": block,
+            "need": need,
+        }
+
+    s = layout_scale(w, PHONE_W if c.phone else 495, c.height, lambda k: lay(k)["need"])
+    m = lay(s)
+    # a desktop card is at least 195 tall at 495 wide, the size of the common stats card
+    h = c.height or max(m["need"], 0 if c.phone else 195 * s)
+    oy = max(0.0, (h - m["need"]) / 2)
+    pad, lf, dia, cols, col_w = m["pad"], m["lf"], m["dia"], int(m["cols"]), m["col_w"]
+    top = oy + m["top"]
+    if bar:
+        legend_x, legend_y = pad, oy + m["legend_y"]
+    elif stack:
+        cx, cy = w / 2, top + dia / 2
+        legend_x, legend_y = (w - cols * col_w) / 2, oy + m["legend_y"]
+    else:
+        ox = max(0.0, (w - 2 * pad - dia - 36 * s - cols * col_w) / 2)
+        cx, cy = pad + ox + dia / 2, top + max(dia, m["block"]) / 2
+        legend_x, legend_y = pad + ox + dia + 36 * s, cy - m["block"] / 2
+    desc = "; ".join(f"{it['label']} {it['pct']}" for it in items)
+    art = Art(w, h, title or "Breakdown", "Breakdown: " + desc)
+    p = c.theme
+    frame(c, art, rx=clamp(14 * s, 6, 24))
+    if title:
+        heading(c, art, title, x=pad, y=oy + pad + m["hf"], size=scaled(10, s))
+    if c.one_shot:
+        q = c.preset
+        start = 0.1 if q.name == "short" else 0.0
+        item = round(q.item * 0.8, 3)
+        draw = round(max(q.total - start - item - 0.05, 0.1), 3)
+        total = round(start + draw + item, 3)
+        clock = Clock(PRESETS["medium"].fit(total + 2.4), True) if c.loop else Clock(total, False)
+    else:
+        clock = c.cycle(c.preset.base, distance=w)
+        start = 0.04 * clock.dur
+        draw, item = min(0.3 * clock.dur, 1.8), min(0.08 * clock.dur, 0.5)
+    d = clock.dur
+    a, b = start / d, (start + draw) / d
+    cums = list(itertools.accumulate((it["share"] for it in items), initial=0.0))
+    gap = 2 * s if n > 1 else 0.0
+    segs = []
+    if bar:
+        bx, by, bw, bh = pad, top, w - 2 * pad, 14 * s
+        for k, color in enumerate(colors):
+            x0 = bx + cums[k] * bw + (gap / 2 if k else 0)
+            x1 = bx + cums[k + 1] * bw - (gap / 2 if k < n - 1 else 0)
+            if x1 - x0 >= 0.5:
+                segs.append(el("rect", x=x0, y=by, width=x1 - x0, height=bh, fill=color))
+        reveal = animate("width", [(0, 0), (a, 0), (b, num(bw))], clock)
+        art.defs.append(
+            el(
+                "clipPath",
+                el("rect", reveal, x=bx, y=by, width=bw, height=bh, rx=bh / 2),
+                id=c.id("bar"),
+            )
+        )
+        chart = el("g", *segs, clip_path=c.url("bar"))
+    else:
+        r = dia / 2
+        thick = max(dia * 0.17, 3.0) if variant == "donut" else r
+        rr = r - thick / 2
+        circ = 2 * math.pi * rr
+        for k, color in enumerate(colors):
+            length = items[k]["share"] * circ - gap
+            if length < 0.5:
+                continue
+            turn = -90 + 360 * (cums[k] + gap / 2 / circ)
+            segs.append(
+                el(
+                    "circle",
+                    cx=cx,
+                    cy=cy,
+                    r=rr,
+                    fill="none",
+                    stroke=color,
+                    stroke_width=thick,
+                    stroke_dasharray=f"{num(length)} {num(circ)}",
+                    transform=f"rotate({num(turn)} {num(cx)} {num(cy)})",
+                )
+            )
+        # one sweep reveals every segment in turn: a mask ring whose dash runs clockwise
+        mr = r / 2 + 1
+        dash = 2 * math.pi * mr + 1
+        sweep = animate("stroke-dashoffset", [(0, num(dash)), (a, num(dash)), (b, 0)], clock)
+        art.defs.append(
+            el(
+                "mask",
+                el(
+                    "circle",
+                    sweep,
+                    cx=cx,
+                    cy=cy,
+                    r=mr,
+                    fill="none",
+                    stroke="#fff",
+                    stroke_width=r + 2,
+                    stroke_dasharray=num(dash),
+                    stroke_dashoffset=0,
+                    transform=f"rotate(-90 {num(cx)} {num(cy)})",
+                ),
+                id=c.id("sweep"),
+                maskUnits="userSpaceOnUse",
+                x=cx - r - 2,
+                y=cy - r - 2,
+                width=dia + 4,
+                height=dia + 4,
+            )
+        )
+        chart = el("g", *segs, mask=c.url("sweep"))
+    layer = [chart]
+    for k, color in enumerate(colors):
+        row, col = divmod(k, cols)
+        x = legend_x + col * col_w
+        y = legend_y + (row + 0.5) * m["row"] + lf * 0.35
+        at = round(start + draw * cums[k], 3)
+        entry = legend_entry(c, x, y, col_w, lf, color, items[k])
+        layer.append(el("g", rise(clock, at, item, dy=4 * s), *entry))
+    if variant == "donut":
+        hole = dia - 2 * thick
+        big, size = shrink(
+            items[0]["pct"],
+            hole * 0.66,
+            c.fs(max(dia * 0.13, FONT_FLOOR)),
+            "bold",
+            c.fs(FONT_FLOOR),
+        )
+        sf = c.fs(scaled(8.5, s))
+        name = snug(items[0]["label"].upper(), hole * 0.78, sf, "mono", MONO_LS)
+        y1 = cy + (size * 0.72 - (sf * 1.5 if name else 0)) / 2
+        center = [sans(c, big, cx, y1, p.ink, size, "b", text_anchor="middle")]
+        if name:
+            center.append(mono(c, name, cx, y1 + sf * 1.5, p.dim, sf, text_anchor="middle"))
+        at = round(max(start, start + draw - item * 0.5), 3)
+        layer.append(el("g", rise(clock, at, item, dy=4 * s), *center))
+    art.body.append(el("g", veil(clock), *layer))
+    return art
+
+
+def radar_axes(spec: dict[str, Any]) -> tuple[list[dict[str, Any]], float, bool]:
+    """Axes with their value as a share of max (clamped to 0..1) and as shown text, the max,
+    and whether every axis has a compare value (some but not all is an error). Shown values
+    share one decimal when any value has a fraction, so 4 reads as 4.0 beside 4.2."""
+    top = number_of(spec.get("max", 100), "radar max")
+    if top <= 0:
+        raise ForgeError("radar max must be above 0")
+    rows = []
+    for i, raw in enumerate(need_list(spec.get("axes"), "radar axes", 8, 3)):
+        if not isinstance(raw, dict):
+            raise ForgeError(f"radar axis {i} must be an object with label and value")
+        label = text_of(raw.get("label", ""), f"radar axis {i} label", 40)
+        if not label:
+            raise ForgeError(f"radar axis {i} needs a label")
+        value = number_of(raw.get("value"), f"radar axis {i} value")
+        was = raw.get("compare")
+        rows.append(
+            (label, value, None if was is None else number_of(was, f"radar axis {i} compare"))
+        )
+    paired = [was is not None for _, _, was in rows]
+    if any(paired) and not all(paired):
+        raise ForgeError("radar compare goes on every axis or on none")
+    places = int(not all(float(v).is_integer() for _, *vs in rows for v in vs if v is not None))
+
+    def shown(v: float) -> str:
+        return fmt_value(v) if abs(v) >= 1000 else f"{v:.{places}f}"
+
+    axes = [
+        {
+            "label": label,
+            "frac": clamp(value / top, 0.0, 1.0),
+            "shown": shown(value),
+            "back": None if was is None else clamp(was / top, 0.0, 1.0),
+            "was": None if was is None else shown(was),
+        }
+        for label, value, was in rows
+    ]
+    return axes, top, all(paired)
+
+
+def kind_radar(c: Ctx) -> Art:
+    """Radar chart of 3 to 8 axes on one shared max: grid rings and spokes, each axis label
+    with its value outside the rings, and the value polygon growing from the center before
+    its points pop in around the clock.
+
+    Data: {"title", "max": 100, "series"?: [value name, compare name], "axes": [{"label",
+    "value", "compare"?}]} or the bare axes list. With compare on every axis a second,
+    muted dashed polygon stays drawn underneath for comparison, and a key names both
+    series. Labels that would collide are shortened, never overlapped.
+    """
+    spec = spec_of(c, "axes")
+    axes, top_value, paired = radar_axes(spec)
+    names = spec.get("series", ["Value", "Compare"])
+    if not isinstance(names, list) or len(names) != 2:
+        raise ForgeError("radar series must be a list of two names: the value's, the compare's")
+    names = [text_of(x, "radar series name", 30) for x in names]
+    title = c.title or (text_of(spec["title"], "radar title") if spec.get("title") else "")
+    n = len(axes)
+    w = c.width or 400
+    turns = [-math.pi / 2 + 2 * math.pi * k / n for k in range(n)]
+
+    keys = [x.upper() for x in names]
+
+    def keys_width(labels: list[str], lf: float, s: float) -> float:
+        """Two keys, each a 16 px line and its name, 14 px apart."""
+        return 2 * 22 * s + 14 * s + sum(text_width(x, lf, "mono", MONO_LS) for x in labels)
+
+    def lay(s: float) -> dict[str, float]:
+        pad = (16 if c.phone else 20) * s
+        hf, lf = c.fs(scaled(10, s)), c.fs(scaled(9, s))
+        gap, lb = 8 * s, lf * 2.3
+        title_w = text_width(title.upper(), hf, "mono", MONO_LS) if title else 0.0
+        room = w - 2 * pad - (title_w + 24 * s if title else 0)
+        inline = paired and keys_width(keys, lf, s) <= room
+        top = pad + (hf + 14 * s if title or inline else 0)
+        under = lf + 14 * s if paired and not inline else 0.0
+        side = max(
+            (
+                text_width(max(ax["label"].upper(), ax["shown"], key=len), lf, "mono", MONO_LS)
+                for ax, t in zip(axes, turns, strict=True)
+                if abs(math.cos(t)) > 0.26
+            ),
+            default=0.0,
+        )
+        side = min(side, (0.2 if c.phone else 0.24) * w)
+        rad = max(min((w - 2 * pad - 2 * (side + gap)) / 2, 99 * s), 6 * s)
+        tops = [(rad + gap) * math.sin(t) + (math.sin(t) - 1) / 2 * lb for t in turns]
+        up, down = max(rad, -min(tops)), max(rad, max(tops) + lb)
+        return {
+            "pad": pad,
+            "hf": hf,
+            "lf": lf,
+            "gap": gap,
+            "lb": lb,
+            "inline": float(inline),
+            "top": top,
+            "rad": rad,
+            "up": up,
+            "down": down,
+            "need": top + up + down + under + pad,
+        }
+
+    s = layout_scale(w, PHONE_W if c.phone else 400, c.height, lambda k: lay(k)["need"])
+    m = lay(s)
+    h = c.height or max(m["need"], 0 if c.phone else 320 * s)
+    oy = max(0.0, (h - m["need"]) / 2)
+    pad, hf, lf, gap, rad = m["pad"], m["hf"], m["lf"], m["gap"], m["rad"]
+    inline = bool(m["inline"])
+    cx, cy = w / 2, oy + m["top"] + m["up"]
+    p = c.theme
+
+    def corners(fracs: list[float], x0: float = cx, y0: float = cy) -> list[tuple[float, float]]:
+        return [
+            (x0 + f * rad * math.cos(t), y0 + f * rad * math.sin(t))
+            for f, t in zip(fracs, turns, strict=True)
+        ]
+
+    def points(pts: list[tuple[float, float]]) -> str:
+        return " ".join(f"{num(x)},{num(y)}" for x, y in pts)
+
+    desc = "; ".join(
+        f"{ax['label']} {ax['shown']}" + (f" ({names[1]} {ax['was']})" if paired else "")
+        for ax in axes
+    )
+    art = Art(
+        w,
+        h,
+        title or "Radar chart",
+        f"Radar of {n} axes out of {fmt_value(top_value)}"
+        + (f", {names[0]} against {names[1]}" if paired else "")
+        + ": "
+        + desc,
+    )
+    frame(c, art, rx=clamp(14 * s, 6, 24))
+    if title:
+        room = w - 2 * pad - (keys_width(keys, lf, s) + 24 * s if inline else 0)
+        label = fit(title.upper(), room, hf, "mono", MONO_LS)
+        art.body.append(mono(c, label, pad, oy + pad + hf, c.pal.text, hf))
+    grid = "".join(
+        "M" + " L".join(f"{num(x)} {num(y)}" for x, y in corners([f] * n)) + "Z"
+        for f in (0.25, 0.5, 0.75, 1.0)
+    )
+    grid += "".join(f"M{num(cx)} {num(cy)}L{num(x)} {num(y)}" for x, y in corners([1.0] * n))
+    art.body.append(
+        el("path", d=grid, fill="none", stroke=p.panel_stroke, stroke_width=max(s, 0.6))
+    )
+    fill = alpha(c.pal.ink, 0.16)
+    layers: list[tuple[str, ...]] = [(), (fill,)]
+    muted = c.tone("muted")
+    if paired:
+        back = alpha(muted, 0.1)
+        layers += [(back,), (back, fill)]
+        art.body.append(
+            el(
+                "polygon",
+                points=points(corners([ax["back"] for ax in axes])),
+                fill=back,
+                stroke=muted,
+                stroke_width=scaled(1.5, s, 1),
+                stroke_dasharray=f"{num(4 * s)} {num(3 * s)}",
+                stroke_linejoin="round",
+            )
+        )
+    grounds = tuple(dict.fromkeys(g for t in layers for g in tinted(c.marks_on, t)))
+    line = tune(c.pal.ink, marks=grounds)  # 3:1 on the card and through both polygon tints
+    for ax, t in zip(axes, turns, strict=True):
+        cos, sin = math.cos(t), math.sin(t)
+        px, py = cx + (rad + gap) * cos, cy + (rad + gap) * sin
+        y1 = py + (sin - 1) / 2 * m["lb"] + 0.75 * lf
+        if cos > 0.26:
+            anchor, room = None, w - pad - px
+        elif cos < -0.26:
+            anchor, room = "end", px - pad
+        else:
+            anchor, room = "middle", min(2 * min(px - pad, w - pad - px), 1.4 * (rad + gap))
+        name = snug(ax["label"].upper(), room, lf, "mono", MONO_LS)
+        if name:
+            art.body.append(mono(c, name, px, y1, p.text, lf, text_anchor=anchor))
+        value = snug(ax["shown"], room, lf, "mono", MONO_LS)
+        if value:
+            art.body.append(mono(c, value, px, y1 + 1.3 * lf, c.pal.text, lf, text_anchor=anchor))
+    if paired:
+        if inline:  # right-aligned in the heading row
+            kx, ky = w - pad - keys_width(keys, lf, s), oy + pad + hf
+        else:  # a centered row under the chart, each name shortened to half the width
+            room = (w - 2 * pad - 14 * s) / 2 - 22 * s
+            keys = [snug(x, room, lf, "mono", MONO_LS) for x in keys]
+            kx, ky = (w - keys_width(keys, lf, s)) / 2, cy + m["down"] + 14 * s + 0.75 * lf
+        for k, (label, color) in enumerate(zip(keys, (line, muted), strict=True)):
+            ly = ky - lf * 0.35
+            art.body.append(
+                el(
+                    "line",
+                    x1=kx,
+                    y1=ly,
+                    x2=kx + 16 * s,
+                    y2=ly,
+                    stroke=color,
+                    stroke_width=scaled(2 if k == 0 else 1.5, s, 1),
+                    stroke_dasharray=None if k == 0 else f"{num(4 * s)} {num(3 * s)}",
+                )
+            )
+            if label:
+                art.body.append(mono(c, label, kx + 22 * s, ky, p.text, lf))
+            kx += 22 * s + text_width(label, lf, "mono", MONO_LS) + 14 * s
+    if c.one_shot:
+        q = c.preset
+        start = 0.1 if q.name == "short" else 0.0
+        grow, pop = q.item, round(q.item * 0.6, 3)
+        land = start + grow * 0.75
+        stagger = min(q.stagger * 0.5, max(0.0, (q.total - land - pop) / max(n - 1, 1)))
+        total = round(max(start + grow, land + stagger * (n - 1) + pop), 3)
+        clock = Clock(PRESETS["medium"].fit(total + 2.4), True) if c.loop else Clock(total, False)
+    else:
+        clock = c.cycle(c.preset.base, distance=2 * math.pi * rad)
+        start, grow = 0.04 * clock.dur, min(0.25 * clock.dur, 1.4)
+        pop = min(0.06 * clock.dur, 0.36)
+        land = start + grow * 0.75
+        stagger = min(0.07, 0.25 * clock.dur / n)
+    d = clock.dur
+    grown = move("scale", [(0, 0), (start / d, 0), ((start + grow) / d, 1)], clock, ease=True)
+    shape = el(
+        "polygon",
+        points=points(corners([ax["frac"] for ax in axes], 0.0, 0.0)),
+        fill=fill,
+        stroke=line,
+        stroke_width=scaled(2, s, 1.2),
+        stroke_linejoin="round",
+    )
+    layer = [el("g", el("g", grown, shape), transform=f"translate({num(cx)} {num(cy)})")]
+    dot = scaled(3.2, s, 2)
+    placed: list[tuple[float, float]] = []
+    for k, (x, y) in enumerate(corners([ax["frac"] for ax in axes])):
+        if any(math.dist((x, y), q) < 2 * dot + 1 for q in placed):
+            continue  # values crowded near the center: one point stands for them
+        placed.append((x, y))
+        a = (land + k * stagger) / d
+        b = (land + k * stagger + pop) / d
+        frames = [(0, 0), (a, 0), (a + (b - a) * 0.6, dot * 1.6), (b, dot)]
+        layer.append(
+            el("circle", animate("r", frames, clock, ease=True), cx=x, cy=y, r=dot, fill=line)
+        )
+    art.body.append(el("g", veil(clock), *layer))
     return art
 
 
@@ -2964,19 +5460,22 @@ def kind_calendar(c: Ctx) -> Art:
 
     Levels are quartiles of the active days, so one huge day does not wash out the rest. The
     ramp runs from the card color to the theme's ok green, or to the accent with --variant
-    accent.
+    accent. A phone layout shows the last 26 weeks (levels, totals and the summary count
+    those weeks only), the date span under the heading and the summary wrapped beside the
+    legend.
     """
     spec = spec_of(c, "days")
     days = calendar_days(spec)
     variant = c.variant or "green"
     if variant not in ("green", "accent"):
         raise ForgeError(f"calendar variant must be green or accent, got {variant!r}")
+    weeks = 26 if c.phone else 53
     last = max(days)
     try:
-        first = last - timedelta(days=(last.weekday() + 1) % 7 + 52 * 7)
+        first = last - timedelta(days=(last.weekday() + 1) % 7 + (weeks - 1) * 7)
     except OverflowError as exc:
         raise ForgeError(
-            f"calendar needs 53 weeks before its last day; {last.isoformat()} is too early"
+            f"calendar needs {weeks} weeks before its last day; {last.isoformat()} is too early"
         ) from exc
     counts = [days.get(first + timedelta(days=k), 0.0) for k in range((last - first).days + 1)]
     active = sorted(v for v in counts if v > 0)
@@ -2991,26 +5490,43 @@ def kind_calendar(c: Ctx) -> Art:
     total, best = sum(counts), max(counts)
     best_day = first + timedelta(days=counts.index(best))
     title = c.title or (text_of(spec["title"], "calendar title") if spec.get("title") else "")
+    summary = f"{len(active)} active days"
+    if active:
+        summary += f", best {fmt_count(best)} on {MONTHS[best_day.month - 1]} {best_day.day}"
     w = c.width or 756
 
-    def lay(s: float) -> tuple[float, float, float, float, float, float, float]:
-        pad = 20 * s
-        hf, mf = scaled(10, s), scaled(8.5, s)
-        label_w = max(30 * s, text_width("WED", mf, "mono", MONO_LS) + 6 * s)
-        step = min((w - 2 * pad - label_w + 3 * s) / 53, 13 * s)
-        gy = pad + hf + 12 * s + mf + 6 * s
-        grid_h = 7 * step - step * 3 / 13
-        return pad, hf, mf, label_w, step, gy, gy + grid_h + 12 * s + max(step, mf) + pad
+    def across(s: float, pad: float, label_w: float, step: float, mf: float) -> list[float]:
+        """Grid x, its left and right edges, the legend x and the summary's room before it."""
+        gap = step * 3 / 13
+        gx = pad + label_w + max(0.0, (w - 2 * pad - label_w) - (weeks * step - gap)) / 2
+        right = gx + weeks * step - gap
+        more_x = right - text_width("MORE", mf, "mono", MONO_LS) - 6 * s
+        legend_x = more_x - (5 * step - gap)
+        less_x = legend_x - 6 * s
+        room = less_x - text_width("LESS", mf, "mono", MONO_LS) - 12 * s - (gx - label_w)
+        return [gx, gx - label_w, right, legend_x, room]
 
-    s = layout_scale(w, 756, c.height, lambda k: lay(k)[-1])
+    def lay(s: float) -> tuple[float, float, float, float, float, float, float]:
+        pad = 16 if c.phone else 20 * s
+        hf, mf = c.fs(scaled(10, s)), c.fs(scaled(8.5, s))
+        label_w = max(30 * s, text_width("WED", mf, "mono", MONO_LS) + 6 * s)
+        step = min((w - 2 * pad - label_w + 3 * s) / weeks, 13 * s)
+        under = mf * 1.6 if c.phone else 0.0  # a phone puts the date span under the heading
+        gy = pad + hf + under + 12 * s + mf + 6 * s
+        grid_h = 7 * step - step * 3 / 13
+        extra = 0.0
+        if c.phone:  # the summary wraps beside the legend
+            room = across(s, pad, label_w, step, mf)[-1]
+            extra = (len(wrap(summary.upper(), room, mf, "mono", MONO_LS, 2)) - 1) * mf * 1.45
+        return pad, hf, mf, label_w, step, gy, gy + grid_h + 12 * s + max(step, mf) + pad + extra
+
+    s = 1.0 if c.phone else layout_scale(w, 756, c.height, lambda k: lay(k)[-1])
     pad, hf, mf, label_w, step, gy, need = lay(s)
     h = c.height or need
     oy = max(0.0, (h - need) / 2)
     gap = step * 3 / 13
     cell = step - gap
-    gx = pad + label_w + max(0.0, (w - 2 * pad - label_w) - (53 * step - gap)) / 2
-    right = gx + 53 * step - gap
-    left = gx - label_w
+    gx, left, right, legend_x, room = across(s, pad, label_w, step, mf)
     gy += oy
     desc = (
         f"Contribution calendar from {first.isoformat()} to {last.isoformat()}: "
@@ -3023,7 +5539,7 @@ def kind_calendar(c: Ctx) -> Art:
     hy = oy + pad + hf
     head = snug(
         (title or f"{fmt_count(total)} contributions").upper(),
-        (right - left) * 0.62,
+        (right - left) * (1 if c.phone else 0.62),
         hf,
         "mono",
         MONO_LS,
@@ -3031,13 +5547,18 @@ def kind_calendar(c: Ctx) -> Art:
     if head:
         art.body.append(mono(c, head, left, hy, c.pal.text, hf))
     span = f"{MONTHS[first.month - 1]} {first.year} - {MONTHS[last.month - 1]} {last.year}"
-    room = right - left - text_width(head, hf, "mono", MONO_LS) - 16 * s
-    span = snug(span.upper(), room, mf, "mono", MONO_LS)
-    if span:
-        art.body.append(mono(c, span, right, hy, p.dim, mf, text_anchor="end"))
+    if c.phone:
+        span = snug(span.upper(), right - left, mf, "mono", MONO_LS)
+        if span:
+            art.body.append(mono(c, span, left, hy + mf * 1.6, p.dim, mf))
+    else:
+        width = right - left - text_width(head, hf, "mono", MONO_LS) - 16 * s
+        span = snug(span.upper(), width, mf, "mono", MONO_LS)
+        if span:
+            art.body.append(mono(c, span, right, hy, p.dim, mf, text_anchor="end"))
     placed: list[tuple[float, float, int, str]] = []
     month = 0
-    for col in range(53):
+    for col in range(weeks):
         m = (first + timedelta(weeks=col)).month
         if m == month:
             continue
@@ -3061,7 +5582,7 @@ def kind_calendar(c: Ctx) -> Art:
     for k, v in enumerate(counts):
         col, row = divmod(k, 7)
         level = 0 if v <= 0 else 1 + sum(v > cut for cut in cuts)
-        bands[(col + row) * CAL_BANDS // 59].append(
+        bands[(col + row) * CAL_BANDS // (weeks + 6)].append(
             el(
                 "rect",
                 x=gx + col * step,
@@ -3084,8 +5605,6 @@ def kind_calendar(c: Ctx) -> Art:
     art.body.append(el("g", veil(clock), *layer))
     ly = gy + 7 * step - gap + 12 * s + max(step, mf) / 2
     base = ly + mf * 0.35
-    more_x = right - text_width("MORE", mf, "mono", MONO_LS) - 6 * s
-    legend_x = more_x - (5 * step - gap)
     less_x = legend_x - 6 * s
     art.body.append(mono(c, "LESS", less_x, base, p.dim, mf, text_anchor="end"))
     for i, (color, opacity) in enumerate(ramp):
@@ -3102,13 +5621,402 @@ def kind_calendar(c: Ctx) -> Art:
             )
         )
     art.body.append(mono(c, "MORE", right, base, p.dim, mf, text_anchor="end"))
-    summary = f"{len(active)} active days"
-    if active:
-        summary += f", best {fmt_count(best)} on {MONTHS[best_day.month - 1]} {best_day.day}"
-    room = less_x - text_width("LESS", mf, "mono", MONO_LS) - 12 * s - left
-    summary = snug(summary.upper(), room, mf, "mono", MONO_LS)
-    if summary:
-        art.body.append(mono(c, summary, left, base, p.dim, mf))
+    if c.phone:
+        lines = wrap(summary.upper(), room, mf, "mono", MONO_LS, 2)
+    else:
+        lines = [snug(summary.upper(), room, mf, "mono", MONO_LS)]
+    for k, line in enumerate(lines):
+        if line:
+            art.body.append(mono(c, line, left, base + k * mf * 1.45, p.dim, mf))
+    return art
+
+
+# ---------------------------------------------------------------- card and quote
+
+CARD_BASE = (410.0, 196.0)  # half a README column: two cards sit side by side
+QUOTE_BASE = (840.0, 160.0)
+SHINE_LEAN = math.tan(math.radians(18))  # the shine band is skewed 18 degrees
+# An opening double quote mark, drawn for this generator in a 24 by 18 box: each mark is a
+# ball with a tail rising to the upper right.
+QUOTE_MARK = (
+    "M1 12.5C1 7 4 3 10 1.5l.8 1.9C7.6 4.8 5.8 6.6 5.6 7.6A5 5 0 1 1 1 12.5z"
+    "M14 12.5C14 7 17 3 23 1.5l.8 1.9C20.6 4.8 18.8 6.6 18.6 7.6A5 5 0 1 1 14 12.5z"
+)
+
+
+def optional_text(spec: dict[str, Any], key: str, what: str, limit: int) -> str:
+    """spec[key] as text, or "" when it is missing or null."""
+    value = spec.get(key)
+    return "" if value is None else text_of(value, what, limit)
+
+
+def card_count(value: object, what: str) -> str:
+    """A star or fork count as shown: a number (1240 shows as 1.2k, 2500000 as 2.5M) or short
+    text as given; "" when missing."""
+    if value is None or value == "":
+        return ""
+    if isinstance(value, str):
+        return text_of(value, what, 8)
+    n = count_of(value, what)
+    if n >= 999_950:
+        return f"{n / 1e6:.1f}M".replace(".0M", "M")
+    return fmt_value(n)
+
+
+def card_data(c: Ctx) -> dict[str, Any]:
+    spec = spec_of(c, "tags")
+    title = c.title or optional_text(spec, "title", "card title", 60)
+    if not title:
+        raise ForgeError('card needs a title: --data {"title": ...} or --title')
+    raw = spec.get("tags")
+    tags = [] if raw is None else need_list(raw, "card tags", 30, 0)
+    return {
+        "title": title,
+        "description": optional_text(spec, "description", "card description", 400),
+        "status": optional_text(spec, "status", "card status", 16),
+        "date": optional_text(spec, "date", "card date", 24),
+        "language": optional_text(spec, "language", "card language", 24),
+        "stars": card_count(spec.get("stars"), "card stars"),
+        "forks": card_count(spec.get("forks"), "card forks"),
+        "tags": [t for t in (text_of(x, f"card tag {i}", 24) for i, x in enumerate(tags)) if t],
+    }
+
+
+def card_metrics(c: Ctx, s: float) -> dict[str, float]:
+    """Fonts and rows of a project card at layout scale s, with the phone text floor; need is
+    the height they take. The rows are fixed, so cards with different data match in height."""
+    df, tf = c.fs(scaled(9, s)), scaled(19, s, 9)
+    bf, cf, mf = c.fs(scaled(12.5, s)), c.fs(scaled(9, s)), c.fs(scaled(12, s))
+    top = 24 * s + df  # date and status baseline
+    title = top + 10 * s + tf
+    body = title + 9 * s + bf * 1.2  # first summary line
+    step = bf * 1.44
+    chips = body + 2 * step + 12 * s  # top of the chip row
+    chip_h = cf + 11 * s
+    meta = chips + chip_h + 10 * s  # top of the language, stars and forks row
+    g = max(16 * s, 16.0)  # glyph size: never drawn below its 16 px box
+    return {
+        "s": s,
+        "pad": 22 * s,
+        "df": df,
+        "tf": tf,
+        "bf": bf,
+        "cf": cf,
+        "mf": mf,
+        "top": top,
+        "title": title,
+        "body": body,
+        "step": step,
+        "chips": chips,
+        "chip_h": chip_h,
+        "meta": meta,
+        "g": g,
+        "need": meta + g + 16 * s,
+    }
+
+
+def card_chips(
+    c: Ctx, tags: list[str], x: float, y: float, room: float, size: float, h: float, s: float
+) -> list[str]:
+    """Tag chips on one row from x; the tags that do not fit give way to a "+N more" chip."""
+    if not tags:
+        return []
+    padx, gap = 6 * s, 6 * s
+
+    def width(text: str) -> float:
+        return text_width(text, size, "mono", MONO_LS) + 2 * padx
+
+    n = len(tags)
+    for k in range(n, -1, -1):
+        labels = tags[:k] + ([f"+{n - k} more"] if k < n else [])
+        if sum(map(width, labels)) + gap * (len(labels) - 1) <= room:
+            break
+    else:
+        return []
+    out = []
+    for i, label in enumerate(labels):
+        color = c.pal.ink if i < k else c.tone("muted")
+        tint = alpha(color, 0.08)
+        cw = width(label)
+        out += [
+            el(
+                "rect", x=x, y=y, width=cw, height=h, rx=h / 2, fill=tint, stroke=alpha(color, 0.35)
+            ),
+            mono(
+                c,
+                label,
+                x + cw / 2,
+                y + h / 2 + size * 0.35,
+                c.legible(color, tint),
+                size,
+                text_anchor="middle",
+            ),
+        ]
+        x += cw + gap
+    return out
+
+
+def card_facts(c: Ctx, d: dict[str, Any], m: dict[str, float], y: float, w: float) -> list[str]:
+    """The repo pin row from the left: a language dot and name, then stars and forks with
+    their glyphs; whatever no longer fits is left out."""
+    s = m["s"]
+    g, mf = m["g"], m["mf"]
+    base = y + g / 2 + mf * 0.35
+    x, right = m["pad"], w - m["pad"]
+    out: list[str] = []
+    for icon, text in (("dot", d["language"]), ("star", d["stars"]), ("fork", d["forks"])):
+        if not text:
+            continue
+        icon_w = g * 0.62 if icon == "dot" else g
+        text = snug(text, right - x - icon_w - 5 * s, mf)
+        if not text:
+            break
+        if icon == "dot":
+            out.append(el("circle", cx=x + icon_w / 2, cy=y + g / 2, r=icon_w / 2, fill=c.pal.ink))
+        else:
+            out.append(glyph(icon, x, y, g, c.theme.dim))
+        out.append(sans(c, text, x + icon_w + 5 * s, base, c.theme.text, mf))
+        x += icon_w + 5 * s + text_width(text, mf) + 16 * s
+    return out
+
+
+def kind_card(c: Ctx) -> Art:
+    """Project or repo card: date and live or source status, title, a three-line summary,
+    tag chips (a "+N more" chip stands in for the rest) and the repo pin facts (language,
+    stars, forks), with a shine sweeping across on each loop.
+
+    Data: {"title", "description", "status", "date", "language", "stars", "forks",
+    "tags": [...]}; only title is required (--title also sets it). status "live" gets a
+    pulsing ok dot, any other status is a quiet label. stars and forks take a number (1240
+    shows as 1.2k) or short text. Default 410 by 196, so two sit side by side in a README;
+    the rows do not move with the data, so a pair always matches in height.
+    """
+    d = card_data(c)
+    w = c.width or CARD_BASE[0]
+    s = layout_scale(w, CARD_BASE[0], c.height, lambda k: card_metrics(c, k)["need"])
+    m = card_metrics(c, s)
+    h = c.height or m["need"]
+    oy = max(0.0, (h - m["need"]) / 2)
+    p = c.theme
+    pad, df = m["pad"], m["df"]
+    room = w - 2 * pad
+    facts = [
+        d["description"],
+        d["status"] and f"status {d['status']}",
+        d["date"],
+        d["language"],
+        d["stars"] and f"{d['stars']} stars",
+        d["forks"] and f"{d['forks']} forks",
+        d["tags"] and "tags " + ", ".join(d["tags"]),
+    ]
+    art = Art(w, h, d["title"], "; ".join([d["title"], *(f for f in facts if f)]))
+    rx = clamp(16 * s, 6, 24)
+    frame(c, art, rx=rx)
+    regular(c, art)
+    one = c.one_shot
+    band = 120 * s
+    travel = w + band + h * SHINE_LEAN + 8
+    loop_clock = None if one else c.cycle(6.0, distance=travel)
+
+    ty = oy + m["top"]
+    top = [el("rect", x=0, y=oy + 22 * s, width=3 * s, height=28 * s, rx=1.5 * s, fill=c.pal.ink)]
+    status = snug(d["status"].upper(), room * 0.4, df, "mono", MONO_LS)
+    used = 0.0
+    if status:
+        live = d["status"].lower() == "live"
+        top.append(mono(c, status, w - pad, ty, p.ok if live else p.dim, df, text_anchor="end"))
+        used = text_width(status, df, "mono", MONO_LS)
+        if live:
+            r = 3.5 * s
+            pulse = ""
+            if loop_clock is not None:
+                pulse = animate("opacity", [(0, 1), (0.5, 0.35), (1, 1)], loop_clock.sub(1.8))
+            cx = w - pad - used - 6 * s - r
+            top.append(el("circle", pulse, cx=cx, cy=ty - df * 0.35, r=r, fill=c.tone("ok")))
+            used += 6 * s + 2 * r
+    day = snug(d["date"].upper(), room - used - 12 * s, df, "mono", MONO_LS)
+    if day:
+        top.append(mono(c, day, pad, ty, c.pal.text, df))
+    name, size = shrink(d["title"], room, m["tf"], "bold", c.fs(scaled(13, s)))
+    parts = [top, [sans(c, name, pad, oy + m["title"], p.ink, size, "b")]]
+    lines = wrap(d["description"], room, m["bf"], lines=3)
+    if lines:
+        step = m["step"]
+        parts.append(
+            [
+                sans(c, line, pad, oy + m["body"] + j * step, p.text, m["bf"], "r")
+                for j, line in enumerate(lines)
+            ]
+        )
+    chips = card_chips(c, d["tags"], pad, oy + m["chips"], room, m["cf"], m["chip_h"], s)
+    if chips:
+        parts.append(chips)
+    pin = card_facts(c, d, m, oy + m["meta"], w)
+    if pin:
+        parts.append(pin)
+
+    if loop_clock is None:
+        clock, begins, item = c.entrance(len(parts))
+        a = begins[min(1, len(parts) - 1)] / clock.dur
+        b = (begins[-1] + item) / clock.dur
+    else:
+        clock = loop_clock
+        sweep = travel / c.speed if c.preset.name == "ambient" else 3.6
+        a = 0.06
+        b = a + min(0.85, sweep / clock.dur)
+    art.defs += [
+        el(
+            "linearGradient",
+            el("stop", offset=0, stop_color="#ffffff", stop_opacity=0),
+            el("stop", offset=0.5, stop_color="#ffffff", stop_opacity=p.shine),
+            el("stop", offset=1, stop_color="#ffffff", stop_opacity=0),
+            id=c.id("shine"),
+            x1=0,
+            x2=1,
+        ),
+        el("clipPath", el("rect", x=1, y=1, width=w - 2, height=h - 2, rx=rx - 1), id=c.id("clip")),
+    ]
+    shine = el(
+        "rect",
+        move(
+            "translate",
+            [(0, (0, 0)), (a, (0, 0)), (b, (travel, 0)), (1, (travel, 0))],
+            clock,
+            additive="sum",
+        ),
+        x=-(band + 4),
+        y=0,
+        width=band,
+        height=h,
+        fill=c.url("shine"),
+        transform="skewX(-18)",
+    )
+    art.body.append(el("g", shine, clip_path=c.url("clip")))
+    if one:
+        dy = 6 * s
+        group = [
+            el("g", rise(clock, begins[i], item, dy=dy), *part) for i, part in enumerate(parts)
+        ]
+        art.body.append(el("g", veil(clock), *group))
+    else:
+        art.body += [x for part in parts for x in part]
+    return art
+
+
+def quote_data(c: Ctx) -> list[dict[str, str]]:
+    spec = spec_of(c, "quotes")
+    if "quotes" in spec:
+        raw = need_list(spec["quotes"], "quote quotes", 6)
+    elif "text" in spec:
+        raw = [spec]
+    else:
+        raise ForgeError('quote data needs {"text", "author"} or {"quotes": [...]}')
+    out = []
+    for i, q in enumerate(raw):
+        if isinstance(q, str):
+            q = {"text": q}
+        if not isinstance(q, dict):
+            raise ForgeError(f"quote {i} must be text or an object with text and author")
+        text = text_of(q.get("text", ""), f"quote {i} text", 400)
+        if not text:
+            raise ForgeError(f"quote {i} needs text")
+        out.append({"text": text, "author": optional_text(q, "author", f"quote {i} author", 60)})
+    return out
+
+
+def quote_metrics(c: Ctx, quotes: list[dict[str, str]], w: float, s: float) -> dict[str, Any]:
+    """Fonts, the wrapped rows of each quote and the text block at layout scale s; need is
+    the card height (QUOTE_BASE's at scale s, or more when the longest quote needs it)."""
+    qf = max(scaled(20, s), 14.0) if c.phone else scaled(20, s)
+    af = c.fs(scaled(10, s))
+    k = max(2 * s, 1.25 if c.phone else 1.0)  # quote mark scale, never under its own box
+    pad, pad_y = 28 * s, 24 * s
+    x0 = pad + 24 * k + 20 * s
+    rows = [wrap(q["text"], w - x0 - pad, qf, lines=5) for q in quotes]
+    lh = qf * 1.45
+    count = max(len(r) for r in rows)
+    authored = any(q["author"] for q in quotes)
+    block = 0.8 * qf + (count - 1) * lh + (14 * s + af * 1.25 if authored else 0.25 * qf)
+    block = max(block, 18 * k)
+    return {
+        "qf": qf,
+        "af": af,
+        "k": k,
+        "pad": pad,
+        "x0": x0,
+        "rows": rows,
+        "lh": lh,
+        "count": count,
+        "authored": authored,
+        "block": block,
+        "need": max(QUOTE_BASE[1] * s, block + 2 * pad_y),
+    }
+
+
+def kind_quote(c: Ctx) -> Art:
+    """Quote card: a large quote mark, the quote wrapped into up to five lines, the author.
+
+    Data: {"text", "author"} for one quote, or {"quotes": [{"text", "author"}, ...]} (a bare
+    list works too) for up to six that take turns on one loop, the first in the still frame
+    (the last when played once). author is optional. A single quote, or any quote on a
+    one-shot preset (the first only), fades in and holds. Default 840 by 160, taller when
+    the longest quote needs more lines.
+    """
+    quotes = quote_data(c)
+    turns = len(quotes) > 1 and not c.one_shot
+    shown = quotes if turns else quotes[:1]
+    w = c.width or QUOTE_BASE[0]
+    s = layout_scale(w, QUOTE_BASE[0], c.height, lambda k: quote_metrics(c, shown, w, k)["need"])
+    m = quote_metrics(c, shown, w, s)
+    h = c.height or m["need"]
+    said = [f"{q['text']} ({q['author']})" if q["author"] else q["text"] for q in shown]
+    desc = ("Quotes taking turns: " if turns else "Quote: ") + "; ".join(said)
+    art = Art(w, h, c.title or ("Quotes" if turns else "Quote"), desc)
+    p = c.theme
+    frame(c, art)
+    regular(c, art)
+    qf, af, lh, x0, pad = m["qf"], m["af"], m["lh"], m["x0"], m["pad"]
+    y_top = (h - m["block"]) / 2
+    y1 = y_top + 0.8 * qf
+    ay = y1 + (m["count"] - 1) * lh + 14 * s + af
+    mark = el(
+        "path",
+        d=QUOTE_MARK,
+        fill=c.pal.ink,
+        transform=f"translate({num(pad)} {num(y_top)}) scale({num(m['k'], 4)})",
+    )
+    ruled = all(q["author"] for q in shown)  # a short rule leads the author line
+    dash = max(14 * s, 10.0)
+    ax = x0 + dash + 8 * s if ruled else x0
+    names = [snug(q["author"].upper(), w - ax - pad, af, "mono", MONO_LS) for q in shown]
+    rule = []
+    if ruled:
+        ry, sw = ay - af * 0.35, max(1.5 * s, 1.0)
+        rule = [el("line", x1=x0, y1=ry, x2=x0 + dash, y2=ry, stroke=p.dim, stroke_width=sw)]
+    slots = [
+        {"class_": c.cls("r"), "x": x0, "y": y1 + j * lh, "fill": p.ink, "font_size": qf}
+        for j in range(m["count"])
+    ]
+    name_at = {"class_": c.cls("m"), "x": ax, "y": ay, "fill": p.dim, "font_size": af}
+    if turns:
+        clock = c.cycle(5.0 * len(shown))
+        poster = 0 if clock.loop else len(shown) - 1
+        rows = [[r[j] if j < len(r) else "" for r in m["rows"]] for j in range(m["count"])]
+        if m["authored"]:
+            rows.append(names)
+            slots.append(name_at)
+        art.body += [mark, *rule]
+        for texts, attrs in zip(rows, slots, strict=True):
+            made = rotating(c, texts, clock, **attrs)
+            # the still frame's quote keeps its empty rows, where the others' lines take turns
+            art.body += [e for i, e in enumerate(made) if texts[i] or i == poster]
+        return art
+    parts = [[mark]] + [[el("text", esc(line), **slots[j])] for j, line in enumerate(m["rows"][0])]
+    if names[0]:
+        parts.append([*rule, el("text", esc(names[0]), **name_at)])
+    clock, begins, item = paced(c, len(parts), distance=w)
+    group = [el("g", rise(clock, begins[i], item, dy=6 * s), *part) for i, part in enumerate(parts)]
+    art.body.append(el("g", veil(clock), *group))
     return art
 
 
@@ -3137,12 +6045,35 @@ def ring_items(spec: dict[str, Any]) -> list[dict[str, Any]]:
     return items
 
 
+def ring_list(c: Ctx, items: list[dict[str, Any]], title: str, w: float) -> dict[str, float]:
+    """kind_ring's phone list: one ring per row, its label (up to two lines) and value beside
+    it. A fixed --height shrinks the rings, never the text."""
+    pad, gap, dia = 16.0, 12.0, 56.0
+    hf, lf, sf = c.fs(10), c.fs(9), c.fs(8.5)
+    top = pad + (hf + 16 if title else 0)
+    room = w - 2 * pad - dia - 14
+    block = max(
+        len(wrap(it["label"].upper(), room, lf, "mono", MONO_LS, 2)) * lf * 1.35
+        + (sf * 1.5 if it["sub"] else 0)
+        for it in items
+    )
+    n = len(items)
+    if c.height is not None:
+        dia = clamp((c.height - top - pad - (n - 1) * gap) / n, 24.0, dia)
+    row = max(dia, block)
+    need = top + n * row + (n - 1) * gap + pad
+    keys = ("pad", "gap", "hf", "lf", "sf", "top", "cols", "cell_w", "dia", "row", "need")
+    return dict(zip(keys, (pad, gap, hf, lf, sf, top, 1, w - 2 * pad, dia, row, need), strict=True))
+
+
 def kind_ring(c: Ctx) -> Art:
     """Progress rings that draw in, each value written once as static text (no count-up).
 
     The arc is plain dash math on a circle (dasharray "arc circumference", dashoffset from
     arc to 0), so it needs neither pathLength nor non-scaling-stroke. With a fixed --height
-    the rings wrap into as many rows as gives them the largest size.
+    the rings wrap into as many rows as gives them the largest size. A phone layout puts
+    three or two rings in a row when every label fits under its ring at the phone text
+    size, and otherwise one ring per row with its label and value beside it.
     """
     spec = spec_of(c, "items")
     items = ring_items(spec)
@@ -3153,8 +6084,8 @@ def kind_ring(c: Ctx) -> Art:
     w = c.width or base_w
 
     def lay(s: float, rows: int, fixed: bool) -> dict[str, float]:
-        pad, row_gap = 22 * s, 14 * s
-        hf, lf, sf = scaled(10, s), scaled(9, s), scaled(8.5, s)
+        pad, row_gap = (16 if c.phone else 22 * s), 14 * s
+        hf, lf, sf = c.fs(scaled(10, s)), c.fs(scaled(9, s)), c.fs(scaled(8.5, s))
         top = pad + (hf + 16 * s if title else 0)
         below = 10 * s + lf * 1.3 + (sf * 1.6 if subs else 0)
         cols = math.ceil(n / rows)
@@ -3179,11 +6110,32 @@ def kind_ring(c: Ctx) -> Art:
             "need": need,
         }
 
-    s = layout_scale(w, base_w, c.height, lambda k: lay(k, 1, False)["need"])
-    rows = 1
-    if c.height is not None:
-        rows = max(range(1, n + 1), key=lambda r: (round(lay(s, r, True)["dia"], 3), -r))
-    m = lay(s, rows, True)
+    def fits(m: dict[str, float]) -> bool:
+        room = m["cell_w"] - 8
+        return all(
+            text_width(it["label"].upper(), m["lf"], "mono", MONO_LS) <= room
+            and text_width(it["sub"].upper(), m["sf"], "mono", MONO_LS) <= room
+            for it in items
+        )
+
+    listed = False  # one ring per row, text beside it (phone only)
+    if c.phone:
+        s = 1.0
+        grids = [lay(s, math.ceil(n / k), True) for k in sorted({min(n, 3), min(n, 2)})[::-1]]
+        m = next((g for g in grids if fits(g)), {})
+        listed = not m
+        m = m or ring_list(c, items, title, w)
+    else:
+        s = layout_scale(w, base_w, c.height, lambda k: lay(k, 1, False)["need"])
+        rows = 1
+        if c.height is not None:
+            rows = max(range(1, n + 1), key=lambda r: (round(lay(s, r, True)["dia"], 3), -r))
+        m = lay(s, rows, True)
+    if c.phone and c.height is not None and m["need"] > c.height + 0.01:
+        raise ForgeError(
+            f"ring on a phone needs a height of at least {math.ceil(m['need'])}, "
+            f"got {num(c.height)}; drop --height or list fewer items"
+        )
     h = c.height or m["need"]
     oy = max(0.0, (h - m["need"]) / 2)
     dia, cols, cell_w = m["dia"], int(m["cols"]), m["cell_w"]
@@ -3208,10 +6160,13 @@ def kind_ring(c: Ctx) -> Art:
     )
     arcs = []
     for k, it in enumerate(items):
-        row, col = divmod(k, cols)
-        shift = (cols - min(cols, n - row * cols)) * cell_w / 2
-        cx = m["pad"] + shift + cell_w * (col + 0.5)
-        cy = oy + m["top"] + row * (dia + m["below"] + m["gap"]) + dia / 2
+        if listed:
+            cx, cy = m["pad"] + dia / 2, oy + m["top"] + k * (m["row"] + m["gap"]) + m["row"] / 2
+        else:
+            row, col = divmod(k, cols)
+            shift = (cols - min(cols, n - row * cols)) * cell_w / 2
+            cx = m["pad"] + shift + cell_w * (col + 0.5)
+            cy = oy + m["top"] + row * (dia + m["below"] + m["gap"]) + dia / 2
         color = c.tone(it["tone"])
         art.body.append(
             el(
@@ -3225,22 +6180,33 @@ def kind_ring(c: Ctx) -> Art:
                 opacity=0.6,
             )
         )
-        value, size = shrink(
-            f"{it['pct']}%", 2 * r - sw - 6, max(dia * 0.22, FONT_FLOOR), "bold", FONT_FLOOR
-        )
+        floor = c.fs(FONT_FLOOR)
+        value, size = shrink(f"{it['pct']}%", 2 * r - sw - 6, max(dia * 0.22, floor), "bold", floor)
         art.body.append(
             sans(c, value, cx, cy + size * 0.35, p.ink, size, "b", text_anchor="middle")
         )
-        room = cell_w - 8 * s
-        label = snug(it["label"].upper(), room, m["lf"], "mono", MONO_LS)
-        ly = cy + dia / 2 + 10 * s + m["lf"]
-        if label:
-            art.body.append(mono(c, label, cx, ly, p.text, m["lf"], text_anchor="middle"))
-        sub = snug(it["sub"].upper(), room, m["sf"], "mono", MONO_LS)
-        if sub:
-            art.body.append(
-                mono(c, sub, cx, ly + m["sf"] * 1.6, p.dim, m["sf"], text_anchor="middle")
-            )
+        if listed:  # label lines, then value / max, centered on the ring
+            tx = m["pad"] + dia + 14
+            lines = wrap(it["label"].upper(), w - m["pad"] - tx, m["lf"], "mono", MONO_LS, 2)
+            sub = snug(it["sub"].upper(), w - m["pad"] - tx, m["sf"], "mono", MONO_LS)
+            block = len(lines) * m["lf"] * 1.35 + (m["sf"] * 1.5 if sub else 0)
+            y = cy - block / 2 - m["lf"] * 0.35
+            for line in lines:
+                y += m["lf"] * 1.35
+                art.body.append(mono(c, line, tx, y, p.text, m["lf"]))
+            if sub:
+                art.body.append(mono(c, sub, tx, y + m["sf"] * 1.5, p.dim, m["sf"]))
+        else:
+            room = cell_w - 8 * s
+            label = snug(it["label"].upper(), room, m["lf"], "mono", MONO_LS)
+            ly = cy + dia / 2 + 10 * s + m["lf"]
+            if label:
+                art.body.append(mono(c, label, cx, ly, p.text, m["lf"], text_anchor="middle"))
+            sub = snug(it["sub"].upper(), room, m["sf"], "mono", MONO_LS)
+            if sub:
+                art.body.append(
+                    mono(c, sub, cx, ly + m["sf"] * 1.6, p.dim, m["sf"], text_anchor="middle")
+                )
         if it["frac"] <= 0:
             continue
         arc = num(circ * it["frac"])
@@ -3265,6 +6231,368 @@ def kind_ring(c: Ctx) -> Art:
     return art
 
 
+# ---------------------------------------------------------------- skyline
+
+# The 2:1 view of references/isometric.md: azimuth 45 degrees, k = sin(elevation) = 0.5. World x
+# and y lie on the ground (x runs right and down on screen, y left and down), z points up.
+ISO_C = ISO_S = math.sqrt(0.5)
+ISO_K = 0.5
+ISO_ZF = math.sqrt(1 - ISO_K * ISO_K)
+SKY_CELL = 0.78  # a day's footprint side, as a share of the grid pitch
+SKY_ROUND = 0.22  # its corner radius, as a share of the side
+SKY_CREASE = 0.12  # the lid crease's inset, as a share of the side
+SKY_RISE = (0.0, 0.42, 0.9, 1.45, 2.05)  # block height per level, in pitches
+SKY_PROUD = 0.35  # the busiest day stands this much taller than its level
+SKY_MARGIN, SKY_SLAB, SKY_SLAB_ROUND = 0.45, 0.5, 0.6  # base slab margin, thickness, corner
+SKY_LIFT = 0.45  # how far below its place a band starts its rise, in pitches
+
+Pt = tuple[float, float]
+Run = list[tuple[bool, Pt]]  # (is an arc, world point) steps of a ring, clockwise on screen
+
+
+def iso(x: float, y: float, z: float = 0.0) -> Pt:
+    """A world point on screen, in units of the world."""
+    return (x - y) * ISO_C, (x + y) * ISO_S * ISO_K - z * ISO_ZF
+
+
+def sky_ring(x0: float, y0: float, x1: float, y1: float, r: float) -> tuple[Pt, Run, Pt, Run]:
+    """A rounded rectangle on the ground: (left extreme, upper run, right extreme, lower run).
+
+    The extremes are where a block's walls stand: the middle of the left and right corner
+    arcs. The upper run walks the far edges from the left extreme to the right one, the lower
+    run the camera-facing edges back. A circle of radius r projects to an r by r * k ellipse
+    with level axes, so every corner is one SVG arc.
+    """
+    q = r * math.sqrt(0.5)
+    left, right = (x0 + r - q, y1 - r + q), (x1 - r + q, y0 + r - q)
+    upper = [(True, (x0, y1 - r)), (False, (x0, y0 + r)), (True, (x0 + r, y0))]
+    upper += [(False, (x1 - r, y0)), (True, right)]
+    lower = [(True, (x1, y0 + r)), (False, (x1, y1 - r)), (True, (x1 - r, y1))]
+    lower += [(False, (x0 + r, y1)), (True, left)]
+    return left, upper, right, lower
+
+
+def backwards(start: Pt, run: Run) -> Run:
+    """The run walked the other way, from its last point back to start."""
+    pts = [start, *(pt for _, pt in run)]
+    return [(run[i][0], pts[i]) for i in range(len(run) - 1, -1, -1)]
+
+
+class IsoPen:
+    """One path from world points: an absolute start, then steps between rounded screen points,
+    so relative steps never drift."""
+
+    def __init__(self, at: Pt, z: float) -> None:
+        self.at = self.screen(at, z)
+        self.d = [f"M{num(self.at[0])} {num(self.at[1])}"]
+
+    @staticmethod
+    def screen(pt: Pt, z: float) -> Pt:
+        x, y = iso(pt[0], pt[1], z)
+        return round(x, 2), round(y, 2)
+
+    def to(self, pt: Pt, z: float, arc: float = 0.0, sweep: int = 1) -> IsoPen:
+        nxt = self.screen(pt, z)
+        dx, dy = num(nxt[0] - self.at[0]), num(nxt[1] - self.at[1])
+        if arc:
+            self.d.append(f"a{num(arc)} {num(arc * ISO_K)} 0 0 {sweep} {dx} {dy}")
+        else:
+            self.d.append(f"v{dy}" if dx == "0" else f"l{dx} {dy}")
+        self.at = nxt
+        return self
+
+    def run(self, steps: Run, z: float, r: float, sweep: int = 1) -> IsoPen:
+        for is_arc, pt in steps:
+            self.to(pt, z, r if is_arc else 0.0, sweep)
+        return self
+
+    def path(self, close: bool = False) -> str:
+        return "".join(self.d) + ("z" if close else "")
+
+
+def sky_block(a: float, r: float, h: float) -> tuple[str, str]:
+    """A day's block on an a by a footprint at the origin: (silhouette, lid crease) paths.
+
+    The silhouette is the hull of the lid ring at height h and the foot ring, one closed path;
+    the crease is the camera-facing run of the lid ring inset by SKY_CREASE.
+    """
+    left, upper, right, lower = sky_ring(0, 0, a, a, r)
+    hull = IsoPen(left, h).run(upper, h, r).to(right, 0).run(lower, 0, r).path(close=True)
+    e = SKY_CREASE * a
+    _, _, inner, run = sky_ring(e, e, a - e, a - e, r - e)
+    return hull, IsoPen(inner, h).run(run, h, r - e).path()
+
+
+def sky_tile(a: float, r: float) -> str:
+    """An empty day: the foot ring alone, flat on the slab."""
+    left, upper, _, lower = sky_ring(0, 0, a, a, r)
+    return IsoPen(left, 0).run(upper, 0, r).run(lower, 0, r).path(close=True)
+
+
+def sky_slab(x1: float, y1: float, m: float, r: float, t: float) -> tuple[str, str]:
+    """The base slab under a grid from (0, 0) to (x1, y1): (far outline, front skirt).
+
+    The far outline is the upper run of its top ring, painted before the blocks. The skirt is
+    the band of front faces below the top ring's camera-facing run, painted after them: no
+    block stands there, and it hides a rising band's foot.
+    """
+    left, upper, right, lower = sky_ring(-m, -m, x1 + m, y1 + m, r)
+    far = IsoPen(left, 0).run(upper, 0, r).path()
+    skirt = IsoPen(right, 0).run(lower, 0, r).to(left, -t)
+    skirt.run(backwards(right, lower), -t, r, sweep=0)
+    return far, skirt.path(close=True)
+
+
+@dataclass(frozen=True)
+class SkyLay:
+    """The skyline laid out on a canvas: scale, pitch, origin and where its text goes."""
+
+    s: float
+    pad: float
+    p: float  # px between days
+    ox: float  # the world origin on screen
+    oy: float
+    height: float
+    head: str  # the title as drawn, or ""
+    hf: float
+    lines: tuple[str, ...]  # the caption: (total, date range) on one baseline, or stacked
+    two: bool
+    cf: float
+    clear: bool  # the text fits its corners, clear of the figure
+
+
+def kind_skyline(c: Ctx) -> Art:
+    """Contribution year as an isometric city: one rounded block per day on a base slab, its
+    height set by the day's level, in the line-figure style of references/isometric.md.
+
+    --data takes the calendar shape, {"days": [{"date", "count"}, ...]} or {"start", "counts":
+    [...]}. The last 53 weeks show, Sunday first, oldest at the front left; a phone layout shows
+    the last 26 weeks at the year's levels. Levels are the calendar's quartiles of the active
+    days; the outlines climb from a quiet tint of the theme's ok green, or of the accent with
+    --variant accent, to the full tone. Each block is a plate in the card color with its
+    silhouette and one crease, painted back to front so nearer blocks hide what stands behind;
+    the busiest day stands a little proud and carries the one bright edge. Depth bands rise in,
+    oldest first, at most 10 animated groups; on a loop the bright edge pulses while the city
+    stands, then the city fades and rises again on the same clock.
+    """
+    spec = spec_of(c, "days")
+    days = calendar_days(spec)
+    variant = c.variant or "green"
+    if variant not in ("green", "accent"):
+        raise ForgeError(f"skyline variant must be green or accent, got {variant!r}")
+    last = max(days)
+    try:
+        start = last - timedelta(days=(last.weekday() + 1) % 7 + 52 * 7)
+    except OverflowError as exc:
+        raise ForgeError(
+            f"skyline needs 53 weeks before its last day; {last.isoformat()} is too early"
+        ) from exc
+    year = [days.get(start + timedelta(days=k), 0.0) for k in range((last - start).days + 1)]
+    active = sorted(v for v in year if v > 0)
+    cuts = [active[len(active) * q // 4] for q in (1, 2, 3)] if active else [0.0, 0.0, 0.0]
+    weeks = 26 if c.phone else 53
+    skip = (53 - weeks) * 7
+    first = start + timedelta(days=skip)
+    counts = year[skip:]
+    total, best = sum(counts), max(counts)
+    peak = counts.index(best) if best > 0 else -1
+    # (depth, row, col, level, height in pitches); depth is world x + y, growing toward the
+    # viewer, so sorting by it paints back to front
+    cells = []
+    for k, v in enumerate(counts):
+        col, row = divmod(k, 7)
+        level = 0 if v <= 0 else 1 + sum(v > cut for cut in cuts)
+        rise_k = SKY_RISE[level] + (SKY_PROUD if k == peak else 0.0)
+        cells.append((row + weeks - 1 - col, row, col, level, rise_k))
+    cells.sort()
+
+    # the figure in pitches: its box, and the two long edges text must stay clear of
+    a, m, t, rs = SKY_CELL, SKY_MARGIN, SKY_SLAB, SKY_SLAB_ROUND
+    r = SKY_ROUND * a
+    gx, gy = 6 + a, weeks - 1 + a
+    slab_left, _, slab_right, _ = sky_ring(-m, -m, gx + m, gy + m, rs)
+    x_lo, x_hi = iso(*slab_left)[0], iso(*slab_right)[0]
+    y_hi = iso(gx + m - rs, gy + m - rs, -t)[1] + rs * ISO_K
+    y_lo = min(
+        iso(rs - m, rs - m)[1] - rs * ISO_K,
+        *(iso(row + r, weeks - 1 - col + r, z)[1] - r * ISO_K for _, row, col, _, z in cells),
+    )
+    tallest = max(z for *_, z in cells)
+    far_x, far_y = iso(-m, gy + m, tallest)  # the left corner, raised to the tallest block
+    near_x, near_y = iso(gx + m, gy + m, -t)  # the front corner, at the foot of the slab
+    slope = ISO_S * ISO_K / ISO_C  # both long edges climb this many px per px to the right
+    box_w, box_h = x_hi - x_lo, y_hi - y_lo
+
+    title = c.title or (text_of(spec["title"], "skyline title") if spec.get("title") else "")
+    span = f"{MONTHS[first.month - 1]} {first.year} - {MONTHS[last.month - 1]} {last.year}"
+    say = (f"{fmt_count(total)} contributions".upper(), span.upper())
+    years = f"{first.year} - {last.year}" if first.year != last.year else str(last.year)
+    brief = (fmt_count(total), years)  # what a stacked caption falls back to
+    w = c.width or 840
+
+    def lay(s: float, top_band: bool, two: bool, low_band: bool) -> SkyLay:
+        """The layout at scale s, the title in a band of its own or in the empty top left
+        corner, the caption on one line or two, in a band or in the empty bottom right."""
+        pad = max(20 * s, 12.0)
+        hf, cf = c.fs(scaled(10, s)), c.fs(scaled(8.5, s))
+        room = w - 2 * pad
+        head = fit(title.upper(), room, hf, "mono", MONO_LS) if title else ""
+        rows = 2 if two else 1
+        lines = say
+        cw = text_width(" ".join(say), cf, "mono", MONO_LS)
+        if two:
+            picks = (
+                full if text_width(full, cf, "mono", MONO_LS) <= room else short
+                for full, short in zip(say, brief, strict=True)
+            )
+            lines = tuple(snug(text, room, cf, "mono", MONO_LS) for text in picks)
+            cw = max(text_width(x, cf, "mono", MONO_LS) for x in lines)
+        top = hf * 1.25 + 8 * s if head and top_band else 0.0
+        low = cf * (1.4 * rows - 0.4) + 8 * s if low_band else 0.0
+        p = room / box_w
+        if c.height is not None:
+            p = min(p, (c.height - 2 * pad - top - low) / box_h)
+        p = max(p, 0.05)
+        need = 2 * pad + top + low + box_h * p
+        h = c.height or need
+        oy = pad + top + max(0.0, (h - need) / 2) - y_lo * p
+        ox = (w - box_w * p) / 2 - x_lo * p
+        gap = 6 * s
+        clear = two or cw <= room
+        if head and not top_band:  # the title's lower right corner stays above the far edge
+            hx = pad + text_width(head, hf, "mono", MONO_LS)
+            edge = oy + far_y * p - (hx - ox - far_x * p) * slope
+            clear = clear and pad + hf * 1.25 + gap <= edge
+        if not low_band:  # the caption's upper left corner stays below the front edge
+            cx = w - pad - min(cw, room)
+            edge = oy + near_y * p - (cx - ox - near_x * p) * slope
+            clear = clear and h - pad - cf * (1.4 * rows - 0.4) - gap >= edge
+        return SkyLay(s, pad, p, ox, oy, h, head, hf, lines, two, cf, clear)
+
+    def settle(top_band: bool, two: bool, low_band: bool) -> SkyLay:
+        def need(k: float) -> float:
+            return lay(k, top_band, two, low_band).height
+
+        return lay(layout_scale(w, 840, c.height, need), top_band, two, low_band)
+
+    plans = [
+        (top, two, low) for low in (False, True) for top in (False, True) for two in (False, True)
+    ]
+    got = next((g for g in (settle(*q) for q in plans) if g.clear), settle(True, True, True))
+    p, s, h = got.p, got.s, got.height
+
+    lit = f"; the busiest, {(first + timedelta(days=peak)).isoformat()}, has {fmt_count(best)}"
+    desc = (
+        f"Contribution skyline from {first.isoformat()} to {last.isoformat()}: "
+        f"{fmt_count(total)} contributions on {sum(v > 0 for v in counts)} days, one block "
+        f"per day that rises with its level{lit if peak >= 0 else ''}."
+    )
+    art = Art(w, h, title or "Contribution skyline", desc)
+    th = c.theme
+    frame(c, art, rx=clamp(14 * s, 6, 24), solid=True)
+
+    # plates repeat the card, outlines climb the level ramp, and one edge is bright
+    plate = th.bg
+    tone = c.tone("ok") if variant == "green" else c.pal.ink
+    quiet = tune(mix(th.bg, tone, 0.3), marks=c.marks_on)
+    ramp = [quiet, *(tune(mix(quiet, tone, f), marks=c.marks_on) for f in (1 / 3, 2 / 3)), tone]
+    hi = c.mark(th.ink)
+    mid = c.mark(composite(th.dim, th.bg))
+    lo = th.panel_stroke  # under half opacity: a texture for empty days, not a mark
+    pen = {
+        "stroke_width": num(clamp(0.06 * p, 0.9, 1.5)),
+        "stroke_linejoin": "round",
+        "stroke_linecap": "round",
+    }
+
+    # Every plate is drawn through <use>. It repeats the card color on purpose, to hide what
+    # stands behind it; validate_svg does not follow <use>, and a plate read as a graphic
+    # would be 1:1 on the card. The outlines are theme tokens tuned to 3:1, or a texture under
+    # half opacity (lo and the creases).
+    ap, rp = a * p, r * p
+    art.defs.append(el("path", id=c.id("k0"), d=sky_tile(ap, rp), fill=plate, stroke=lo, **pen))
+    blocks = [(f"k{level}", level, SKY_RISE[level]) for level in range(1, 5)]
+    if peak >= 0:
+        level = next(lvl for _, row, col, lvl, _ in cells if row + 7 * col == peak)
+        blocks.append(("kp", level, SKY_RISE[level] + SKY_PROUD))
+    shapes = {}
+    for name, level, z in blocks:
+        hull, crease = sky_block(ap, rp, z * p)
+        shapes[name] = hull
+        stroke = ramp[level - 1]
+        art.defs.append(
+            el(
+                "g",
+                el("path", d=hull, stroke=stroke),
+                el("path", d=crease, fill="none", stroke=fade(stroke, 0.45)),
+                id=c.id(name),
+                fill=plate,
+                **pen,
+            )
+        )
+    far, skirt = sky_slab(gx * p, gy * p, m * p, rs * p, t * p)
+    art.defs.append(el("path", id=c.id("skirt"), d=skirt, fill=plate))
+
+    # depth bands, back to front, each rising in on its own beat: nearest (oldest) first
+    n_bands = 10 if weeks == 53 else 8
+    bands: list[list[tuple[int, int, int]]] = [[] for _ in range(n_bands)]
+    for depth, row, col, level, _ in cells:
+        bands[depth * n_bands // (weeks + 6)].append((row, col, level))
+    bands = [b for b in bands if b]
+    clock, begins, item = paced(c, len(bands), distance=w)
+    pulse = ""
+    done, stop = (max(begins) + item) / clock.dur + 0.05, 1 - clock.exit - 0.04
+    if clock.loop and stop - done > 0.1:
+        beats = max(1, round((stop - done) * clock.dur / 2.4))
+        step = (stop - done) / beats
+        frames: list[tuple[float, object]] = [(0, 1), (done, 1)]
+        for j in range(beats):
+            frames += [(done + (j + 0.5) * step, 0.2), (done + (j + 1) * step, 1)]
+        pulse = animate("stroke-opacity", frames, clock, ease=EASE_IN_OUT)
+    layer = []
+    for i, band in enumerate(bands):
+        parts = []
+        for row, col, level in band:
+            x, y = iso(row * p, (weeks - 1 - col) * p)
+            x, y = num(got.ox + x, 1), num(got.oy + y, 1)
+            name = "kp" if row + 7 * col == peak else f"k{level}"
+            parts.append(el("use", href=f"#{c.id(name)}", x=x, y=y))
+            if name == "kp":  # the bright edge, right above its block in paint order
+                parts.append(
+                    el(
+                        "path",
+                        pulse,
+                        d=shapes["kp"],
+                        transform=f"translate({x} {y})",
+                        fill="none",
+                        stroke=hi,
+                        **pen,
+                    )
+                )
+        begin = begins[len(bands) - 1 - i]
+        layer.append(el("g", rise(clock, begin, item, dy=SKY_LIFT * p), *parts))
+    at = f"translate({num(got.ox)} {num(got.oy)})"
+    art.body.append(el("path", d=far, transform=at, fill="none", stroke=mid, **pen))
+    art.body.append(el("g", veil(clock), *layer))
+    art.body.append(el("use", href=f"#{c.id('skirt')}", x=num(got.ox), y=num(got.oy)))
+    art.body.append(el("path", d=skirt, transform=at, fill="none", stroke=mid, **pen))
+
+    if got.head:
+        heading(c, art, got.head, x=got.pad, y=got.pad + got.hf, size=got.hf)
+    # the caption: the total in body text, the date range in label text, right-aligned
+    right, base, cf = w - got.pad, h - got.pad, got.cf
+    count, when = got.lines
+    if when:
+        art.body.append(mono(c, when, right, base, th.dim, cf, text_anchor="end"))
+    if got.two:
+        base -= cf * 1.4
+    else:
+        right -= text_width(" " + when, cf, "mono", MONO_LS)
+    if count:
+        art.body.append(mono(c, count, right, base, th.text, cf, text_anchor="end"))
+    return art
+
+
 # ---------------------------------------------------------------- registry and samples
 
 
@@ -3277,6 +6605,9 @@ class KindSpec:
     # drawn at its own layout size, which may grow up to this many times its default width
     # and height toward the canvas shape, then scaled into the canvas by the root viewBox.
     stretch: tuple[float, float] | None = None
+    # True: --device phone draws a PHONE_W layout with PHONE_TEXT text. False: the kind has
+    # no text or no width to lose (loader, divider), so one file serves every screen.
+    phone: bool = False
 
     @property
     def sizing(self) -> str:
@@ -3284,30 +6615,96 @@ class KindSpec:
 
 
 KINDS: dict[str, KindSpec] = {
-    "tiles": KindSpec(kind_tiles, "short", "stat tiles grid", (3, 2)),
+    "tiles": KindSpec(kind_tiles, "short", "stat tiles grid", (3, 2), phone=True),
     "hero": KindSpec(
-        kind_hero, "long", "title, rotating taglines, status pill, node constellation", (2, 2.5)
+        kind_hero,
+        "long",
+        "title, rotating taglines, status pill, node constellation",
+        (2, 2.5),
+        phone=True,
     ),
     "marquee": KindSpec(
-        kind_marquee, "ambient", "seamless strip of text chips at constant px/s", (3, 1)
+        kind_marquee, "ambient", "seamless strip of text chips at constant px/s", (3, 1), phone=True
     ),
-    "chart": KindSpec(kind_chart, "short", "line chart that draws in, peak marker", (3, 3)),
-    "bars": KindSpec(kind_bars, "short", "progress bars that grow", (3, 1)),
+    "chart": KindSpec(
+        kind_chart, "short", "line chart that draws in, peak marker", (3, 3), phone=True
+    ),
+    "bars": KindSpec(kind_bars, "short", "progress bars that grow", (3, 1), phone=True),
     "flow": KindSpec(
-        kind_flow, "medium", "nodes and edges with packets; JSON or text like 'a -> b, c'", (3, 3)
+        kind_flow,
+        "medium",
+        "nodes and edges with packets; JSON or text like 'a -> b, c'",
+        (3, 3),
+        phone=True,
     ),
-    "loader": KindSpec(kind_loader, "medium", "spinner, dots or bar loader (--variant)", (1, 1)),
-    "typing": KindSpec(kind_typing, "long", "terminal typing lines", (3, 1)),
+    "loader": KindSpec(
+        kind_loader, "medium", "11 loaders: spinner, dots, bars, ... (--variant)", (1, 1)
+    ),
+    "typing": KindSpec(kind_typing, "long", "terminal typing lines", (3, 1), phone=True),
     "divider": KindSpec(kind_divider, "medium", "hairline divider with a pulse", (3, 1)),
     "badge": KindSpec(kind_badge, "medium", "label and value pill with a shine sweep", (1, 1)),
+    "banner": KindSpec(
+        kind_banner,
+        "long",
+        "header or footer banner: kicker, title, lines taking turns over a drifting shape "
+        "(--variant wave, waving, slice, rounded, cylinder, speech)",
+        phone=True,
+    ),
+    "heading": KindSpec(
+        kind_heading,
+        "medium",
+        "numbered section header with an accent rule that draws in; ship as --theme both",
+        phone=True,
+    ),
     "timeline": KindSpec(
-        kind_timeline, "long", "career or history rail, current item pulses (--variant vertical)"
+        kind_timeline,
+        "long",
+        "career or history rail, current item pulses (--variant vertical)",
+        phone=True,
+    ),
+    "stats": KindSpec(
+        kind_stats, "short", "summary card: glyph rows and a grade ring that draws in", phone=True
+    ),
+    "streak": KindSpec(
+        kind_streak, "short", "total, current and longest streak; reads calendar data", phone=True
     ),
     "logos": KindSpec(
-        kind_logos, "short", "logo wall of SVG, PNG/WebP or text pills; ambient = marquee"
+        kind_logos,
+        "short",
+        "logo wall of SVG, PNG/WebP or text pills; ambient = marquee",
+        phone=True,
     ),
-    "calendar": KindSpec(kind_calendar, "short", "53-week contribution heatmap (--variant accent)"),
-    "ring": KindSpec(kind_ring, "short", "progress rings that draw in, static values"),
+    "breakdown": KindSpec(
+        kind_breakdown,
+        "short",
+        "parts of a whole with a legend: stacked bar, --variant donut or pie",
+        phone=True,
+    ),
+    "radar": KindSpec(
+        kind_radar,
+        "short",
+        "radar of 3 to 8 axes, polygon grows from the center, optional compare",
+        phone=True,
+    ),
+    "calendar": KindSpec(
+        kind_calendar, "short", "53-week contribution heatmap (--variant accent)", phone=True
+    ),
+    "card": KindSpec(
+        kind_card,
+        "medium",
+        "project or repo card: status, summary, tags, language, stars, forks, shine",
+        phone=True,
+    ),
+    "quote": KindSpec(
+        kind_quote, "long", "quote card; several quotes take turns, one fades in", phone=True
+    ),
+    "ring": KindSpec(kind_ring, "short", "progress rings that draw in, static values", phone=True),
+    "skyline": KindSpec(
+        kind_skyline,
+        "short",
+        "contribution year as an isometric city, busiest day lit (--variant accent)",
+        phone=True,
+    ),
 }
 # Kinds with no card of their own keep a transparent margin when scaled into a canvas.
 UNFRAMED = frozenset({"loader", "divider", "badge"})
@@ -3417,6 +6814,17 @@ SAMPLES: dict[str, Any] = {
     },
     "divider": None,
     "badge": {"label": "build", "value": "passing", "tone": "ok"},
+    "banner": {
+        "kicker": "Open source inventory",
+        "title": "Northwind",
+        "lines": [
+            "Realtime stock for small shops",
+            "Works offline, syncs when back",
+            "MIT licensed, self-host in minutes",
+        ],
+        "section": "header",
+    },
+    "heading": {"number": "01", "title": "Featured projects", "subtitle": "Built in the open"},
     "timeline": {
         "items": [
             {"start": "2016", "end": "2018", "title": "Support engineer", "subtitle": "Help desk"},
@@ -3435,6 +6843,25 @@ SAMPLES: dict[str, Any] = {
             },
         ]
     },
+    "stats": {
+        "title": "Open source stats",
+        "rows": [
+            {"label": "Stars earned", "value": "1.2k", "glyph": "star"},
+            {"label": "Commits this year", "value": "864", "glyph": "commit"},
+            {"label": "Pull requests", "value": "96", "glyph": "pull"},
+            {"label": "Issues opened", "value": "41", "glyph": "issue"},
+            {"label": "Contributed to", "value": "18", "glyph": "repo"},
+        ],
+        "grade": {"label": "A+", "value": 0.86},
+    },
+    "streak": {
+        "total": 1284,
+        "total_range": "Oct 5, 2025 - Present",
+        "current": 12,
+        "current_range": "Sep 29 - Oct 10",
+        "longest": 41,
+        "longest_range": "Mar 2 - Apr 11",
+    },
     "logos": {
         "items": [
             {"label": "Northwind", "svg": SAMPLE_LOGOS["Northwind"], "color": "#38bdf8"},
@@ -3445,7 +6872,65 @@ SAMPLES: dict[str, Any] = {
             {"label": "Paperplane"},
         ]
     },
+    "breakdown": {
+        "title": "Top languages",
+        "items": [
+            {"label": "Python", "value": 41.8},
+            {"label": "TypeScript", "value": 23.6},
+            {"label": "Rust", "value": 14.2},
+            {"label": "Go", "value": 9.7},
+            {"label": "Shell", "value": 6.1},
+            {"label": "Dockerfile", "value": 4.6},
+        ],
+    },
+    "radar": {
+        "title": "Project health",
+        "max": 100,
+        "series": ["This release", "Last release"],
+        "axes": [
+            {"label": "Security", "value": 76, "compare": 58},
+            {"label": "Tests", "value": 84, "compare": 66},
+            {"label": "Types", "value": 72, "compare": 70},
+            {"label": "Docs", "value": 61, "compare": 42},
+            {"label": "Speed", "value": 88, "compare": 74},
+            {"label": "Uptime", "value": 93, "compare": 90},
+        ],
+    },
     "calendar": {"start": "2025-10-05", "counts": sample_counts()},
+    "card": {
+        "title": "Northwind",
+        "description": (
+            "A tiny job queue for Python services: retries with backoff, cron schedules and "
+            "a live dashboard, all on one Postgres table."
+        ),
+        "status": "live",
+        "date": "Mar 2026",
+        "language": "Python",
+        "stars": 1240,
+        "forks": 86,
+        "tags": ["python", "postgres", "queue", "cron", "asyncio", "dashboard", "cli"],
+    },
+    "quote": {
+        "quotes": [
+            {
+                "text": (
+                    "Ship the small version first. What people do with it on Tuesday beats "
+                    "the plan you wrote on Monday."
+                ),
+                "author": "Northwind handbook",
+            },
+            {
+                "text": (
+                    "A good default is a decision nobody has to make, and nobody has to undo."
+                ),
+                "author": "Bluefin design notes",
+            },
+            {
+                "text": ("Every alert should say what broke, who it hurts and what to try first."),
+                "author": "Quartz on-call guide",
+            },
+        ]
+    },
     "ring": {
         "items": [
             {"label": "Coverage", "value": 87},
@@ -3453,6 +6938,7 @@ SAMPLES: dict[str, Any] = {
             {"label": "Docs", "value": 64, "tone": "ok"},
         ]
     },
+    "skyline": {"start": "2025-10-05", "counts": sample_counts()},
 }
 
 
@@ -3591,10 +7077,22 @@ def build(
     reduced_motion: str = "ignore",
     font: str | None = None,
     id_prefix: str | None = None,
+    device: str = "desktop",
 ) -> tuple[str, list[str]]:
     """One SVG document and the notes on colors adjusted for contrast. See render()."""
     if kind not in KINDS:
         raise ForgeError(f"unknown kind {kind!r}; choose from {', '.join(KINDS)}")
+    if device not in DEVICES:
+        raise ForgeError("--device must be desktop, phone or both (the CLI expands both)")
+    phone = device == "phone"
+    if phone and not KINDS[kind].phone:
+        raise ForgeError(
+            f"{kind} has no phone layout: one file reads on every screen, so drop --device"
+        )
+    if phone and size is not None:
+        raise ForgeError(f"--device phone draws the card {PHONE_W} px wide; drop --size")
+    if phone and width is None:
+        width = float(PHONE_W)
     if theme == "both":
         raise ForgeError("theme both is a dark/light pair; render each with pair=True")
     if mode not in (None, "dark", "light"):
@@ -3646,9 +7144,12 @@ def build(
         reduced=reduced_motion,
         text_on=text_on,
         marks_on=marks_on,
+        phone=phone,
     )
     canvas = None
     extras: dict[str, object] = {}
+    if phone:
+        extras["device"] = device
     if size is not None:
         ctx, canvas, extras["size"] = fit_canvas(ctx, size)
     key = next((name for name, t in THEMES.items() if t == th), None)
@@ -3697,7 +7198,10 @@ def load_data(value: str | None, *, text_spec: bool = False) -> Any:
         path = Path(value)
         if not path.is_file():
             raise ForgeError(f"--data is neither inline JSON nor a file: {value}")
-        text = path.read_text(encoding="utf-8")
+        try:
+            text = path.read_text(encoding="utf-8-sig")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise ForgeError(f"--data {value} is not readable UTF-8 text: {exc}") from exc
         if text_spec and path.suffix.lower() == ".txt":
             return text
     try:
@@ -3716,14 +7220,58 @@ def write(path: Path, svg: str) -> bool:
     return True
 
 
+SVG_WIDTH = re.compile(r'<svg\b[^>]*?\swidth="([0-9.]+)"')
+
+
+def svg_width(svg: str) -> str:
+    """The root width of an SVG document in whole px, for an <img> width ("" when unset)."""
+    found = SVG_WIDTH.search(svg)
+    return str(max(1, round(float(found.group(1))))) if found else ""
+
+
+def src_url(path: str) -> str:
+    """A file path as an attribute URL: a space would end a srcset candidate, so encode it."""
+    return html.escape(path.replace(" ", "%20"))
+
+
 def picture(dark: str, light: str, alt: str) -> str:
-    return (
-        "<picture>\n"
-        f'  <source media="(prefers-color-scheme: dark)" srcset="{html.escape(dark)}">\n'
-        f'  <source media="(prefers-color-scheme: light)" srcset="{html.escape(light)}">\n'
-        f'  <img alt="{html.escape(alt)}" src="{html.escape(dark)}">\n'
-        "</picture>"
-    )
+    return picture_set({("dark", "desktop"): dark, ("light", "desktop"): light}, alt)
+
+
+def picture_set(
+    paths: dict[tuple[str | None, str], str],
+    alt: str,
+    width: str | None = None,
+    breakpoint: int = DESKTOP_MIN,
+) -> str:
+    """The <picture> for a set of files keyed (theme or None, device).
+
+    Desktop sources come first, each with (min-width: breakpoint px) when there is a phone
+    file too, so a wide window takes them before the phone ones; dark before light. The <img>
+    is the phone file (dark when there are two), which also serves viewers without <picture>.
+    width sets the <img> width attribute (never a height: images in one row that set both
+    stack, github/markup#2045); by default it is 100% for a desktop and phone set, else none.
+    """
+    both_devices = len({d for _, d in paths}) == 2
+    lines = ["<picture>"]
+    for device in DEVICES:
+        for theme in ("dark", "light", None):
+            if (theme, device) not in paths:
+                continue
+            media = [f"(prefers-color-scheme: {theme})"] if theme else []
+            if device == "desktop" and both_devices:
+                media.append(f"(min-width: {breakpoint}px)")
+            if media:  # a lone phone file has no query: it is the <img> below
+                srcset = src_url(paths[(theme, device)])
+                lines.append(f'  <source media="{" and ".join(media)}" srcset="{srcset}">')
+    keys = [("dark", "phone"), (None, "phone"), ("dark", "desktop"), (None, "desktop")]
+    img = next(paths[k] for k in keys if k in paths)
+    if width is None:
+        width = "100%" if both_devices else ""
+    size = f' width="{html.escape(width)}"' if width else ""
+    lines.append(f'  <img alt="{html.escape(alt)}" src="{src_url(img)}"{size}>')
+    lines.append("</picture>")
+    return "\n".join(lines)
 
 
 def epilog() -> str:
@@ -3813,8 +7361,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ap.add_argument(
         "--variant",
-        help="loader: spinner, dots or bar; timeline: horizontal or vertical; "
-        "calendar: green or accent",
+        help="loader: spinner, dots, bar, pulse, orbit, bars, wave, ring, blocks, clock or "
+        "bounce; banner: wave, waving, slice, rounded, cylinder or speech; breakdown: bar, donut "
+        "or pie; timeline: horizontal or vertical; calendar and skyline: green or accent",
+    )
+    ap.add_argument(
+        "--device",
+        choices=[*DEVICES, "both"],
+        default="desktop",
+        help=f"desktop (default), phone ({PHONE_W} px layout, text {PHONE_TEXT:g} px or more), "
+        "or both: NAME.svg and NAME-mobile.svg with a <picture> that swaps at --breakpoint",
+    )
+    ap.add_argument(
+        "--breakpoint",
+        type=int,
+        default=DESKTOP_MIN,
+        metavar="PX",
+        help=f"viewport width where --device both shows the desktop file (default "
+        f"{DESKTOP_MIN}, GitHub's large breakpoint; use your page's own, such as 768)",
     )
     ap.add_argument("--reduced-motion", choices=["ignore", "respect"], default="ignore")
     ap.add_argument("--font-stack", help="sans, mono, serif, system, or a font-family list")
@@ -3838,23 +7402,38 @@ def plan(theme: str | None, mode: str | None) -> list[tuple[str | None, str, str
     return [(None, spec, mode)]
 
 
+def file_name(stem: Path, theme: str | None, device: str) -> Path:
+    """NAME[-dark|-light][-mobile].svg next to the --out path."""
+    parts = [stem.name, *([theme] if theme else []), *(["mobile"] if device == "phone" else [])]
+    return stem.with_name("-".join(parts) + ".svg")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    svgs: dict[str | None, str] = {}
+    svgs: dict[tuple[str | None, str], str] = {}
     notes: list[str] = []
     try:
+        if not PHONE_W < args.breakpoint <= 4096:
+            raise ForgeError(
+                f"--breakpoint must be wider than the {PHONE_W} px phone file and at most "
+                f"4096, got {args.breakpoint}"
+            )
         files = plan(args.theme, args.mode)
-        if len(files) == 2 and not args.out:
-            raise ForgeError("a dark and light pair (--theme both or --mode both) needs --out")
+        devices = list(DEVICES) if args.device == "both" else [args.device]
+        if len(files) * len(devices) > 1 and not args.out:
+            raise ForgeError(
+                "a set of files (--theme both, --mode both or --device both) needs --out"
+            )
         data = load_data(args.data, text_spec=args.kind == "flow")
-        for suffix, spec, mode in files:
-            svgs[suffix], got = build(
+        for (suffix, spec, mode), device in itertools.product(files, devices):
+            svgs[(suffix, device)], got = build(
                 args.kind,
                 theme=spec,
                 mode=mode,
                 accent=args.accent,
                 size=args.size,
                 pair=len(files) == 2,
+                device=device,
                 timing=args.timing,
                 loop=args.loop,
                 speed=args.speed,
@@ -3875,30 +7454,30 @@ def main(argv: list[str] | None = None) -> int:
     for note in dict.fromkeys(notes):
         print(f"forge.py: note: {note}", file=sys.stderr)
     if not args.out:
-        sys.stdout.buffer.write(svgs[None].encode("utf-8"))
+        sys.stdout.buffer.write(next(iter(svgs.values())).encode("utf-8"))
         return 0
     out = Path(args.out)
-    if None in svgs:
-        changed = write(out, svgs[None])
+    if len(svgs) == 1:
+        changed = write(out, next(iter(svgs.values())))
         print(
             f"{'wrote' if changed else 'unchanged'} {out.as_posix()} ({out.stat().st_size} bytes)"
         )
         return 0
     stem = out.with_suffix("") if out.suffix == ".svg" else out
-    paths = {t: stem.with_name(f"{stem.name}-{t}.svg") for t in ("dark", "light")}
-    for t, path in paths.items():
-        changed = write(path, svgs[t])
+    paths = {key: file_name(stem, *key) for key in svgs}
+    for key, path in paths.items():
+        changed = write(path, svgs[key])
         print(
             f"{'wrote' if changed else 'unchanged'} {path.as_posix()} ({path.stat().st_size} bytes)"
         )
-    alt = re.search(r"<title[^>]*>(.*?)</title>", svgs["dark"])
-    print(
-        picture(
-            paths["dark"].as_posix(),
-            paths["light"].as_posix(),
-            html.unescape(alt.group(1) if alt else ""),
-        )
-    )
+    alt = re.search(r"<title[^>]*>(.*?)</title>", next(iter(svgs.values())))
+    shown = {key: path.as_posix() for key, path in paths.items()}
+    # a desktop and phone set shows at the desktop file's own width: a 495 px card must not
+    # stretch to the column, and GitHub caps a wider image at the column on a phone
+    desktop = next((svg for (_, device), svg in svgs.items() if device == "desktop"), "")
+    width = svg_width(desktop) if len(devices) == 2 else None
+    alt_text = html.unescape(alt.group(1) if alt else "")
+    print(picture_set(shown, alt_text, width=width, breakpoint=args.breakpoint))
     return 0
 
 

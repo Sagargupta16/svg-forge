@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="166.47" viewBox="0 0 320 166.47" role="img" aria-labelledby="sf57b3d1-title sf57b3d1-desc" class="sf57b3d1-root">
+<title id="sf57b3d1-title">Bluefin</title>
+<desc id="sf57b3d1-desc">Bluefin; Typed client for streaming sensor data over WebSockets, with offline buffering, schema checks and a React hook for live charts.; status source; Jan 2026; TypeScript; 312 stars; 24 forks; tags typescript, websocket, react, charts</desc>
+<style>.sf57b3d1-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sf57b3d1-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sf57b3d1-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}.sf57b3d1-r{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:400}</style>
+<defs><linearGradient id="sf57b3d1-bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#0e1a24"/><stop offset="0.6" stop-color="#0b1012"/></linearGradient><linearGradient id="sf57b3d1-shine" x1="0" x2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0.16"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient><clipPath id="sf57b3d1-clip"><rect x="1" y="1" width="318" height="164.47" rx="11.49"/></clipPath></defs>
+<rect x="0.5" y="0.5" width="319" height="165.47" rx="12.49" fill="url(#sf57b3d1-bg)" stroke="rgba(255,255,255,0.09)"/>
+<g clip-path="url(#sf57b3d1-clip)"><rect x="-97.66" y="0" width="93.66" height="166.47" fill="url(#sf57b3d1-shine)" transform="skewX(-18)"><animateTransform attributeName="transform" type="translate" values="0 0;0 0;475.75 0;475.75 0" keyTimes="0;0.06;0.66;1" additive="sum" dur="6s" repeatCount="indefinite"/></rect></g>
+<rect x="0" y="17.17" width="2.34" height="21.85" rx="1.17" fill="#3abef8"/>
+<text class="sf57b3d1-m" x="302.83" y="29.23" fill="rgba(255,255,255,0.52)" font-size="10.5" text-anchor="end">SOURCE</text>
+<text class="sf57b3d1-m" x="17.17" y="29.23" fill="#3abef8" font-size="10.5">JAN 2026</text>
+<text class="sf57b3d1-b" x="17.17" y="51.87" fill="#f3f4f6" font-size="14.83">Bluefin</text>
+<text class="sf57b3d1-r" x="17.17" y="71.49" fill="rgba(255,255,255,0.74)" font-size="10.5">Typed client for streaming sensor data over</text>
+<text class="sf57b3d1-r" x="17.17" y="86.61" fill="rgba(255,255,255,0.74)" font-size="10.5">WebSockets, with offline buffering, schema</text>
+<text class="sf57b3d1-r" x="17.17" y="101.73" fill="rgba(255,255,255,0.74)" font-size="10.5">checks and a React hook for live charts.</text>
+<rect x="17.17" y="111.1" width="86.47" height="19.09" rx="9.54" fill="rgba(58,190,248,0.08)" stroke="rgba(58,190,248,0.35)"/>
+<text class="sf57b3d1-m" x="60.4" y="124.31" fill="#3abef8" font-size="10.5" text-anchor="middle">typescript</text>
+<rect x="108.32" y="111.1" width="78.76" height="19.09" rx="9.54" fill="rgba(58,190,248,0.08)" stroke="rgba(58,190,248,0.35)"/>
+<text class="sf57b3d1-m" x="147.7" y="124.31" fill="#3abef8" font-size="10.5" text-anchor="middle">websocket</text>
+<rect x="191.76" y="111.1" width="47.92" height="19.09" rx="9.54" fill="rgba(58,190,248,0.08)" stroke="rgba(58,190,248,0.35)"/>
+<text class="sf57b3d1-m" x="215.72" y="124.31" fill="#3abef8" font-size="10.5" text-anchor="middle">react</text>
+<rect x="244.36" y="111.1" width="55.63" height="19.09" rx="9.54" fill="rgba(58,190,248,0.08)" stroke="rgba(58,190,248,0.35)"/>
+<text class="sf57b3d1-m" x="272.17" y="124.31" fill="#3abef8" font-size="10.5" text-anchor="middle">charts</text>
+<circle cx="22.13" cy="145.99" r="4.96" fill="#3abef8"/>
+<text class="sf57b3d1-s" x="30.99" y="149.66" fill="rgba(255,255,255,0.74)" font-size="10.5">TypeScript</text>
+<g transform="translate(102.28 137.99) scale(1)"><path d="M8 1.4l1.95 4.2 4.55.5-3.4 3.1 1 4.5L8 11.4l-4.1 2.3 1-4.5-3.4-3.1 4.55-.5z" fill="rgba(255,255,255,0.52)"/></g>
+<text class="sf57b3d1-s" x="122.18" y="149.66" fill="rgba(255,255,255,0.74)" font-size="10.5">312</text>
+<g transform="translate(152.31 137.99) scale(1)"><path d="M2.4 3.2a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0M10.4 3.2a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0M6.4 12.8a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0M4 4.8V6a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V4.8M8 8v3.2" fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text class="sf57b3d1-s" x="172.21" y="149.66" fill="rgba(255,255,255,0.74)" font-size="10.5">24</text>
+</svg>

@@ -2,14 +2,16 @@
 name: animated-svg
 description: >-
   Designs, generates, validates and optimizes self-contained animated SVG
-  files that render wherever an image can be shown, such as GitHub README
-  cards, banners and headers, loaders, badges, dividers, charts and
-  diagrams, timelines, logo walls, contribution calendars and progress rings.
-  CSS and SMIL only, five shared timing presets (micro, short, medium, long,
-  ambient), a stdlib generator for fourteen kinds at any size with 15 theme
-  presets or a brand color, a validator with rule ids and WCAG contrast
-  checks, a frame renderer and a safe minifier. Use when the user asks for an "animated SVG", a
-  "README card", "README banner" or "README header", an "SVG loader", to
+  files that render wherever an image can be shown, on web pages, in apps,
+  docs sites and GitHub READMEs, such as cards, banners and headings,
+  stats, streak and project cards, loaders, badges, charts and diagrams,
+  timelines, logo walls, contribution calendars and progress rings. CSS and
+  SMIL only, five timing presets, a generator for 23 kinds at any
+  size with desktop and phone layouts, 15 theme presets or a brand color,
+  starter packs for a whole README, a validator with WCAG contrast checks,
+  a frame and poster renderer and a safe minifier. Use when the user asks
+  for an "animated SVG", an "SVG for my website" or landing page, a "README
+  card", "README banner" or "README header", an "SVG loader", to
   "animate this SVG", a "line draw", an "SVG diagram for README", a "GitHub
   profile animation", or runs /animated-svg [create|animate|optimize].
   React and Motion scenes inside an app go to motion-scene; reviews of an
@@ -27,7 +29,7 @@ Script paths below are relative to this skill's folder (the directory that holds
 
 | Need | Skill |
 | --- | --- |
-| A standalone `.svg` for a README, docs site, package page or any `<img>`; or an SVG inlined in a plain HTML page | animated-svg (this one) |
+| A standalone `.svg` for a web page, app, docs site, package page, README or any `<img>`; an SVG inlined in a plain HTML page; a still PNG of one for slides, email or link previews | animated-svg (this one) |
 | An animated React component using Motion (`motion/react`) inside an app | motion-scene |
 | Review, debug or shrink an existing SVG or scene ("why doesn't it animate on GitHub") | svg-audit |
 
@@ -43,14 +45,14 @@ For a finished graphic end to end (storyboard, build, validate, iterate at every
 
 ### 1. Pin the requirements, then pick the delivery target
 
-Before drawing, settle five things from the request (ask only for what cannot be inferred): where it is shown (README, social card, app page, slide), the size (a preset from step 4 or WxH), the theme (GitHub dark and light, a preset, or a brand color), what it must say (the real numbers, names or steps), and whether it loops or plays once.
+Before drawing, settle five things from the request (ask only for what cannot be inferred): where it is shown (README, social card, app page, slide), the size (a preset from step 4 or WxH; a README card with text also gets a phone file), the theme (GitHub dark and light, a preset, or a brand color), what it must say (the real numbers, names or steps), and whether it loops or plays once.
 
 | Target | Shown through | Allowed | Not allowed | Validate with |
 | --- | --- | --- | --- | --- |
-| `standalone` | `<img>` or a Markdown image: GitHub READMEs, docs, npm and PyPI pages | SMIL, CSS in an inline `<style>`, system fonts, small data URIs | script and event handlers, `<foreignObject>`, external `href`/`url()`/`@import`, hover and click, in-SVG theme switching | `--target standalone` |
+| `standalone` | `<img>`, `<picture>`, CSS `background-image` or a Markdown image: web pages, apps, docs sites, npm and PyPI pages, GitHub READMEs | SMIL, CSS in an inline `<style>`, system fonts, small data URIs | script and event handlers, `<foreignObject>`, external `href`/`url()`/`@import`, hover and click, in-SVG theme switching | `--target standalone` |
 | `web` | inline `<svg>` in a page you control | everything above, plus `:hover`/`:focus` and a page-level pause control | script inside the SVG; unprefixed ids (they collide with the page) | `--target web` |
 
-Default to `standalone` when the file will be committed to a repo or shown on a site you do not control. GitHub strips inline `<svg>` from Markdown, so a README can only show the file as an image. Details, sources and the `<picture>` pattern for dark and light: [references/github-readme.md](references/github-readme.md).
+Default to `standalone`: it works on every surface that shows an image, on a site you do not control, and in a repo. GitHub strips inline `<svg>` from Markdown, so a README can only show the file as an image ([references/github-readme.md](references/github-readme.md)). Every surface, from landing pages and apps to slides, email and link previews, with what it does to an animated SVG and how to ship to it: [references/where-it-runs.md](references/where-it-runs.md).
 
 ### 2. Pick a timing preset
 
@@ -86,50 +88,29 @@ Composition, grid, palette, contrast on both GitHub themes and type sizing: [ref
 
 ### 4. Generate with forge.py, or hand-author from a template
 
-If a kind fits, generate it with `scripts/forge.py` and change the data, not the output:
+If a kind fits, generate it with `scripts/forge.py` and change the data, not the output. The kinds, their `--data` shapes and every option are in [references/kinds.md](references/kinds.md):
 
-| Kind | Draws | Default timing | `--data` shape |
-| --- | --- | --- | --- |
-| `tiles` | stat tiles grid; looping turns it into a spotlight | short | `[{"value": "42", "label": "repos", "tone": "ok"}]` (up to 16), or `{"items": [...], "cols": 4, "title": "..."}` |
-| `hero` | title, rotating taglines, status pill, node constellation | long | `{"title": "Name", "kicker": "Hi", "taglines": ["One", "Two"], "status": "Live", "meta": "MIT", "nodes": ["api", "cli"]}` (up to 6 taglines; up to 8 nodes of 8 chars, shown when the canvas is at least 560 wide) |
-| `marquee` | text chips scrolling at constant px/s | ambient | `["python", "rust"]` or `{"rows": [["a", "b"], ["c", "d"]]}` (up to 3 rows, alternating direction) |
-| `chart` | line chart that draws in, area, peak marker | short | `{"values": [120, 150, 190], "labels": ["W1", "W2", "W3"], "unit": "", "peak": "PEAK"}` (at least 2 values) |
-| `bars` | labelled progress bars that grow | short | `{"items": [{"label": "Python", "value": 46}], "unit": "%"}`; optional `max` and `tone` per item (up to 12) |
-| `flow` | nodes and edges with packets: pipeline or architecture | medium | `{"nodes": ["commit", {"id": "deploy", "tone": "ok"}], "edges": [["commit", "deploy"]]}` (2-12 nodes in flow order; an edge back to an earlier node is a return arc), or a text spec, inline or a `.txt` file: `push -> build -> unit, e2e -> deploy` (comma = parallel, `-[label]->` labels an edge, newline or `;` between statements, `#` comments) |
-| `loader` | spinner, dots or bar (`--variant`); loops unless `--once` | medium | none; one turn is 0.6 / 0.9 / 1.2 / 2.0 / 4.0 s for micro / short / medium / long / ambient |
-| `typing` | terminal that types commands, then shows output | long | `{"title": "bash", "prompt": "$", "lines": [{"cmd": "make build", "out": ["done"], "tone": "ok"}]}` (up to 8 lines) |
-| `divider` | hairline with a center dot and a pulse | medium | none; transparent, so use `--theme both` |
-| `badge` | label and value pill with a status dot and shine | medium | `{"label": "build", "value": "passing", "tone": "ok", "dot": true}` |
-| `timeline` | career or history rail that draws in; the current item pulses (`--variant vertical` for a column) | long | `{"title": "Career", "items": [{"start": "2019", "end": "2022", "title": "Senior engineer", "subtitle": "Search"}, {"start": "2024", "title": "Lead", "current": true}]}` (up to 12 items; only an item marked `"current": true` pulses, and without an `end` it reads "start - now") |
-| `logos` | logo wall; `--timing ambient` turns it into a marquee | short | `{"title": "Trusted by", "items": [{"label": "Acme", "svg": "logos/acme.svg", "color": "#38bdf8"}, {"label": "Ember", "image": "logos/ember.png"}, {"label": "Text only"}]}` (SVGs inline with prefixed ids, PNG/WebP up to 64 KB as data URIs, a bare label is a text pill; paths from the working directory) |
-| `calendar` | 53-week contribution heatmap with quartile levels (`--variant accent` uses the accent ramp) | short | `{"days": [{"date": "2025-10-07", "count": 10}]}` or `{"start": "2025-10-05", "counts": [4, 0, 5]}` |
-| `ring` | progress rings that draw in to static values | short | `{"title": "Goals", "items": [{"label": "Coverage", "value": 91}, {"label": "Issues", "value": 42, "max": 60, "tone": "ok"}]}` |
+| Group | Kinds |
+| --- | --- |
+| Stats and data | `tiles`, `stats`, `streak`, `chart`, `bars`, `breakdown`, `radar`, `ring`, `calendar`, `skyline` |
+| Headers, cards and identity | `hero`, `banner`, `heading`, `card`, `quote`, `badge`, `logos`, `marquee`, `divider` |
+| Diagrams and stories | `flow`, `timeline`, `typing` |
+| Small marks | `loader` (11 variants) |
 
-`tone` is `accent` (default), `ok`, `warn`, `muted` or a hex color.
-
-Common options:
-- `--kind KIND` (required), `--out FILE` (omit to print one theme to stdout).
-- `--size`: `WxH`, a width, or a preset (`readme`, `card`, `og`, `linkedin-banner`, `square`, `story`, `icon-128` and more). timeline, logos, calendar and ring lay out natively; the other ten scale their layout in, centered and never distorted, but their labels do not grow, so keep icon sizes to native kinds or marks. Use it or `--width`/`--height` (8 to 4096), not both.
-- `--theme`: `dark` (default), `light`, `both` (the GitHub pair), a preset (`nord`, `dracula`, `catppuccin-mocha`, `tokyo-night`, ...), a family, `auto:<hex>` for a brand color, or a palette `.json`. `--mode dark|light|both` picks a family's variant; `both` needs `--out`, writes `NAME-dark.svg` and `NAME-light.svg` and prints a `<picture>` snippet with the paths as given, so pass a repo-relative `--out`.
-- `--accent "#rrggbb"` (default: the theme's own). Text reaches 4.5:1 and marks 3:1 in every theme; a color that falls short, your accent included, moves to the nearest passing lightness and is noted on stderr.
-- Every preset, the native and scaled kinds, palette files and the contrast rules: [references/themes-and-sizes.md](references/themes-and-sizes.md).
-- `--timing micro|short|medium|long|ambient` (kind default otherwise); `--loop` or `--once` overrides looping; `--speed` sets px/s for marquee and ambient (default 40).
-- `--title` (visible heading where the kind has one, and the `<title>`), `--desc` (overrides the generated `<desc>`).
-- `--data` inline JSON or a path to a JSON file. Prefer a file on Windows shells, where inline JSON quoting differs.
-- `--variant spinner|dots|bar` (loader), `--reduced-motion ignore|respect` (default `ignore`; kinds move mostly through SMIL, so `respect` freezes only their CSS parts, see [references/timing.md](references/timing.md) section 7), `--font-stack sans|mono|serif|system` or a font-family list, `--id-prefix` (default: a hash of the input, so ids and classes never collide when files are inlined together).
+The options that matter most:
+- `--size`: `WxH`, a width, or a preset (`readme`, `card`, `og`, `linkedin-banner`, `square`, `story`, `icon-128` and more). Or `--width`/`--height` (8 to 4096), not both.
+- `--theme`: `dark` (default), `light`, `both` (the GitHub pair), a preset (`nord`, `dracula`, `catppuccin-mocha`, ...), a family with `--mode dark|light|both`, `auto:<hex>` for a brand color, or a palette `.json`. Every preset and the contrast rules: [references/themes-and-sizes.md](references/themes-and-sizes.md).
+- `--device phone|both`: a phone layout drawn 320 px wide with no text under 10.5 px; `both` writes `NAME.svg` and `NAME-mobile.svg` and prints the `<picture>` that swaps them at 1012 px, GitHub's breakpoint; pass `--breakpoint PX` for your own page ([references/github-readme.md](references/github-readme.md) section 3b). Any card with text needs it: an 840 px card shows at about 0.37x on a phone.
+- `--accent "#rrggbb"`, `--timing`, `--loop`/`--once`, `--data FILE.json`, `--title`, `--variant`.
 
 ```bash
 python scripts/forge.py --kind flow --timing long --data pipeline.json --out assets/flow.svg
-python scripts/forge.py --kind tiles --data stats.json --out assets/tiles.svg
-python scripts/forge.py --kind hero --theme both --accent "#a78bfa" --title "Project" --out assets/hero.svg
-python scripts/forge.py --kind loader --variant dots --once --out assets/dots.svg
-python scripts/forge.py --kind ring --theme nord --size og --data goals.json --out assets/goals.svg
-python scripts/forge.py --kind timeline --theme catppuccin --mode both --size readme --data career.json --out assets/career.svg
+python scripts/forge.py --kind hero --theme both --device both --accent "#a78bfa" --out assets/hero.svg
 ```
 
-Output is deterministic (same input, same bytes, LF) and a file is rewritten only when its bytes change, so scheduled runs commit nothing on a quiet day. Bad options or data exit with status 2 and a message.
+A set of files (`--theme both`, `--mode both`, `--device both`) needs `--out` and prints the `<picture>` with the paths as given, so pass a repo-relative `--out`. Bad options or data exit with status 2 and a message.
 
-Starter templates (all pass the validator): `assets/templates/tiles.svg`, `assets/templates/hero.svg` and `assets/templates/hero-light.svg`, `assets/templates/marquee.svg` and `assets/templates/marquee-ambient.svg`, `assets/templates/chart.svg`, `assets/templates/bars.svg`, `assets/templates/flow.svg` (medium loop), `assets/templates/flow-long.svg` (storyboard) and `assets/templates/flow-short.svg` (one-shot), `assets/templates/loader.svg`, `assets/templates/typing.svg`, `assets/templates/divider.svg`, `assets/templates/badge.svg`, `assets/templates/timeline.svg`, `assets/templates/logos.svg`, `assets/templates/calendar.svg`, `assets/templates/ring.svg`.
+A whole README (header, section headings, stats, footer) is one pack: copy `assets/packs/profile.json` or `assets/packs/project.json`, edit the data and alt text, and run `python scripts/pack.py PACK.json`. Every card shares one theme, accent and device set, and `snippet.md` holds the markup in order, rows and links included ([references/kinds.md](references/kinds.md), Packs).
 
 If no kind fits, hand-author: start from the closest starter template (forge output with sample data, already validated), keep its frame, prefixed ids and `role`/`<title>`/`<desc>` block, and add motion one recipe at a time from [references/smil-and-css.md](references/smil-and-css.md). Choose SMIL for geometry, paths, morphs, discrete steps and chains; CSS for transform and opacity on groups and anything that should honor reduced motion.
 
@@ -151,10 +132,10 @@ python scripts/validate_svg.py assets/hero-light.svg --theme light --strict-cont
 
 A passing validator is not a working animation.
 
-1. See the timing: `python scripts/frames.py FILE.svg` writes `FILE.frames.png`, frames from t=0 to just before the loop restarts, so the start and the seam sit on one sheet. Read the PNG: entrances, overlaps, and the loop landing back on frame one. `--times 0,1.2,2.4` picks moments; `--theme both` adds a light row; captions show `k`, the keyTimes position. It needs headless Chrome, Edge or Chromium; exit 3 means none was found, so open the `.html` it wrote. Run it again with `--width 240` (a phone README card, a gallery tile) and fix any label that stops reading there.
+1. See the timing: `python scripts/frames.py FILE.svg` writes `FILE.frames.png`, frames from t=0 to just before the loop restarts, so the start and the seam sit on one sheet. Read the PNG: entrances, overlaps, and the loop landing back on frame one. `--times 0,1.2,2.4` picks moments; `--theme both` adds a light row; captions show `k`, the keyTimes position. It needs headless Chrome, Edge or Chromium; exit 3 means none was found, so open the `.html` it wrote. Run it again on the `-mobile.svg` file, and with `--width 240` for a gallery tile, and fix any label that stops reading there.
 2. Open the file directly in Chrome and Firefox (and Safari or WebKit when you can). Watch two full cycles; the seam is where loops break.
 3. Seek exact frames by hand when the sheet is not enough: with the `.svg` open as its own page, run `document.documentElement.pauseAnimations(); document.documentElement.setCurrentTime(2.4)` in the console for SMIL, and `document.getAnimations().forEach(a => { a.pause(); a.currentTime = 2400; })` for CSS. Check each beat boundary from the storyboard.
-4. README files: push to a branch and view the README on GitHub for that branch, in both GitHub themes, and at 375 px wide. An 840 px card renders at about 0.41x on a phone; anything that must be read needs about 22-24 px drawn size.
+4. Web pages: open the page at 390 px and 1280 px wide, in both color schemes. README files: push to a branch and view the README on GitHub for that branch, in both GitHub themes, at 390 px and at 1280 px wide. The phone file must show under 1012 px and the desktop file above it. An 840 px card with no phone file renders at about 0.41x on a phone; anything that must be read needs about 22-24 px drawn size.
 5. Rows of cards or images inside links: render the snippet with `gh api --method POST markdown -f mode=gfm -F text=@snippet.md` and confirm no `js-gh-image-fallback` class appears.
 6. Accessibility: the file names itself (`role="img"`, `<title>`, `<desc>`); the README markup carries real alt text with the content and numbers (replace forge's title-only alt in the printed snippet); decorative pieces use `alt=""`. See [references/accessibility.md](references/accessibility.md).
 
@@ -170,8 +151,8 @@ All of it, with the config and the reasons: [references/optimize.md](references/
 ## Deliver
 
 Hand back:
-- the file paths and sizes (both theme files when `both`);
-- the README markup: the `<picture>` snippet or `<img>`, with descriptive alt text;
+- the file paths and sizes (both theme files when `both`, and the `-mobile` files when `--device both`);
+- the markup: the `<picture>` snippet or `<img>`, with descriptive alt text (a pack's `snippet.md`), or a `frames.py --poster` PNG for a surface that takes no SVG;
 - the timing preset and the beat table used;
 - the validator result (with contrast), the `frames.py` contact sheet, and which browsers, themes and widths were checked;
 - anything not verified (for example Safari not available), and a note when a README loop runs longer than 5 s (WCAG 2.2.2 cannot be met inside an image).
@@ -198,7 +179,9 @@ Hand back:
 - [references/timing.md](references/timing.md): the five presets, easing curves, stagger math, one-clock storyboards, seamless loops, length budgets, WCAG 2.2.2 and the reduced-motion trade-off.
 - [references/design.md](references/design.md): mechanism over decoration, layout grids, palette and contrast on both GitHub themes, typography and width estimates, chips and label fitting, element budgets.
 - [references/optimize.md](references/optimize.md): `optimize_svg.py`, the animation-safe SVGO v4 config, id prefixing, size budgets, determinism.
+- [references/kinds.md](references/kinds.md): every kind with its data shape, default timing and phone layout, every option, packs, the starter templates.
 - [references/themes-and-sizes.md](references/themes-and-sizes.md): theme presets, families and `--mode`, brand and palette themes, the contrast guarantee, size presets, native versus scaled kinds.
 - [references/gotchas.md](references/gotchas.md): symptom, cause and fix for the failures that cost the most time.
 - [references/isometric.md](references/isometric.md): isometric line figures for hero and cover art: projection, solids, stroke weights, a designed rest, one highlight, paint order, the clock as the pointer.
 - [references/accessibility.md](references/accessibility.md): naming the file, alt text, decorative graphics, contrast, motion and WCAG.
+- [references/where-it-runs.md](references/where-it-runs.md): image, inline and document embedding; landing pages, apps, docs sites, link previews, slides, email and favicons; poster PNGs; your own breakpoint and theme switch.

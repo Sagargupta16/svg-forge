@@ -10,7 +10,7 @@
 
 ## Project
 
-Public Claude Code plugin (`svg-forge`) for designing animated SVGs that render everywhere: self-contained files for GitHub READMEs and `<img>`, and React + Motion scenes for web apps. Built from what worked (and broke) in the owner's portfolio covers, profile README renderer and README card actions.
+Public Claude Code plugin (`svg-forge`) for designing animated SVGs that render everywhere: self-contained files for any web page, app, docs site or GitHub README (anything that shows an `<img>`), poster PNGs for slides, email and link previews, and React + Motion scenes for web apps. GitHub is one target, not the scope. Built from what worked (and broke) in the owner's portfolio covers, profile README renderer and README card actions.
 
 Installed with `/plugin marketplace add Sagargupta16/svg-forge` then `/plugin install svg-forge@svg-forge`.
 
@@ -28,6 +28,8 @@ Installed with `/plugin marketplace add Sagargupta16/svg-forge` then `/plugin in
 python skills/animated-svg/scripts/forge.py --kind hero --title "Hello" --out hero.svg
 python skills/animated-svg/scripts/forge.py --kind ring --theme nord --size og --out ring.svg
 python skills/animated-svg/scripts/validate_svg.py hero.svg --target standalone --strict-contrast
+python skills/animated-svg/scripts/forge.py --kind stats --theme both --device both --out assets/stats.svg   # desktop and phone, dark and light
+python skills/animated-svg/scripts/pack.py skills/animated-svg/assets/packs/profile.json --out-dir preview/pack   # a whole README
 python skills/animated-svg/scripts/frames.py hero.svg   # PNG contact sheet of the timeline (needs Chrome, Edge or Chromium)
 python scripts/preview.py
 python scripts/preview.py --rebuild   # regenerate every template, example and examples/README.md from the recipe table
@@ -47,14 +49,15 @@ claude plugin eval . --scaffold --allow-tools Write Edit   # real-model eval sui
 
 ## Entry points
 
-- `skills/animated-svg/SKILL.md` -- standalone SVG files (README cards, banners, loaders, icons, diagrams)
+- `skills/animated-svg/SKILL.md` -- standalone SVG files for pages, apps and READMEs (cards, banners, loaders, icons, diagrams)
 - `skills/motion-scene/SKILL.md` -- React + Motion scenes for apps
 - `skills/svg-audit/SKILL.md` -- audit an existing SVG or scene, report first, fix on request
 - `agents/svg-designer.md` -- subagent that storyboards, builds, validates and iterates
-- `skills/animated-svg/scripts/forge.py` -- generator CLI (14 kinds x any `--size` x theme presets x timing presets)
+- `skills/animated-svg/scripts/forge.py` -- generator CLI (23 kinds x any `--size` x theme presets x timing presets, `--device desktop|phone|both`)
 - `skills/animated-svg/scripts/themes.py`, `sizes.py` -- theme presets with the contrast guarantee, size presets and `Layout`
 - `skills/animated-svg/scripts/validate_svg.py` -- validator CLI (rule ids SV001-SV024, contrast SV021-SV023)
-- `skills/animated-svg/scripts/frames.py`, `optimize_svg.py` -- timeline contact sheets, animation-safe minifier
+- `skills/animated-svg/scripts/pack.py` -- a pack JSON (`assets/packs/`) to a set of cards plus `snippet.md`
+- `skills/animated-svg/scripts/frames.py`, `optimize_svg.py` -- timeline contact sheets and `--poster` PNGs, animation-safe minifier
 
 ## Key files
 
@@ -70,6 +73,8 @@ claude plugin eval . --scaffold --allow-tools Write Edit   # real-model eval sui
 - Headless Chrome follows the OS reduced-motion setting, which is on for the owner; `frames.py` passes `--force-prefers-no-reduced-motion`, keep it.
 - Contrast is a gate: a forge color change must be fixed in forge.py or themes.py (then `preview.py --rebuild`), never by editing generated SVGs.
 - `.gitattributes` forces LF; generator output must be byte-identical across runs (tests check it).
+- Desktop bytes do not depend on `--device`. To ship a phone file, add `--device both` to the existing recipe in `scripts/preview.py`; a second recipe would duplicate the desktop file.
+- `examples/` has a 600 KB budget (a test checks it); fold a new phone file into an existing recipe before adding an example.
 
 ## Repo-specific rules
 

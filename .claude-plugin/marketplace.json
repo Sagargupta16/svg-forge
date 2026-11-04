@@ -5,14 +5,14 @@
     "url": "https://github.com/Sagargupta16"
   },
   "metadata": {
-    "description": "One plugin for designing animated SVGs: standalone files that survive GitHub's image proxy, and React/Motion scenes for web apps."
+    "description": "One plugin for designing animated SVGs: standalone files for any web page, app, docs site or README (they survive GitHub's image proxy too), and React/Motion scenes for web apps."
   },
   "plugins": [
     {
       "name": "svg-forge",
       "source": "./",
-      "description": "3 skills (animated-svg, motion-scene, svg-audit), a designer subagent, a generator for 14 kinds at any size and theme, a contrast-checking validator, a frame renderer and a safe minifier.",
-      "version": "0.3.0",
+      "description": "3 skills (animated-svg, motion-scene, svg-audit), a designer subagent, a generator for 23 kinds at any size and theme with phone layouts, README starter packs, a contrast-checking validator, a frame renderer and a safe minifier.",
+      "version": "0.4.0",
       "license": "MIT",
       "category": "design"
     }

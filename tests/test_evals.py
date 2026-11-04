@@ -473,6 +473,10 @@ def answers(case: str) -> dict[str, str]:
             f"assets/banner-{t}.svg": forge.render("hero", theme=t, title="orbitdb-lite")
             for t in ("dark", "light")
         },
+        "animated-svg-phone-pair": {
+            "assets/stats.svg": forge.render("tiles", data=TILES),
+            "assets/stats-mobile.svg": forge.render("tiles", data=TILES, device="phone"),
+        },
         "animated-svg-animate-static": {"logo-animated.svg": ANIMATED_LOGO},
         "svg-audit-fix": {"card.svg": FIXED_CARD},
         "motion-scene-cache-cover": {"src/scenes/CacheScene.tsx": SCENE_KIT},
@@ -572,6 +576,8 @@ BAD_ANSWERS: dict[tuple[str, str], str] = {
     ("animated-svg-dark-light-pair", "dark-no-theme-query"): forge.render("hero").replace(
         "<style>", "<style>@media (prefers-color-scheme: light){svg{display:none}}"
     ),
+    ("animated-svg-phone-pair", "mobile-narrow"): forge.render("tiles", data=TILES),
+    ("animated-svg-phone-pair", "mobile-text-floor"): forge.render("tiles", data=TILES, width=320),
     ("animated-svg-animate-static", "geometry-kept"): ANIMATED_LOGO.replace(
         "M32 8 L53 20 V44", "M32 6 L54 19 V45"
     ),
@@ -637,6 +643,14 @@ def test_file_grader_rejects_a_bad_answer(case: str, name: str) -> None:
             forge.picture("assets/banner-dark.svg", "assets/banner-light.svg", "orbitdb-lite"),
         ),
         (
+            "animated-svg-phone-pair",
+            "picture-snippet",
+            forge.picture_set(
+                {(None, "desktop"): "assets/stats.svg", (None, "phone"): "assets/stats-mobile.svg"},
+                "orbitdb-lite: 1,284 commits, 312 pull requests, 4.9k stars, 98% coverage",
+            ),
+        ),
+        (
             "svg-audit-report-only",
             "quotes-rule-ids",
             "| 1 | error | SV008 |\n| 2 | error | SV010 |\n"
@@ -660,6 +674,11 @@ def test_reply_grader_accepts_a_good_reply(case: str, name: str, reply: str) -> 
             "animated-svg-dark-light-pair",
             "picture-snippet",
             '<img src="assets/banner-dark.svg" alt="orbitdb-lite">',
+        ),
+        (
+            "animated-svg-phone-pair",
+            "picture-snippet",
+            '<picture><img src="assets/stats.svg" alt="stats"></picture>',
         ),
         ("svg-audit-report-only", "quotes-rule-ids", "SV008 and SV010 are errors."),
         ("svg-audit-report-only", "finds-calcmode-typo", 'calcMode="spline" is set correctly.'),

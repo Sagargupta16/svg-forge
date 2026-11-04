@@ -25,10 +25,19 @@ CASES: dict[str, list[str]] = {
     "typing": ["long", "short", "ambient"],
     "divider": ["medium", "short", "ambient"],
     "badge": ["medium", "short"],
+    "banner": ["long", "short", "medium", "ambient"],
+    "heading": ["medium", "short", "long"],
     "timeline": ["long", "short", "medium"],
+    "stats": ["short", "medium"],
+    "streak": ["short", "medium", "long"],
     "logos": ["short", "ambient", "medium"],
+    "breakdown": ["short", "medium", "micro"],
+    "radar": ["short", "medium", "ambient"],
     "calendar": ["short", "medium"],
+    "card": ["medium", "short", "long", "ambient"],
+    "quote": ["long", "short", "medium", "ambient"],
     "ring": ["short", "medium"],
+    "skyline": ["short", "medium"],
 }
 PARAMS = [(k, theme, t) for k, ts in CASES.items() for theme in ("dark", "light") for t in ts]
 HOSTILE = ['a<b&c"d', "</text><script>alert(1)</script>"]
@@ -121,10 +130,32 @@ def hostile_data(kind: str, s: str) -> object:
         "typing": {"title": s, "lines": [{"cmd": s, "out": [s]}]},
         "divider": None,
         "badge": {"label": s, "value": s},
+        "banner": {"kicker": s, "title": s, "subtitle": s, "lines": [s, s], "section": "footer"},
+        "heading": {"number": s, "title": s, "subtitle": s},
         "timeline": [{"start": s, "end": s, "title": s, "subtitle": s, "current": True}],
+        "stats": {"title": s, "rows": [{"label": s, "value": s[:16], "glyph": "star"}]},
+        "streak": {"total": 5, "total_range": s, "current": 1, "longest": 2, "longest_range": s},
         "logos": [{"label": s}, {"label": s, "color": "#f472b6"}],
+        "breakdown": {"title": s, "items": [{"label": s, "value": 3}, {"label": "b", "value": 1}]},
+        "radar": {
+            "title": s,
+            "series": [s, s],
+            "axes": [{"label": s, "value": v, "compare": 2} for v in (3, 1, 2)],
+        },
         "calendar": {"title": s, "start": "2026-01-01", "counts": [1, 0, 3]},
+        "card": {
+            "title": s,
+            "description": s,
+            "status": s,
+            "date": s,
+            "language": s,
+            "stars": s[:8],
+            "forks": 3,
+            "tags": [s, s],
+        },
+        "quote": {"quotes": [{"text": s, "author": s}, {"text": s, "author": s}]},
         "ring": [{"label": s, "value": 3, "max": 4}],
+        "skyline": {"title": s, "start": "2026-01-01", "counts": [1, 0, 3]},
     }[kind]
 
 
@@ -362,3 +393,35 @@ def test_straight_edge_label_sits_at_the_middle() -> None:
 
     x = float(re.search(r'x="([\d.]+)"[^>]*>GO</text>', svg).group(1))
     assert 250 < x < 350
+
+
+@pytest.mark.parametrize("size", ["840x250", "1200x630", "readme", "square"])
+def test_hero_status_dot_sits_inside_its_pill_at_any_size(size: str) -> None:
+    svg = forge.build("hero", theme="dark", size=size)[0]
+    root = minidom.parseString(svg).documentElement
+    pill = next(r for r in root.getElementsByTagName("rect") if r.getAttribute("rx") == "14")
+    dot = next(c for c in root.getElementsByTagName("circle") if c.getAttribute("r") == "4")
+
+    top, height = float(pill.getAttribute("y")), float(pill.getAttribute("height"))
+
+    assert float(dot.getAttribute("cy")) == pytest.approx(top + height / 2, abs=0.01)
+
+
+def test_picture_paths_with_spaces_stay_one_srcset_candidate() -> None:
+    paths = {("dark", "desktop"): "my cards/a-dark.svg", ("light", "desktop"): "my cards/a.svg"}
+
+    markup = forge.picture_set(paths, "A")
+
+    assert 'srcset="my%20cards/a-dark.svg"' in markup
+    assert 'src="my%20cards/a-dark.svg"' in markup
+
+
+def test_data_file_that_is_not_utf8_exits_2(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    bad = tmp_path / "bad.json"
+    bad.write_bytes(b"\xff\xfe[1]")
+
+    code = forge.main(["--kind", "tiles", "--data", str(bad)])
+
+    assert code == 2 and "is not readable UTF-8 text" in capsys.readouterr().err

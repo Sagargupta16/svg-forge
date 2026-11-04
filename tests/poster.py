@@ -12,6 +12,8 @@ from xml.dom import minidom
 
 ANIMATIONS = {"animate", "animateTransform", "animateMotion", "set", "animateColor"}
 KEYFRAMES = re.compile(r"@keyframes\s+[\w-]+\s*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}")
+# a scale whose first factor is zero (scale(0), scale(0 1), scale(.0)), not scale(0.875)
+ZERO_SCALE = re.compile(r"scale\(\s*-?(?:0+\.?0*|\.0+)(?=[\s,)])")
 
 
 def _elements(node: minidom.Node) -> list[minidom.Element]:
@@ -59,7 +61,7 @@ def problems(svg: str) -> list[str]:
     visible_rects = [e for e, o in seen if e.tagName == "rect" and o > 0]
     for el, eff in seen:
         tag = el.tagName
-        if "scale(0" in el.getAttribute("transform").replace(" ", ""):
+        if ZERO_SCALE.search(el.getAttribute("transform")):
             out.append(f"<{tag}> is scaled to 0")
         dash, offset = el.getAttribute("stroke-dasharray"), el.getAttribute("stroke-dashoffset")
         if (
