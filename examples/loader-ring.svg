@@ -1,7 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" role="img" aria-labelledby="sf52fa7b-title sf52fa7b-desc" class="sf52fa7b-root">
-<title id="sf52fa7b-title">Loading</title>
-<desc id="sf52fa7b-desc">Animated spinning ring loader</desc>
-<style>.sf52fa7b-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sf52fa7b-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sf52fa7b-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
-<circle cx="24" cy="24" r="18" fill="none" stroke="rgba(127,127,127,0.3)" stroke-width="4"/>
-<g><animateTransform attributeName="transform" type="rotate" values="0 24 24;360 24 24" keyTimes="0;1" dur="1.2s" repeatCount="indefinite"/><circle cx="24" cy="24" r="18" fill="none" stroke="#2574f5" stroke-width="4" stroke-linecap="round" stroke-dasharray="24.27 113.1"/></g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" aria-labelledby="sf52fa7b-title sf52fa7b-desc" class="sf52fa7b-root" role="img" viewBox="0 0 48 48"><title id="sf52fa7b-title">Loading</title><desc id="sf52fa7b-desc">Animated spinning ring loader</desc><style/><circle cx="24" cy="24" r="18" fill="none" stroke="rgba(127,127,127,0.3)" stroke-width="4"/><g><animateTransform attributeName="transform" dur="1.2s" keyTimes="0;1" repeatCount="indefinite" type="rotate" values="0 24 24;360 24 24"/><circle cx="24" cy="24" r="18" fill="none" stroke="#2574f5" stroke-dasharray="24.27 113.1" stroke-linecap="round" stroke-width="4"/></g></svg>

@@ -1,16 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="480" height="160" viewBox="0 0 480 160" role="img">
-<style>.lbl{font:600 13px 'Segoe UI',Helvetica,Arial,sans-serif;fill:#9ca3af}.num{font:800 30px 'Segoe UI',Helvetica,Arial,sans-serif;fill:#e5e7eb}</style>
-<rect x="0.5" y="0.5" width="479" height="159" rx="12" fill="#0b1012" stroke="#1f2937"/>
-<image href="https://img.shields.io/badge/build-passing-22c55e" x="352" y="18" width="104" height="20"/>
-<text class="lbl" x="24" y="40">PROJECT STATS</text>
-<g opacity="0">
-  <animate attributeName="opacity" values="0;1" keyTimes="0;1" calcmod="spline" keySplines="0.22 1 0.36 1" dur="0.8s" fill="freeze"/>
-  <text class="num" x="24" y="92">1,204</text>
-  <text class="lbl" x="24" y="116">commits</text>
-  <text class="num" x="184" y="92">87%</text>
-  <text class="lbl" x="184" y="116">test coverage</text>
-</g>
-<path d="M24 136 H456" stroke="#60a5fa" stroke-width="2" fill="none" pathLength="1" vector-effect="non-scaling-stroke" stroke-dasharray="1" stroke-dashoffset="1">
-  <animate attributeName="stroke-dashoffset" values="1;0" dur="1.2s" fill="freeze"/>
-</path>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="160" role="img" viewBox="0 0 480 160"><style>.lbl{font:600 13px &apos;Segoe UI&apos;,Helvetica,Arial,sans-serif;fill:#9ca3af}.num{font:800 30px &apos;Segoe UI&apos;,Helvetica,Arial,sans-serif;fill:#e5e7eb}</style><rect width="479" height="159" x=".5" y=".5" fill="#0b1012" stroke="#1f2937" rx="12"/><image width="104" height="20" x="352" y="18" href="https://img.shields.io/badge/build-passing-22c55e"/><text x="24" y="40" class="lbl">PROJECT STATS</text><g opacity="0"><animate fill="freeze" attributeName="opacity" calcmod="spline" dur="0.8s" keySplines="0.22 1 0.36 1" keyTimes="0;1" values="0;1"/><text x="24" y="92" class="num">1,204</text><text x="24" y="116" class="lbl">commits</text><text x="184" y="92" class="num">87%</text><text x="184" y="116" class="lbl">test coverage</text></g><path fill="none" stroke="#60a5fa" stroke-dasharray="1" stroke-dashoffset="1" stroke-width="2" d="M24 136 H456" pathLength="1" vector-effect="non-scaling-stroke"><animate fill="freeze" attributeName="stroke-dashoffset" dur="1.2s" values="1;0"/></path></svg>

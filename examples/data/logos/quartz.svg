@@ -1,7 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" viewBox="0 0 24 24" role="img" aria-label="Quartz">
-  <metadata>exported from an editor; dropped when inlined</metadata>
-  <g inkscape:label="mark">
-    <path d="M12 2l9 5v10l-9 5-9-5V7z"/>
-    <path d="M12 2v20M3 7l9 5 9-5" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1"/>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" aria-label="Quartz" role="img" viewBox="0 0 24 24"><metadata>exported from an editor; dropped when inlined</metadata><g><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="1" d="M12 2v20M3 7l9 5 9-5"/></g></svg>

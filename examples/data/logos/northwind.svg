@@ -1,5 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="Northwind">
-  <title>Northwind</title>
-  <path d="M3 20L12 4l9 16z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-  <path d="M8 16h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" aria-label="Northwind" role="img" viewBox="0 0 24 24"><title>Northwind</title><path fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M3 20L12 4l9 16z"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M8 16h8"/></svg>
