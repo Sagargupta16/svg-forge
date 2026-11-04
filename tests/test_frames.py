@@ -443,3 +443,14 @@ def test_real_browser_poster_shows_the_static_attributes_at_its_scale(tmp_path: 
     assert (width, height) == (400, 200)
     assert rgb(rows, 100, 100) == (255, 0, 0)  # the SMIL value is gone: the rect's own fill
     assert rgb(rows, 300, 100) == (0, 0, 0)  # the CSS animation is cancelled too
+
+
+@pytest.mark.parametrize("box", ["0 0 nan 100", "0 0 inf 100", "0 0 -5 10", "junk"])
+def test_poster_size_falls_back_on_a_bad_viewbox(tmp_path: Path, box: str) -> None:
+    src = tmp_path / "bad.svg"
+    src.write_text(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{box}"/>', encoding="utf-8")
+
+    poster_page(tmp_path, src)
+
+    text = (tmp_path / "poster.html").read_text(encoding="utf-8")
+    assert "width:300px;height:150px" in text

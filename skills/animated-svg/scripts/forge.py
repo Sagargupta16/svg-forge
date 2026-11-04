@@ -7198,7 +7198,10 @@ def load_data(value: str | None, *, text_spec: bool = False) -> Any:
         path = Path(value)
         if not path.is_file():
             raise ForgeError(f"--data is neither inline JSON nor a file: {value}")
-        text = path.read_text(encoding="utf-8")
+        try:
+            text = path.read_text(encoding="utf-8-sig")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise ForgeError(f"--data {value} is not readable UTF-8 text: {exc}") from exc
         if text_spec and path.suffix.lower() == ".txt":
             return text
     try:
@@ -7224,6 +7227,11 @@ def svg_width(svg: str) -> str:
     """The root width of an SVG document in whole px, for an <img> width ("" when unset)."""
     found = SVG_WIDTH.search(svg)
     return str(max(1, round(float(found.group(1))))) if found else ""
+
+
+def src_url(path: str) -> str:
+    """A file path as an attribute URL: a space would end a srcset candidate, so encode it."""
+    return html.escape(path.replace(" ", "%20"))
 
 
 def picture(dark: str, light: str, alt: str) -> str:
@@ -7254,14 +7262,14 @@ def picture_set(
             if device == "desktop" and both_devices:
                 media.append(f"(min-width: {breakpoint}px)")
             if media:  # a lone phone file has no query: it is the <img> below
-                srcset = html.escape(paths[(theme, device)])
+                srcset = src_url(paths[(theme, device)])
                 lines.append(f'  <source media="{" and ".join(media)}" srcset="{srcset}">')
     keys = [("dark", "phone"), (None, "phone"), ("dark", "desktop"), (None, "desktop")]
     img = next(paths[k] for k in keys if k in paths)
     if width is None:
         width = "100%" if both_devices else ""
     size = f' width="{html.escape(width)}"' if width else ""
-    lines.append(f'  <img alt="{html.escape(alt)}" src="{html.escape(img)}"{size}>')
+    lines.append(f'  <img alt="{html.escape(alt)}" src="{src_url(img)}"{size}>')
     lines.append("</picture>")
     return "\n".join(lines)
 

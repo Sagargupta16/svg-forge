@@ -41,6 +41,8 @@ All notable changes to this project are documented here. Follows [Semantic Versi
 ### Fixed
 
 - `hero` on a canvas taller or shorter than 250 px drew its status dot off the pill, below its center and past its bottom edge at 1200x630. The dot now sits at the pill's center at any size.
+- `forge.py --data` with a file that is not UTF-8 exits 2 with a message instead of a traceback, and a UTF-8 byte order mark is accepted.
+- Printed `<picture>` paths encode spaces as `%20`. A space ends a `srcset` candidate, so an output folder with a space in its name used to drop every `<source>`.
 
 ### Known limits
 

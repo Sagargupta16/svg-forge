@@ -405,3 +405,23 @@ def test_hero_status_dot_sits_inside_its_pill_at_any_size(size: str) -> None:
     top, height = float(pill.getAttribute("y")), float(pill.getAttribute("height"))
 
     assert float(dot.getAttribute("cy")) == pytest.approx(top + height / 2, abs=0.01)
+
+
+def test_picture_paths_with_spaces_stay_one_srcset_candidate() -> None:
+    paths = {("dark", "desktop"): "my cards/a-dark.svg", ("light", "desktop"): "my cards/a.svg"}
+
+    markup = forge.picture_set(paths, "A")
+
+    assert 'srcset="my%20cards/a-dark.svg"' in markup
+    assert 'src="my%20cards/a-dark.svg"' in markup
+
+
+def test_data_file_that_is_not_utf8_exits_2(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    bad = tmp_path / "bad.json"
+    bad.write_bytes(b"\xff\xfe[1]")
+
+    code = forge.main(["--kind", "tiles", "--data", str(bad)])
+
+    assert code == 2 and "is not readable UTF-8 text" in capsys.readouterr().err

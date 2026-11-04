@@ -77,6 +77,8 @@ NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 SUFFIXES = ("-dark", "-light", "-mobile")  # forge.file_name() adds these
 SCHEME = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*):")
 LINK_SCHEMES = frozenset({"http", "https", "mailto"})
+# browsers drop these from a URL before reading its scheme, so " javascript:" would pass
+UNSAFE_IN_LINK = re.compile(r"[\x00-\x20\x7f]")
 
 
 class PackError(Exception):
@@ -126,9 +128,13 @@ def option(key: str, value: object) -> object:
     if key in NUMBERS:
         if isinstance(value, bool) or not isinstance(value, int | float):
             raise Problem(f"{key}: must be a number, got {json.dumps(value)}")
-        if not math.isfinite(value):
+        try:
+            number = float(value)
+        except OverflowError:  # a JSON integer past the float range
+            raise Problem(f"{key}: too large, a {len(str(value))}-digit number") from None
+        if not math.isfinite(number):
             raise Problem(f"{key}: must be a finite number")
-        return float(value)
+        return number
     if not isinstance(value, str):
         raise Problem(f"{key}: must be text, got {json.dumps(value)}")
     if key == "device" and value not in (*forge.DEVICES, "both"):
@@ -174,6 +180,8 @@ def render_card(
     if link is not None:
         if not isinstance(link, str) or not link.strip():
             raise Problem("link: must be a URL or a relative path")
+        if UNSAFE_IN_LINK.search(link):
+            raise Problem("link: no spaces or control characters; percent-encode them (%20)")
         scheme = SCHEME.match(link)
         if scheme and scheme.group(1).lower() not in LINK_SCHEMES:
             raise Problem("link: must be an http, https or mailto URL, or a relative path")
@@ -254,9 +262,11 @@ def render_pack(path: Path, out_dir: str | None = None) -> tuple[dict[Path, str]
     """
     label = path.name
     try:
-        pack = json.loads(path.read_text(encoding="utf-8"))
+        pack = json.loads(path.read_text(encoding="utf-8-sig"))
     except OSError as exc:
         raise PackError([f"{label}: cannot read the pack ({exc.strerror or exc})"]) from exc
+    except UnicodeDecodeError as exc:
+        raise PackError([f"{label}: not UTF-8 text ({exc.reason})"]) from exc
     except json.JSONDecodeError as exc:
         raise PackError([f"{label}: line {exc.lineno}: not valid JSON ({exc.msg})"]) from exc
     if not isinstance(pack, dict):

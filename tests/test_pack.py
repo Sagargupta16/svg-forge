@@ -342,6 +342,9 @@ GOOD = {"name": "stats", "kind": "tiles", "alt": "Stats"}
         ({**GOOD, "data_file": "missing.json"}, "data_file"),
         ({**GOOD, "data": [], "data_file": "x.json"}, "data_file"),
         ({**GOOD, "name": "stats-dark"}, "name"),
+        ({**GOOD, "link": " javascript:alert(1)"}, "link"),
+        ({**GOOD, "link": "java\tscript:alert(1)"}, "link"),
+        ({**GOOD, "width": 10**400}, "width"),
         ({"name": "rule", "kind": "divider", "alt": "", "device": "phone"}, "device"),
     ],
 )
@@ -393,3 +396,16 @@ def test_bad_pack_file_exits_2(
     code, _, err = run([str(path)], capsys)
 
     assert code == 2 and message in err
+
+
+def test_utf16_pack_exits_2_and_a_bom_is_read(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "pack.json"
+    path.write_text(json.dumps({"cards": [GOOD]}), encoding="utf-16")
+
+    code, _, err = run([str(path)], capsys)
+
+    assert code == 2 and "pack.json: not UTF-8 text" in err
+    path.write_text(json.dumps({"cards": [GOOD]}), encoding="utf-8-sig")
+    assert run([str(path)], capsys)[0] == 0

@@ -376,7 +376,9 @@ def own_size(root: validate_svg.Node) -> tuple[int, int]:
         try:
             w, h = float(box[2]), float(box[3])
         except (IndexError, ValueError):
-            w, h = 300.0, 150.0  # the CSS default size of a replaced element
+            w, h = 0.0, 0.0
+    if not (math.isfinite(w) and math.isfinite(h) and w > 0 and h > 0):
+        w, h = 300.0, 150.0  # the CSS default size of a replaced element
     return max(1, round(w)), max(1, round(h))
 
 
