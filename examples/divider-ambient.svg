@@ -1,9 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="840" height="14" viewBox="0 0 840 14" role="img" aria-labelledby="sf90b0bd-title sf90b0bd-desc" class="sf90b0bd-root">
-<title id="sf90b0bd-title">Divider</title>
-<desc id="sf90b0bd-desc">Decorative animated divider</desc>
-<style>.sf90b0bd-m{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-weight:700;letter-spacing:1.2px}.sf90b0bd-s{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:600}.sf90b0bd-b{font-family:'Segoe UI',Inter,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;font-weight:800}</style>
-<defs><linearGradient id="sf90b0bd-pulse" x1="0" x2="1"><stop offset="0" stop-color="#4696f9" stop-opacity="0"/><stop offset="0.5" stop-color="#4696f9"/><stop offset="1" stop-color="#4696f9" stop-opacity="0"/></linearGradient></defs>
-<line x1="0" y1="7" x2="840" y2="7" stroke="rgba(127,127,127,0.3)" stroke-width="1"/>
-<circle cx="420" cy="7" r="2.5" fill="#4696f9"/>
-<rect x="-220" y="6" width="220" height="2" fill="url(#sf90b0bd-pulse)"><animateTransform attributeName="transform" type="translate" values="0 0;1060 0" keyTimes="0;1" dur="20s" repeatCount="indefinite"/></rect>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="14" aria-labelledby="sf90b0bd-title sf90b0bd-desc" class="sf90b0bd-root" role="img" viewBox="0 0 840 14"><title id="sf90b0bd-title">Divider</title><desc id="sf90b0bd-desc">Decorative animated divider</desc><style/><defs><linearGradient id="sf90b0bd-pulse" x1="0" x2="1"><stop offset="0" stop-color="#4696f9" stop-opacity="0"/><stop offset=".5" stop-color="#4696f9"/><stop offset="1" stop-color="#4696f9" stop-opacity="0"/></linearGradient></defs><line x1="0" x2="840" y1="7" y2="7" stroke="rgba(127,127,127,0.3)" stroke-width="1"/><circle cx="420" cy="7" r="2.5" fill="#4696f9"/><rect width="220" height="2" x="-220" y="6" fill="url(#sf90b0bd-pulse)"><animateTransform attributeName="transform" dur="20s" keyTimes="0;1" repeatCount="indefinite" type="translate" values="0 0;1060 0"/></rect></svg>
