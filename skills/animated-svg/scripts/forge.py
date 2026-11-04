@@ -7239,8 +7239,8 @@ def picture_set(
     """The <picture> for a set of files keyed (theme or None, device).
 
     Desktop sources come first, each with (min-width: breakpoint px) when there is a phone
-    file too, so a wide window takes them before the phone ones; dark before light. The <img> is the
-    phone file (dark when there are two), which also serves viewers without <picture>.
+    file too, so a wide window takes them before the phone ones; dark before light. The <img>
+    is the phone file (dark when there are two), which also serves viewers without <picture>.
     width sets the <img> width attribute (never a height: images in one row that set both
     stack, github/markup#2045); by default it is 100% for a desktop and phone set, else none.
     """
